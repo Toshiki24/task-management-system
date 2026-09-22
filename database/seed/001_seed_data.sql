@@ -2,14 +2,14 @@
 -- ローカル開発用シードデータ
 --
 -- 注意:
---   password_hash はダミー値。
---   実際のログイン確認にはバックエンド側でハッシュを再生成すること。
+--   password_hash はBCryptでハッシュ化した値（元パスワードは全員 "Password123!"）。
+--   ログイン確認用のテストアカウントとして使用する。
 -- ============================================================
 
 INSERT INTO users (name, email, password_hash) VALUES
-    ('管理者ユーザー', 'admin@example.com', '$2a$10$dummyhashadmin000000000000000000000000000000'),
-    ('山田太郎', 'yamada@example.com', '$2a$10$dummyhashyamada00000000000000000000000000000'),
-    ('鈴木花子', 'suzuki@example.com', '$2a$10$dummyhashsuzuki00000000000000000000000000000');
+    ('管理者ユーザー', 'admin@example.com', '$2a$11$9YfX4wmOBh0KZCo.JuRHt.zLaDLC8K/CkoZXwEH01m8hO5MmGOv1q'),
+    ('山田太郎', 'yamada@example.com', '$2a$11$EGmMa.JVXYky/ETA5c5E5ulGojig3GN0pZlEeLDa60VoVSYEsQze6'),
+    ('鈴木花子', 'suzuki@example.com', '$2a$11$T1BO88JdjeDbm42cTK21nO/laYQVUFO8LGYuO0drSCyD15MlAaQXi');
 
 INSERT INTO projects (name, description, status, start_date, end_date) VALUES
     ('社内システムリニューアル', '既存業務システムの刷新プロジェクト', 'ACTIVE', '2026-09-01', '2026-12-31'),
