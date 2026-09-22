@@ -1,15 +1,29 @@
 # Environment
 .env
+.env.local
+.env.*.local
 
 # Node (frontend)
 node_modules/
 .next/
 out/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # .NET (backend)
 bin/
 obj/
 *.user
+*.userosscache
+*.suo
+.vs/
+TestResults/
+
+# IDE
+.idea/
+*.swp
 
 # OS
 .DS_Store
