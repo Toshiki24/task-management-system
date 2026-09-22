@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Header } from "@/components/layout/Header";
+import { Sidebar } from "@/components/layout/Sidebar";
 import { clearSession, getAccessToken, getCurrentUser } from "@/lib/auth";
 import type { CurrentUser } from "@/types/auth";
 
@@ -35,28 +36,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3">
-        <span className="font-bold text-gray-900">案件・タスク管理システム</span>
-        <span className="text-sm text-gray-600">{authState.user?.name} ▼</span>
-      </header>
-
+      <Header userName={authState.user?.name} />
       <div className="flex flex-1">
-        <nav className="w-48 shrink-0 border-r border-gray-200 bg-white p-4">
-          <Link
-            href="/projects"
-            className="block rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
-          >
-            プロジェクト
-          </Link>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="block w-full rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
-          >
-            ログアウト
-          </button>
-        </nav>
-
+        <Sidebar onLogout={handleLogout} />
         <main className="flex-1 bg-gray-50 p-6">{children}</main>
       </div>
     </div>
