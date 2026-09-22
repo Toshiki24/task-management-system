@@ -147,14 +147,25 @@ export default function ProjectDetailPage() {
       <Modal
         isOpen={isDeleteModalOpen}
         title="プロジェクト削除"
-        onConfirm={handleDelete}
-        onCancel={() => setIsDeleteModalOpen(false)}
-        confirmLabel="削除"
-        isDanger
+        onClose={() => setIsDeleteModalOpen(false)}
       >
-        このプロジェクトを削除しますか？
-        <br />
-        プロジェクトに紐付くタスクやコメントも削除されます。
+        <p>
+          このプロジェクトを削除しますか？
+          <br />
+          プロジェクトに紐付くタスクやコメントも削除されます。
+        </p>
+        <div className="mt-6 flex justify-end gap-3">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setIsDeleteModalOpen(false)}
+          >
+            キャンセル
+          </Button>
+          <Button type="button" variant="danger" onClick={handleDelete}>
+            削除
+          </Button>
+        </div>
       </Modal>
     </div>
   );

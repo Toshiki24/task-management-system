@@ -189,12 +189,21 @@ export function ProjectMemberList({ projectId }: ProjectMemberListProps) {
       <Modal
         isOpen={removeTarget !== null}
         title="メンバー削除"
-        onConfirm={handleRemoveConfirmed}
-        onCancel={() => setRemoveTarget(null)}
-        confirmLabel="削除"
-        isDanger
+        onClose={() => setRemoveTarget(null)}
       >
-        {removeTarget?.name} をこのプロジェクトから削除しますか？
+        <p>{removeTarget?.name} をこのプロジェクトから削除しますか？</p>
+        <div className="mt-6 flex justify-end gap-3">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setRemoveTarget(null)}
+          >
+            キャンセル
+          </Button>
+          <Button type="button" variant="danger" onClick={handleRemoveConfirmed}>
+            削除
+          </Button>
+        </div>
       </Modal>
     </div>
   );
