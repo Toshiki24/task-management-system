@@ -38,6 +38,21 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+const string FrontendCorsPolicy = "FrontendCorsPolicy";
+var corsAllowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? Array.Empty<string>();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(FrontendCorsPolicy, policy =>
+    {
+        policy
+            .WithOrigins(corsAllowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options
         .UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
@@ -105,6 +120,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors(FrontendCorsPolicy);
 
 app.UseAuthentication();
 app.UseAuthorization();
