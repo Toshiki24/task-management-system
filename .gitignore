@@ -1,0 +1,16 @@
+# Environment
+.env
+
+# Node (frontend)
+node_modules/
+.next/
+out/
+
+# .NET (backend)
+bin/
+obj/
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
