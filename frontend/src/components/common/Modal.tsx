@@ -1,48 +1,32 @@
 import type { ReactNode } from "react";
-import { Button } from "@/components/common/Button";
 
 interface ModalProps {
   isOpen: boolean;
   title: string;
   children: ReactNode;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  isDanger?: boolean;
+  onClose: () => void;
 }
 
-export function Modal({
-  isOpen,
-  title,
-  children,
-  confirmLabel = "OK",
-  cancelLabel = "キャンセル",
-  onConfirm,
-  onCancel,
-  isDanger = false,
-}: ModalProps) {
+export function Modal({ isOpen, title, children, onClose }: ModalProps) {
   if (!isOpen) {
     return null;
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg">
-        <h2 className="mb-3 text-base font-bold text-gray-900">{title}</h2>
-        <div className="mb-6 text-sm text-gray-700">{children}</div>
-        <div className="flex justify-end gap-3">
-          <Button type="button" variant="secondary" onClick={onCancel}>
-            {cancelLabel}
-          </Button>
-          <Button
+      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-bold text-gray-900">{title}</h2>
+          <button
             type="button"
-            variant={isDanger ? "danger" : "primary"}
-            onClick={onConfirm}
+            onClick={onClose}
+            aria-label="閉じる"
+            className="text-gray-400 hover:text-gray-600"
           >
-            {confirmLabel}
-          </Button>
+            ✕
+          </button>
         </div>
+        <div className="text-sm text-gray-700">{children}</div>
       </div>
     </div>
   );
