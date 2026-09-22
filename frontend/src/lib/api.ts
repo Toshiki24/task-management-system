@@ -1,3 +1,5 @@
+import { clearSession, getAccessToken } from "@/lib/auth";
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5258/api";
 
@@ -18,15 +20,22 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAccessToken();
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      clearSession();
+    }
+
     const body: ApiErrorBody | null = await response.json().catch(() => null);
     throw new ApiError(
       body?.message ?? "エラーが発生しました。",
