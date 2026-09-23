@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import type { Member } from "@/types/member";
 import type { Task } from "@/types/task";
 
@@ -33,7 +34,7 @@ export function TaskDetail({ task, members }: TaskDetailProps) {
         </div>
         <div>
           <dt className="text-gray-500">期限</dt>
-          <dd className="mt-0.5 text-gray-900">{task.dueDate ?? "-"}</dd>
+          <dd className="mt-0.5 text-gray-900">{formatDate(task.dueDate)}</dd>
         </div>
       </div>
       <div>

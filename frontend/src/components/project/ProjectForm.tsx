@@ -5,7 +5,7 @@ import { Button } from "@/components/common/Button";
 import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Input } from "@/components/common/Input";
 import { Select } from "@/components/common/Select";
-import { ApiError } from "@/lib/api";
+import { formatApiErrorMessage } from "@/lib/api";
 import type { ProjectRequestBody, ProjectStatus } from "@/types/project";
 
 const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
@@ -44,9 +44,15 @@ export function ProjectForm({
 
     setIsSubmitting(true);
     try {
-      await onSubmit(form);
+      // 日付・説明は空文字列だとDateOnly?への変換に失敗するため、未入力ならnullを送る
+      await onSubmit({
+        ...form,
+        description: form.description || null,
+        startDate: form.startDate || null,
+        endDate: form.endDate || null,
+      });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "処理に失敗しました。");
+      setError(formatApiErrorMessage(err, "処理に失敗しました。"));
     } finally {
       setIsSubmitting(false);
     }

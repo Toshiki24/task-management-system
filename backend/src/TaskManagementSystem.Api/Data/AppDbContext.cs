@@ -193,4 +193,25 @@ public class AppDbContext : DbContext
             property.SetColumnType("timestamp without time zone");
         }
     }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        // UpdatedAtを持つEntityが変更された場合、呼び出し側での指定漏れを防ぐため自動的に現在時刻を設定する
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State != EntityState.Modified)
+            {
+                continue;
+            }
+
+            var updatedAtProperty = entry.Properties
+                .FirstOrDefault(p => p.Metadata.Name == nameof(Project.UpdatedAt));
+            if (updatedAtProperty is not null)
+            {
+                updatedAtProperty.CurrentValue = DateTime.UtcNow;
+            }
+        }
+
+        return base.SaveChangesAsync(cancellationToken);
+    }
 }

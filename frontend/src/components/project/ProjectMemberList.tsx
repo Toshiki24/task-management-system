@@ -6,7 +6,7 @@ import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
 import { Modal } from "@/components/common/Modal";
 import { Select } from "@/components/common/Select";
-import { ApiError, apiFetch } from "@/lib/api";
+import { apiFetch, formatApiErrorMessage } from "@/lib/api";
 import type {
   AddMemberRequestBody,
   Member,
@@ -33,6 +33,8 @@ export function ProjectMemberList({ projectId }: ProjectMemberListProps) {
   const [newRole, setNewRole] = useState<ProjectMemberRole>("MEMBER");
 
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
+  const [isAddSubmitting, setIsAddSubmitting] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   useEffect(() => {
     apiFetch<Member[]>(`/projects/${projectId}/members`)
@@ -61,6 +63,7 @@ export function ProjectMemberList({ projectId }: ProjectMemberListProps) {
       return;
     }
 
+    setIsAddSubmitting(true);
     try {
       const body: AddMemberRequestBody = {
         userId: Number(newUserId),
@@ -76,15 +79,16 @@ export function ProjectMemberList({ projectId }: ProjectMemberListProps) {
       setNewUserId("");
       setNewRole("MEMBER");
     } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : "メンバーの追加に失敗しました。",
-      );
+      setError(formatApiErrorMessage(err, "メンバーの追加に失敗しました。"));
+    } finally {
+      setIsAddSubmitting(false);
     }
   }
 
   async function handleRemoveConfirmed() {
     if (!removeTarget) return;
 
+    setIsRemoving(true);
     try {
       await apiFetch<void>(
         `/projects/${projectId}/members/${removeTarget.userId}`,
@@ -95,9 +99,10 @@ export function ProjectMemberList({ projectId }: ProjectMemberListProps) {
           current?.filter((member) => member.userId !== removeTarget.userId) ??
           null,
       );
-    } catch {
-      setError("メンバーの削除に失敗しました。");
+    } catch (err) {
+      setError(formatApiErrorMessage(err, "メンバーの削除に失敗しました。"));
     } finally {
+      setIsRemoving(false);
       setRemoveTarget(null);
     }
   }
@@ -122,7 +127,9 @@ export function ProjectMemberList({ projectId }: ProjectMemberListProps) {
             >
               <span className="text-gray-900">
                 {member.name}{" "}
-                <span className="text-gray-500">({member.role})</span>
+                <span className="text-gray-500">
+                  ({member.email} / {member.role})
+                </span>
               </span>
               <button
                 type="button"
@@ -177,11 +184,12 @@ export function ProjectMemberList({ projectId }: ProjectMemberListProps) {
             type="button"
             variant="secondary"
             onClick={() => setIsAdding(false)}
+            disabled={isAddSubmitting}
           >
             キャンセル
           </Button>
-          <Button type="submit" variant="primary">
-            追加
+          <Button type="submit" variant="primary" disabled={isAddSubmitting}>
+            {isAddSubmitting ? "追加中..." : "追加"}
           </Button>
         </form>
       )}
@@ -197,11 +205,17 @@ export function ProjectMemberList({ projectId }: ProjectMemberListProps) {
             type="button"
             variant="secondary"
             onClick={() => setRemoveTarget(null)}
+            disabled={isRemoving}
           >
             キャンセル
           </Button>
-          <Button type="button" variant="danger" onClick={handleRemoveConfirmed}>
-            削除
+          <Button
+            type="button"
+            variant="danger"
+            onClick={handleRemoveConfirmed}
+            disabled={isRemoving}
+          >
+            {isRemoving ? "削除中..." : "削除"}
           </Button>
         </div>
       </Modal>

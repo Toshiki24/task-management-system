@@ -85,6 +85,18 @@ builder.Services
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtSection["Key"] ?? string.Empty)),
         };
+
+        // 未認証・トークン期限切れ時も既定の空ボディではなく共通エラー形式を返す
+        options.Events = new JwtBearerEvents
+        {
+            OnChallenge = async context =>
+            {
+                context.HandleResponse();
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsJsonAsync(new ErrorResponse("認証が必要です。"));
+            },
+        };
     });
 
 // ログインAPIを除き、原則として全APIを認証必須とする
@@ -101,9 +113,17 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     options.InvalidModelStateResponseFactory = context =>
     {
         var errors = context.ModelState
-            .Where(kvp => kvp.Value?.Errors.Count > 0)
+            // "request"はボディ全体を表すASP.NET Core内部の疑似キーであり、
+            // 実際のフィールド名ではないため除外する(個別フィールドのエラーは別途含まれる)
+            .Where(kvp => kvp.Value?.Errors.Count > 0 && kvp.Key != "request")
             .SelectMany(kvp => kvp.Value!.Errors.Select(e =>
-                new ValidationErrorItem(ToCamelCase(kvp.Key), e.ErrorMessage)))
+                new ValidationErrorItem(
+                    ToCamelCase(NormalizeFieldName(kvp.Key)),
+                    // JSONパスキー($, $.startDate等)や例外由来のエラーは、.NETの内部例外メッセージ
+                    // (型名等を含む)をそのまま返さず、汎用的な日本語メッセージに置き換える(内部情報の非公開)
+                    kvp.Key.StartsWith("$", StringComparison.Ordinal) || e.Exception is not null
+                        ? "入力値の形式が正しくありません。"
+                        : e.ErrorMessage)))
             .ToList();
 
         var response = new ValidationErrorResponse("入力内容に誤りがあります。", errors);
@@ -112,6 +132,17 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 });
 
 var app = builder.Build();
+
+// 未処理例外はスタックトレース等の内部情報を返さず、共通エラー形式に変換する(API仕様書§32.3)
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        context.Response.ContentType = "application/json";
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        await context.Response.WriteAsJsonAsync(new ErrorResponse("サーバー内部でエラーが発生しました。"));
+    });
+});
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -133,3 +164,16 @@ app.Run();
 
 static string ToCamelCase(string value) =>
     string.IsNullOrEmpty(value) ? value : char.ToLowerInvariant(value[0]) + value[1..];
+
+// JSONデシリアライズ失敗時、ModelStateのキーは"$.startDate"のようなJSONパス形式になるため、
+// 先頭の"$."を取り除いてプロパティ名だけにする
+static string NormalizeFieldName(string key)
+{
+    if (key.StartsWith("$.", StringComparison.Ordinal))
+    {
+        return key[2..];
+    }
+
+    // ボディ全体が不正なJSONの場合、キーはルートを表す"$"のみになる
+    return key == "$" ? "body" : key;
+}

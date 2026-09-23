@@ -9,7 +9,7 @@ import { Modal } from "@/components/common/Modal";
 import { CommentList } from "@/components/task/CommentList";
 import { TaskDetail } from "@/components/task/TaskDetail";
 import { TaskForm } from "@/components/task/TaskForm";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, formatApiErrorMessage } from "@/lib/api";
 import type { Member } from "@/types/member";
 import type { Task } from "@/types/task";
 
@@ -24,6 +24,7 @@ export default function TaskDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     apiFetch<Task>(`/tasks/${taskId}`)
@@ -41,12 +42,14 @@ export default function TaskDetailPage() {
   }, [task]);
 
   async function handleDelete() {
+    setIsDeleting(true);
     try {
       await apiFetch<void>(`/tasks/${taskId}`, { method: "DELETE" });
       router.push(task ? `/projects/${task.projectId}/tasks` : "/projects");
-    } catch {
-      setDeleteError("タスクの削除に失敗しました。");
+    } catch (err) {
+      setDeleteError(formatApiErrorMessage(err, "タスクの削除に失敗しました。"));
       setIsDeleteModalOpen(false);
+      setIsDeleting(false);
     }
   }
 
@@ -133,11 +136,17 @@ export default function TaskDetailPage() {
             type="button"
             variant="secondary"
             onClick={() => setIsDeleteModalOpen(false)}
+            disabled={isDeleting}
           >
             キャンセル
           </Button>
-          <Button type="button" variant="danger" onClick={handleDelete}>
-            削除
+          <Button
+            type="button"
+            variant="danger"
+            onClick={handleDelete}
+            disabled={isDeleting}
+          >
+            {isDeleting ? "削除中..." : "削除"}
           </Button>
         </div>
       </Modal>

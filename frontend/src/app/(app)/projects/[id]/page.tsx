@@ -9,7 +9,8 @@ import { Loading } from "@/components/common/Loading";
 import { Modal } from "@/components/common/Modal";
 import { ProjectForm } from "@/components/project/ProjectForm";
 import { ProjectMemberList } from "@/components/project/ProjectMemberList";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, formatApiErrorMessage } from "@/lib/api";
+import { formatDate } from "@/lib/format";
 import type { Project } from "@/types/project";
 
 export default function ProjectDetailPage() {
@@ -22,6 +23,7 @@ export default function ProjectDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     apiFetch<Project>(`/projects/${projectId}`)
@@ -30,12 +32,14 @@ export default function ProjectDetailPage() {
   }, [projectId]);
 
   async function handleDelete() {
+    setIsDeleting(true);
     try {
       await apiFetch<void>(`/projects/${projectId}`, { method: "DELETE" });
       router.push("/projects");
-    } catch {
-      setDeleteError("プロジェクトの削除に失敗しました。");
+    } catch (err) {
+      setDeleteError(formatApiErrorMessage(err, "プロジェクトの削除に失敗しました。"));
       setIsDeleteModalOpen(false);
+      setIsDeleting(false);
     }
   }
 
@@ -94,12 +98,14 @@ export default function ProjectDetailPage() {
               <div>
                 <dt className="text-gray-500">開始日</dt>
                 <dd className="mt-0.5 text-gray-900">
-                  {project.startDate ?? "-"}
+                  {formatDate(project.startDate)}
                 </dd>
               </div>
               <div>
                 <dt className="text-gray-500">終了日</dt>
-                <dd className="mt-0.5 text-gray-900">{project.endDate ?? "-"}</dd>
+                <dd className="mt-0.5 text-gray-900">
+                  {formatDate(project.endDate)}
+                </dd>
               </div>
             </div>
           </dl>
@@ -159,11 +165,17 @@ export default function ProjectDetailPage() {
             type="button"
             variant="secondary"
             onClick={() => setIsDeleteModalOpen(false)}
+            disabled={isDeleting}
           >
             キャンセル
           </Button>
-          <Button type="button" variant="danger" onClick={handleDelete}>
-            削除
+          <Button
+            type="button"
+            variant="danger"
+            onClick={handleDelete}
+            disabled={isDeleting}
+          >
+            {isDeleting ? "削除中..." : "削除"}
           </Button>
         </div>
       </Modal>
