@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch, ApiError } from "@/lib/api";
+import { apiFetch, formatApiErrorMessage } from "@/lib/api";
 import { saveSession } from "@/lib/auth";
 import type { LoginRequest, LoginResponse } from "@/types/auth";
 
@@ -29,9 +29,10 @@ export default function LoginPage() {
       router.push("/projects");
     } catch (err) {
       setError(
-        err instanceof ApiError
-          ? err.message
-          : "ログインに失敗しました。時間をおいて再度お試しください。",
+        formatApiErrorMessage(
+          err,
+          "ログインに失敗しました。時間をおいて再度お試しください。",
+        ),
       );
     } finally {
       setIsSubmitting(false);

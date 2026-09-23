@@ -4,14 +4,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/common/Button";
 import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
-import { ApiError, apiFetch } from "@/lib/api";
+import { apiFetch, formatApiErrorMessage } from "@/lib/api";
+import { formatDateTime } from "@/lib/format";
 import type { Comment, CommentRequestBody } from "@/types/comment";
-
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
 
 interface CommentListProps {
   taskId: string | number;
@@ -50,9 +45,7 @@ export function CommentList({ taskId }: CommentListProps) {
       setComments(await apiFetch<Comment[]>(`/tasks/${taskId}/comments`));
       setNewComment("");
     } catch (err) {
-      setPostError(
-        err instanceof ApiError ? err.message : "コメントの投稿に失敗しました。",
-      );
+      setPostError(formatApiErrorMessage(err, "コメントの投稿に失敗しました。"));
     } finally {
       setIsPosting(false);
     }
@@ -82,7 +75,7 @@ export function CommentList({ taskId }: CommentListProps) {
       )}
 
       {comments && comments.length === 0 && (
-        <p className="mb-4 text-sm text-gray-500">コメントがありません。</p>
+        <p className="mb-4 text-sm text-gray-500">コメントはまだありません。</p>
       )}
 
       <form onSubmit={handlePost} className="space-y-2">

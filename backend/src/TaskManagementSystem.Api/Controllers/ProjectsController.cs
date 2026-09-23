@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TaskManagementSystem.Api.Dtos.Common;
 using TaskManagementSystem.Api.Dtos.Projects;
+using TaskManagementSystem.Api.Extensions;
 using TaskManagementSystem.Api.Services;
 
 namespace TaskManagementSystem.Api.Controllers;
@@ -37,7 +38,7 @@ public class ProjectsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ProjectDto>> Create(ProjectRequest request)
     {
-        var created = await _projectService.CreateAsync(request);
+        var created = await _projectService.CreateAsync(request, this.GetCurrentUserId());
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 

@@ -1,8 +1,7 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using TaskManagementSystem.Api.Dtos.Comments;
 using TaskManagementSystem.Api.Dtos.Common;
+using TaskManagementSystem.Api.Extensions;
 using TaskManagementSystem.Api.Services;
 
 namespace TaskManagementSystem.Api.Controllers;
@@ -33,7 +32,7 @@ public class TaskCommentsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<CommentCreatedDto>> Create(long taskId, CommentRequest request)
     {
-        var userId = long.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
+        var userId = this.GetCurrentUserId();
 
         var created = await _commentService.CreateAsync(taskId, userId, request);
         if (created is null)

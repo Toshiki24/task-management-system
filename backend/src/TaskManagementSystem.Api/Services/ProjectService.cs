@@ -29,7 +29,7 @@ public class ProjectService : IProjectService
         return project is null ? null : ToDto(project);
     }
 
-    public async Task<ProjectDto> CreateAsync(ProjectRequest request)
+    public async Task<ProjectDto> CreateAsync(ProjectRequest request, long creatorUserId)
     {
         var project = new Project
         {
@@ -44,8 +44,22 @@ public class ProjectService : IProjectService
             project.Status = request.Status;
         }
 
+        // プロジェクト作成とOWNERとしてのメンバー登録は、
+        // 一方だけ成功する状態を防ぐため同一トランザクションで行う(基本設計書§30)
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+
         _dbContext.Projects.Add(project);
         await _dbContext.SaveChangesAsync();
+
+        _dbContext.ProjectMembers.Add(new ProjectMember
+        {
+            ProjectId = project.Id,
+            UserId = creatorUserId,
+            Role = ProjectMemberRole.Owner,
+        });
+        await _dbContext.SaveChangesAsync();
+
+        await transaction.CommitAsync();
 
         return ToDto(project);
     }
@@ -63,6 +77,9 @@ public class ProjectService : IProjectService
         project.StartDate = request.StartDate;
         project.EndDate = request.EndDate;
 
+        // status/priorityのようなNOT NULL制約付きのenum列は、
+        // 未指定(null)の場合に空にできないため既存値を維持する。
+        // 一方description/日付列はNULL許容なので、未指定はnullとして上書きする(PUTの完全上書きセマンティクス)。
         if (request.Status is not null)
         {
             project.Status = request.Status;

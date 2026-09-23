@@ -5,7 +5,7 @@ import { Button } from "@/components/common/Button";
 import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Input } from "@/components/common/Input";
 import { Select } from "@/components/common/Select";
-import { ApiError, apiFetch } from "@/lib/api";
+import { apiFetch, formatApiErrorMessage } from "@/lib/api";
 import type { Member } from "@/types/member";
 import type { TaskPriority, TaskRequestBody, TaskStatus } from "@/types/task";
 
@@ -61,7 +61,7 @@ export function TaskForm({
         dueDate: form.dueDate || null,
       });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "処理に失敗しました。");
+      setError(formatApiErrorMessage(err, "処理に失敗しました。"));
     } finally {
       setIsSubmitting(false);
     }

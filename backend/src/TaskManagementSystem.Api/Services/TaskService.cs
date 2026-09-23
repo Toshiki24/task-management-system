@@ -94,6 +94,9 @@ public class TaskService : ITaskService
         task.Description = request.Description;
         task.DueDate = request.DueDate;
 
+        // status/priorityのようなNOT NULL制約付きのenum列は、
+        // 未指定(null)の場合に空にできないため既存値を維持する。
+        // 一方assigneeId/description/dueDateはNULL許容なので、未指定はnullとして上書きする(PUTの完全上書きセマンティクス)。
         if (request.Status is not null)
         {
             task.Status = request.Status;

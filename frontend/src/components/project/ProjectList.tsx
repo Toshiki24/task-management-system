@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { formatDate } from "@/lib/format";
 import type { Project } from "@/types/project";
 
 interface ProjectListProps {
@@ -11,7 +13,17 @@ export function ProjectList({ projects }: ProjectListProps) {
   const router = useRouter();
 
   if (projects.length === 0) {
-    return <p className="text-sm text-gray-500">プロジェクトがありません。</p>;
+    return (
+      <div className="text-sm text-gray-500">
+        <p className="mb-2">プロジェクトがありません。</p>
+        <Link
+          href="/projects/new"
+          className="font-semibold text-blue-600 hover:underline"
+        >
+          プロジェクトを作成
+        </Link>
+      </div>
+    );
   }
 
   return (
@@ -19,8 +31,10 @@ export function ProjectList({ projects }: ProjectListProps) {
       <thead>
         <tr className="border-b border-gray-200 text-left text-gray-500">
           <th className="px-4 py-2 font-medium">プロジェクト名</th>
+          <th className="px-4 py-2 font-medium">説明</th>
           <th className="px-4 py-2 font-medium">ステータス</th>
           <th className="px-4 py-2 font-medium">開始日</th>
+          <th className="px-4 py-2 font-medium">終了日</th>
         </tr>
       </thead>
       <tbody>
@@ -31,9 +45,15 @@ export function ProjectList({ projects }: ProjectListProps) {
             className="cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50"
           >
             <td className="px-4 py-3 text-gray-900">{project.name}</td>
+            <td className="max-w-xs truncate px-4 py-3 text-gray-600">
+              {project.description ?? "-"}
+            </td>
             <td className="px-4 py-3 text-gray-600">{project.status}</td>
             <td className="px-4 py-3 text-gray-600">
-              {project.startDate ?? "-"}
+              {formatDate(project.startDate)}
+            </td>
+            <td className="px-4 py-3 text-gray-600">
+              {formatDate(project.endDate)}
             </td>
           </tr>
         ))}

@@ -62,7 +62,13 @@ export default function ProjectTasksPage() {
 
       {error && <ErrorMessage message={error} />}
       {!error && tasks === null && <Loading />}
-      {tasks && <TaskList tasks={tasks} members={members} />}
+      {tasks && (
+        <TaskList
+          tasks={tasks}
+          members={members}
+          onAddClick={() => setIsModalOpen(true)}
+        />
+      )}
 
       <Modal
         isOpen={isModalOpen}
