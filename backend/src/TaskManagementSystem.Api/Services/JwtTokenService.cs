@@ -29,7 +29,8 @@ public class JwtTokenService : IJwtTokenService
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new Claim(ClaimTypes.Name, user.Name),
+            // ClaimTypes.NameはURI形式のクレーム名のまま出力されるため、JWT標準の "name" を使う
+            new Claim(JwtRegisteredClaimNames.Name, user.Name),
         };
 
         var signingCredentials = new SigningCredentials(

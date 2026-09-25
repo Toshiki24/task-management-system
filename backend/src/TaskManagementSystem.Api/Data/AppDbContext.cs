@@ -208,7 +208,9 @@ public class AppDbContext : DbContext
                 .FirstOrDefault(p => p.Metadata.Name == nameof(Project.UpdatedAt));
             if (updatedAtProperty is not null)
             {
-                updatedAtProperty.CurrentValue = DateTime.UtcNow;
+                // 列は timestamp without time zone のため、Kind=Utcのままだと Npgsql が書き込みを拒否する。
+                // 値はUTCのまま、Kindだけを Unspecified にして保存する(created_at のDB既定値もUTC)
+                updatedAtProperty.CurrentValue = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified);
             }
         }
 
