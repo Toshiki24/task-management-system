@@ -9,7 +9,7 @@ import { Modal } from "@/components/common/Modal";
 import { CommentList } from "@/components/task/CommentList";
 import { TaskDetail } from "@/components/task/TaskDetail";
 import { TaskForm } from "@/components/task/TaskForm";
-import { apiFetch, formatApiErrorMessage } from "@/lib/api";
+import { ApiError, apiFetch, formatApiErrorMessage } from "@/lib/api";
 import type { Member } from "@/types/member";
 import type { Task } from "@/types/task";
 
@@ -29,7 +29,14 @@ export default function TaskDetailPage() {
   useEffect(() => {
     apiFetch<Task>(`/tasks/${taskId}`)
       .then(setTask)
-      .catch(() => setLoadError("タスク情報の取得に失敗しました。"));
+      .catch((err) =>
+        // 削除済みなどタスクが存在しない場合は、APIの404メッセージをそのまま表示する
+        setLoadError(
+          err instanceof ApiError && err.status === 404
+            ? err.message
+            : "タスク情報の取得に失敗しました。",
+        ),
+      );
   }, [taskId]);
 
   useEffect(() => {

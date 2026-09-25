@@ -5,7 +5,7 @@
 | 項目     | 内容                                   |
 | ------ | ------------------------------------ |
 | 文書名    | 案件・タスク管理システム テスト項目書                 |
-| バージョン  | 1.1                                  |
+| バージョン  | 1.2                                  |
 | 作成日    | 2026-09-23                           |
 | 更新日    | 2026-09-26                           |
 | 対象システム | 案件・タスク管理システム                         |
@@ -17,6 +17,7 @@
 | --- | --- | --- |
 | 1.0 | 2026-09-23 | 初版作成 |
 | 1.1 | 2026-09-26 | 1回目のテスト結果を記録。2回目（再テスト）の記録欄を追加。自動テストの実装先を追記 |
+| 1.2 | 2026-09-26 | 1回目NG項目の修正内容と、2回目（再テスト）の結果を記録 |
 
 ---
 
@@ -55,7 +56,7 @@
 | 回 | 実施日 | 実施方法 | 対象ソース | 結果 |
 | --- | --- | --- | --- | --- |
 | 1回目 | 2026-09-26 | 自動テスト（`backend` で `dotnet test`、`e2e` で `npm test`） | `main`（`051c563`） | 159項目中 OK 146 / NG 13 |
-| 2回目 |  |  |  |  |
+| 2回目 | 2026-09-26 | 自動テスト（`backend` で `dotnet test`、`e2e` で `npm test`）。全159項目を再実行 | `fix/test-ng-items`（`0aba1af`） | 159項目中 OK 159 / NG 0 |
 
 自動テストは開発用DB（`task_management`）を使用しない。単体テストはテストクラスごとの使い捨てDB、E2Eテスト（API・結合・画面・システム）は実行ごとに作り直す `task_management_e2e` を使用し、アプリはテスト専用ポート（API: 5100、フロントエンド: 3100）で起動する。
 
@@ -69,75 +70,75 @@ Service層の個別ロジック（バリデーション・業務ルール）を�
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| UT-101 | 正しいメール・パスワードでログイン成功 | `LoginAsync`に登録済みメール＋正しいパスワードを渡す | アクセストークンとユーザー情報を含む`LoginResponse`が返る | OK |  |  |  |  |
-| UT-102 | 存在しないメールでログイン失敗 | 未登録メールを渡す | `null`が返る（401用） | OK |  |  |  |  |
-| UT-103 | パスワード不一致でログイン失敗 | 登録済みメール＋誤ったパスワードを渡す | `null`が返る（存在しないメールと同一の挙動） | OK |  |  |  |  |
-| UT-104 | パスワードがBCryptで検証される | ハッシュ化されたパスワードに対し平文パスワードで照合する | `BCrypt.Verify`が正しく真偽を返す | OK |  |  |  |  |
+| UT-101 | 正しいメール・パスワードでログイン成功 | `LoginAsync`に登録済みメール＋正しいパスワードを渡す | アクセストークンとユーザー情報を含む`LoginResponse`が返る | OK |  |  | OK |  |
+| UT-102 | 存在しないメールでログイン失敗 | 未登録メールを渡す | `null`が返る（401用） | OK |  |  | OK |  |
+| UT-103 | パスワード不一致でログイン失敗 | 登録済みメール＋誤ったパスワードを渡す | `null`が返る（存在しないメールと同一の挙動） | OK |  |  | OK |  |
+| UT-104 | パスワードがBCryptで検証される | ハッシュ化されたパスワードに対し平文パスワードで照合する | `BCrypt.Verify`が正しく真偽を返す | OK |  |  | OK |  |
 
 ### 4.2 UserService
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| UT-201 | ユーザー一覧取得 | `GetAllAsync`を実行 | 全ユーザーが`id`昇順で返る（`passwordHash`を含まない） | OK |  |  |  |  |
-| UT-202 | ユーザー詳細取得（存在する） | 存在するIDで`GetByIdAsync`を実行 | 該当ユーザーが返る | OK |  |  |  |  |
-| UT-203 | ユーザー詳細取得（存在しない） | 存在しないIDで`GetByIdAsync`を実行 | `null`が返る | OK |  |  |  |  |
+| UT-201 | ユーザー一覧取得 | `GetAllAsync`を実行 | 全ユーザーが`id`昇順で返る（`passwordHash`を含まない） | OK |  |  | OK |  |
+| UT-202 | ユーザー詳細取得（存在する） | 存在するIDで`GetByIdAsync`を実行 | 該当ユーザーが返る | OK |  |  | OK |  |
+| UT-203 | ユーザー詳細取得（存在しない） | 存在しないIDで`GetByIdAsync`を実行 | `null`が返る | OK |  |  | OK |  |
 
 ### 4.3 ProjectService
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| UT-301 | プロジェクト作成で作成者がOWNER登録される | `CreateAsync`を実行後、`project_members`を確認 | 作成者が`role=OWNER`で登録されている | OK |  |  |  |  |
-| UT-302 | プロジェクト作成とメンバー登録がトランザクションになっている | メンバー登録側で例外を強制発生させる（テスト用改造 or コードレビュー） | プロジェクト本体もロールバックされ、DBに残らない | OK |  |  |  |  |
-| UT-303 | status省略時はACTIVEになる | `Status=null`で`CreateAsync`を実行 | 作成されたプロジェクトの`Status`が`ACTIVE` | OK |  |  |  |  |
-| UT-304 | 更新時、name/description/startDate/endDateが上書きされる | 既存プロジェクトに対し新しい値で`UpdateAsync` | 全項目が新しい値に置き換わる | NG | `DbUpdateException`（Cannot write DateTime with Kind=UTC to PostgreSQL type 'timestamp without time zone'）が発生し、更新が保存されない | 対応中（原因: `AppDbContext.SaveChangesAsync` が `updated_at` に `DateTime.UtcNow`（Kind=Utc）を設定しており、Npgsqlが `timestamp without time zone` 列への書き込みを拒否するため） |  |  |
-| UT-305 | 更新時、status省略で既存値が維持される | `Status=null`で`UpdateAsync` | 既存の`Status`が変化しない | NG | `DbUpdateException`（Cannot write DateTime with Kind=UTC to PostgreSQL type 'timestamp without time zone'）が発生し、更新が保存されない | 対応中（原因: `AppDbContext.SaveChangesAsync` が `updated_at` に `DateTime.UtcNow`（Kind=Utc）を設定しており、Npgsqlが `timestamp without time zone` 列への書き込みを拒否するため） |  |  |
-| UT-306 | 存在しないIDの更新 | 存在しないIDで`UpdateAsync` | `null`が返る | OK |  |  |  |  |
-| UT-307 | 存在しないIDの削除 | 存在しないIDで`DeleteAsync` | `false`が返る | OK |  |  |  |  |
-| UT-308 | 更新時にupdated_atが現在時刻に更新される | `UpdateAsync`実行前後で`updated_at`を比較 | 更新後の値が実行時刻に更新されている | NG | `DbUpdateException`（Cannot write DateTime with Kind=UTC to PostgreSQL type 'timestamp without time zone'）が発生し、更新が保存されない（`updated_at` を確認できない） | 対応中（原因: `AppDbContext.SaveChangesAsync` が `updated_at` に `DateTime.UtcNow`（Kind=Utc）を設定しており、Npgsqlが `timestamp without time zone` 列への書き込みを拒否するため） |  |  |
+| UT-301 | プロジェクト作成で作成者がOWNER登録される | `CreateAsync`を実行後、`project_members`を確認 | 作成者が`role=OWNER`で登録されている | OK |  |  | OK |  |
+| UT-302 | プロジェクト作成とメンバー登録がトランザクションになっている | メンバー登録側で例外を強制発生させる（テスト用改造 or コードレビュー） | プロジェクト本体もロールバックされ、DBに残らない | OK |  |  | OK |  |
+| UT-303 | status省略時はACTIVEになる | `Status=null`で`CreateAsync`を実行 | 作成されたプロジェクトの`Status`が`ACTIVE` | OK |  |  | OK |  |
+| UT-304 | 更新時、name/description/startDate/endDateが上書きされる | 既存プロジェクトに対し新しい値で`UpdateAsync` | 全項目が新しい値に置き換わる | NG | `DbUpdateException`（Cannot write DateTime with Kind=UTC to PostgreSQL type 'timestamp without time zone'）が発生し、更新が保存されない | 原因: `AppDbContext.SaveChangesAsync` が `updated_at` に `DateTime.UtcNow`（Kind=Utc）を設定しており、Npgsqlが `timestamp without time zone` 列への書き込みを拒否していた。修正: Kindを `Unspecified` にして設定するよう変更（値はUTCのまま） | OK |  |
+| UT-305 | 更新時、status省略で既存値が維持される | `Status=null`で`UpdateAsync` | 既存の`Status`が変化しない | NG | `DbUpdateException`（Cannot write DateTime with Kind=UTC to PostgreSQL type 'timestamp without time zone'）が発生し、更新が保存されない | 原因: `AppDbContext.SaveChangesAsync` が `updated_at` に `DateTime.UtcNow`（Kind=Utc）を設定しており、Npgsqlが `timestamp without time zone` 列への書き込みを拒否していた。修正: Kindを `Unspecified` にして設定するよう変更（値はUTCのまま） | OK |  |
+| UT-306 | 存在しないIDの更新 | 存在しないIDで`UpdateAsync` | `null`が返る | OK |  |  | OK |  |
+| UT-307 | 存在しないIDの削除 | 存在しないIDで`DeleteAsync` | `false`が返る | OK |  |  | OK |  |
+| UT-308 | 更新時にupdated_atが現在時刻に更新される | `UpdateAsync`実行前後で`updated_at`を比較 | 更新後の値が実行時刻に更新されている | NG | `DbUpdateException`（Cannot write DateTime with Kind=UTC to PostgreSQL type 'timestamp without time zone'）が発生し、更新が保存されない（`updated_at` を確認できない） | 原因: `AppDbContext.SaveChangesAsync` が `updated_at` に `DateTime.UtcNow`（Kind=Utc）を設定しており、Npgsqlが `timestamp without time zone` 列への書き込みを拒否していた。修正: Kindを `Unspecified` にして設定するよう変更（値はUTCのまま） | OK |  |
 
 ### 4.4 ProjectMemberService
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| UT-401 | 存在しないプロジェクトのメンバー一覧取得 | 存在しないprojectIdで`GetMembersAsync` | `null`が返る | OK |  |  |  |  |
-| UT-402 | メンバー追加成功 | 未所属ユーザーを`AddMemberAsync`で追加 | `AddMemberResult.Success`と登録内容が返る | OK |  |  |  |  |
-| UT-403 | 存在しないプロジェクトへのメンバー追加 | 存在しないprojectIdで`AddMemberAsync` | `AddMemberResult.ProjectNotFound`が返る | OK |  |  |  |  |
-| UT-404 | 存在しないユーザーの追加 | 存在しないuserIdで`AddMemberAsync` | `AddMemberResult.UserNotFound`が返る | OK |  |  |  |  |
-| UT-405 | 重複メンバー追加 | 既に所属しているユーザーを`AddMemberAsync` | `AddMemberResult.AlreadyMember`が返る | OK |  |  |  |  |
-| UT-406 | メンバー削除成功 | 所属しているユーザーを`RemoveMemberAsync` | `RemoveMemberResult.Success`が返り、行が削除される | OK |  |  |  |  |
-| UT-407 | 存在しないメンバーの削除 | 未所属ユーザーを`RemoveMemberAsync` | `RemoveMemberResult.MemberNotFound`が返る | OK |  |  |  |  |
+| UT-401 | 存在しないプロジェクトのメンバー一覧取得 | 存在しないprojectIdで`GetMembersAsync` | `null`が返る | OK |  |  | OK |  |
+| UT-402 | メンバー追加成功 | 未所属ユーザーを`AddMemberAsync`で追加 | `AddMemberResult.Success`と登録内容が返る | OK |  |  | OK |  |
+| UT-403 | 存在しないプロジェクトへのメンバー追加 | 存在しないprojectIdで`AddMemberAsync` | `AddMemberResult.ProjectNotFound`が返る | OK |  |  | OK |  |
+| UT-404 | 存在しないユーザーの追加 | 存在しないuserIdで`AddMemberAsync` | `AddMemberResult.UserNotFound`が返る | OK |  |  | OK |  |
+| UT-405 | 重複メンバー追加 | 既に所属しているユーザーを`AddMemberAsync` | `AddMemberResult.AlreadyMember`が返る | OK |  |  | OK |  |
+| UT-406 | メンバー削除成功 | 所属しているユーザーを`RemoveMemberAsync` | `RemoveMemberResult.Success`が返り、行が削除される | OK |  |  | OK |  |
+| UT-407 | 存在しないメンバーの削除 | 未所属ユーザーを`RemoveMemberAsync` | `RemoveMemberResult.MemberNotFound`が返る | OK |  |  | OK |  |
 
 ### 4.5 TaskService
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| UT-501 | 存在しないプロジェクトのタスク一覧取得 | 存在しないprojectIdで`GetByProjectAsync` | `null`が返る | OK |  |  |  |  |
-| UT-502 | タスク作成成功 | 有効なprojectIdで`CreateAsync` | `CreateTaskResult.Success`とタスク情報が返る | OK |  |  |  |  |
-| UT-503 | 存在しないプロジェクトへのタスク作成 | 存在しないprojectIdで`CreateAsync` | `CreateTaskResult.ProjectNotFound`が返る | OK |  |  |  |  |
-| UT-504 | 存在しない担当者を指定したタスク作成 | 存在しないassigneeIdで`CreateAsync` | `CreateTaskResult.AssigneeNotFound`が返る | OK |  |  |  |  |
-| UT-505 | assigneeId未指定でのタスク作成 | `AssigneeId=null`で`CreateAsync` | 担当者チェックがスキップされ作成成功する | OK |  |  |  |  |
-| UT-506 | status/priority省略時の初期値 | 省略して`CreateAsync` | `TODO` / `MEDIUM`が設定される | OK |  |  |  |  |
-| UT-507 | タスク更新成功 | 既存タスクを`UpdateAsync` | `UpdateTaskResult.Success`と更新後の内容が返る | NG | `DbUpdateException`（Cannot write DateTime with Kind=UTC to PostgreSQL type 'timestamp without time zone'）が発生し、更新が保存されない | 対応中（原因: `AppDbContext.SaveChangesAsync` が `updated_at` に `DateTime.UtcNow`（Kind=Utc）を設定しており、Npgsqlが `timestamp without time zone` 列への書き込みを拒否するため） |  |  |
-| UT-508 | 存在しないタスクの更新 | 存在しないIDで`UpdateAsync` | `UpdateTaskResult.TaskNotFound`が返る | OK |  |  |  |  |
-| UT-509 | 存在しない担当者への更新 | 存在しないassigneeIdで`UpdateAsync` | `UpdateTaskResult.AssigneeNotFound`が返る | OK |  |  |  |  |
-| UT-510 | タスク削除成功 | 既存タスクを`DeleteAsync` | `true`が返り、行が削除される | OK |  |  |  |  |
-| UT-511 | 存在しないタスクの削除 | 存在しないIDで`DeleteAsync` | `false`が返る | OK |  |  |  |  |
+| UT-501 | 存在しないプロジェクトのタスク一覧取得 | 存在しないprojectIdで`GetByProjectAsync` | `null`が返る | OK |  |  | OK |  |
+| UT-502 | タスク作成成功 | 有効なprojectIdで`CreateAsync` | `CreateTaskResult.Success`とタスク情報が返る | OK |  |  | OK |  |
+| UT-503 | 存在しないプロジェクトへのタスク作成 | 存在しないprojectIdで`CreateAsync` | `CreateTaskResult.ProjectNotFound`が返る | OK |  |  | OK |  |
+| UT-504 | 存在しない担当者を指定したタスク作成 | 存在しないassigneeIdで`CreateAsync` | `CreateTaskResult.AssigneeNotFound`が返る | OK |  |  | OK |  |
+| UT-505 | assigneeId未指定でのタスク作成 | `AssigneeId=null`で`CreateAsync` | 担当者チェックがスキップされ作成成功する | OK |  |  | OK |  |
+| UT-506 | status/priority省略時の初期値 | 省略して`CreateAsync` | `TODO` / `MEDIUM`が設定される | OK |  |  | OK |  |
+| UT-507 | タスク更新成功 | 既存タスクを`UpdateAsync` | `UpdateTaskResult.Success`と更新後の内容が返る | NG | `DbUpdateException`（Cannot write DateTime with Kind=UTC to PostgreSQL type 'timestamp without time zone'）が発生し、更新が保存されない | 原因: `AppDbContext.SaveChangesAsync` が `updated_at` に `DateTime.UtcNow`（Kind=Utc）を設定しており、Npgsqlが `timestamp without time zone` 列への書き込みを拒否していた。修正: Kindを `Unspecified` にして設定するよう変更（値はUTCのまま） | OK |  |
+| UT-508 | 存在しないタスクの更新 | 存在しないIDで`UpdateAsync` | `UpdateTaskResult.TaskNotFound`が返る | OK |  |  | OK |  |
+| UT-509 | 存在しない担当者への更新 | 存在しないassigneeIdで`UpdateAsync` | `UpdateTaskResult.AssigneeNotFound`が返る | OK |  |  | OK |  |
+| UT-510 | タスク削除成功 | 既存タスクを`DeleteAsync` | `true`が返り、行が削除される | OK |  |  | OK |  |
+| UT-511 | 存在しないタスクの削除 | 存在しないIDで`DeleteAsync` | `false`が返る | OK |  |  | OK |  |
 
 ### 4.6 CommentService
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| UT-601 | 存在しないタスクのコメント一覧取得 | 存在しないtaskIdで`GetByTaskAsync` | `null`が返る | OK |  |  |  |  |
-| UT-602 | コメント一覧に投稿者名が含まれる | コメントが存在するタスクで`GetByTaskAsync` | 各コメントに`UserName`が含まれる | OK |  |  |  |  |
-| UT-603 | コメント登録成功 | 有効なtaskIdで`CreateAsync` | コメントが作成され、投稿者IDがJWTのユーザーと一致する | OK |  |  |  |  |
-| UT-604 | 存在しないタスクへのコメント登録 | 存在しないtaskIdで`CreateAsync` | `null`が返る | OK |  |  |  |  |
+| UT-601 | 存在しないタスクのコメント一覧取得 | 存在しないtaskIdで`GetByTaskAsync` | `null`が返る | OK |  |  | OK |  |
+| UT-602 | コメント一覧に投稿者名が含まれる | コメントが存在するタスクで`GetByTaskAsync` | 各コメントに`UserName`が含まれる | OK |  |  | OK |  |
+| UT-603 | コメント登録成功 | 有効なtaskIdで`CreateAsync` | コメントが作成され、投稿者IDがJWTのユーザーと一致する | OK |  |  | OK |  |
+| UT-604 | 存在しないタスクへのコメント登録 | 存在しないtaskIdで`CreateAsync` | `null`が返る | OK |  |  | OK |  |
 
 ### 4.7 JwtTokenService
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| UT-701 | トークンにユーザー情報が含まれる | `GenerateToken`実行後、生成されたJWTをデコードする（jwt.io等） | `sub`（ユーザーID）、`email`、`name`クレームが含まれる | NG | `sub`・`email` は含まれるが `name` クレームが含まれない。ユーザー名は `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name` というクレーム名で格納されている | 対応中（原因: `JwtTokenService` が `ClaimTypes.Name` でクレームを作成しており、URI形式のクレーム名のままトークンに出力されるため） |  |  |
-| UT-702 | 有効期限が設定に従っている | `Jwt:ExpiresMinutes`の値とトークンの`exp`クレームを比較 | 発行時刻＋設定分数と一致する | OK |  |  |  |  |
+| UT-701 | トークンにユーザー情報が含まれる | `GenerateToken`実行後、生成されたJWTをデコードする（jwt.io等） | `sub`（ユーザーID）、`email`、`name`クレームが含まれる | NG | `sub`・`email` は含まれるが `name` クレームが含まれない。ユーザー名は `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name` というクレーム名で格納されている | 原因: `JwtTokenService` が `ClaimTypes.Name` でクレームを作成しており、URI形式のクレーム名のままトークンに出力されていた。修正: JWT標準の `name`（`JwtRegisteredClaimNames.Name`）でクレームを作成するよう変更 | OK |  |
+| UT-702 | 有効期限が設定に従っている | `Jwt:ExpiresMinutes`の値とトークンの`exp`クレームを比較 | 発行時刻＋設定分数と一致する | OK |  |  | OK |  |
 
 ---
 
@@ -151,91 +152,91 @@ Service層の個別ロジック（バリデーション・業務ルール）を�
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| API-801 | ログイン成功 | `POST /api/auth/login`に正しいメール・パスワードを送信 | 200、`accessToken`と`user`（id/name/email）を含む | OK |  |  |  |  |
-| API-802 | メール未指定 | `email`を省略して送信 | 400、`errors`に`email`必須メッセージ | OK |  |  |  |  |
-| API-803 | パスワード未指定 | `password`を省略して送信 | 400、`errors`に`password`必須メッセージ | OK |  |  |  |  |
-| API-804 | メール形式不正 | `email: "not-an-email"`で送信 | 400、`errors`にメール形式エラー | OK |  |  |  |  |
-| API-805 | 存在しないメールでログイン | 未登録メールで送信 | 401、`{"message": "メールアドレスまたはパスワードが正しくありません。"}` | OK |  |  |  |  |
-| API-806 | パスワード誤り | 登録済みメール＋誤パスワードで送信 | 401、存在しないメールと同一メッセージ | OK |  |  |  |  |
+| API-801 | ログイン成功 | `POST /api/auth/login`に正しいメール・パスワードを送信 | 200、`accessToken`と`user`（id/name/email）を含む | OK |  |  | OK |  |
+| API-802 | メール未指定 | `email`を省略して送信 | 400、`errors`に`email`必須メッセージ | OK |  |  | OK |  |
+| API-803 | パスワード未指定 | `password`を省略して送信 | 400、`errors`に`password`必須メッセージ | OK |  |  | OK |  |
+| API-804 | メール形式不正 | `email: "not-an-email"`で送信 | 400、`errors`にメール形式エラー | OK |  |  | OK |  |
+| API-805 | 存在しないメールでログイン | 未登録メールで送信 | 401、`{"message": "メールアドレスまたはパスワードが正しくありません。"}` | OK |  |  | OK |  |
+| API-806 | パスワード誤り | 登録済みメール＋誤パスワードで送信 | 401、存在しないメールと同一メッセージ | OK |  |  | OK |  |
 
 ### 5.2 ユーザーAPI（api-specification.md §9）
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| API-901 | ユーザー一覧取得 | 認証済みで`GET /api/users` | 200、`id/name/email`の配列（`passwordHash`を含まない） | OK |  |  |  |  |
-| API-902 | ユーザー詳細取得（存在する） | 認証済みで`GET /api/users/{id}` | 200、該当ユーザー情報 | OK |  |  |  |  |
-| API-903 | ユーザー詳細取得（存在しない） | 存在しないIDで`GET /api/users/{id}` | 404、`{"message": "指定されたユーザーが存在しません。"}` | OK |  |  |  |  |
+| API-901 | ユーザー一覧取得 | 認証済みで`GET /api/users` | 200、`id/name/email`の配列（`passwordHash`を含まない） | OK |  |  | OK |  |
+| API-902 | ユーザー詳細取得（存在する） | 認証済みで`GET /api/users/{id}` | 200、該当ユーザー情報 | OK |  |  | OK |  |
+| API-903 | ユーザー詳細取得（存在しない） | 存在しないIDで`GET /api/users/{id}` | 404、`{"message": "指定されたユーザーが存在しません。"}` | OK |  |  | OK |  |
 
 ### 5.3 プロジェクトAPI（api-specification.md §10〜14）
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| API-1001 | プロジェクト一覧取得 | `GET /api/projects` | 200、登録済みプロジェクトの配列 | OK |  |  |  |  |
-| API-1101 | プロジェクト作成成功（全項目指定） | 全項目を指定して`POST /api/projects` | 201、作成内容が返る | OK |  |  |  |  |
-| API-1102 | プロジェクト作成成功（日付未指定） | `startDate`/`endDate`を省略して`POST` | 201、`startDate`/`endDate`が`null`で返る（400にならないこと） | OK |  |  |  |  |
-| API-1103 | 作成者が自動的にOWNER登録される | 作成後`GET /api/projects/{id}/members` | 作成者が`OWNER`として含まれる | OK |  |  |  |  |
-| API-1104 | name未指定 | `name`を省略して`POST` | 400、`name`必須メッセージ | OK |  |  |  |  |
-| API-1105 | name最大文字数超過 | 201文字の`name`で`POST` | 400、文字数エラー | OK |  |  |  |  |
-| API-1106 | status不正値 | `status: "INVALID"`で`POST` | 400、許可値エラー | OK |  |  |  |  |
-| API-1107 | status省略時ACTIVEになる | `status`を省略して`POST` | 201、`status: "ACTIVE"` | OK |  |  |  |  |
-| API-1108 | 日付形式不正 | `startDate: "invalid-date"`で`POST` | 400、`field: "startDate"`、内部情報を含まない日本語メッセージ | OK |  |  |  |  |
-| API-1109 | 不正なJSON構文 | ボディを壊れたJSONで送信 | 400、`field: "body"`、内部情報を含まない日本語メッセージ | OK |  |  |  |  |
-| API-1201 | プロジェクト詳細取得（存在する） | `GET /api/projects/{id}` | 200、該当プロジェクト | OK |  |  |  |  |
-| API-1202 | プロジェクト詳細取得（存在しない） | 存在しないIDで`GET` | 404、`{"message": "指定されたプロジェクトが存在しません。"}` | OK |  |  |  |  |
-| API-1301 | プロジェクト更新成功 | `PUT /api/projects/{id}`に全項目を指定 | 200、更新内容が返る | NG | 500（`サーバー内部でエラーが発生しました。`）が返り、更新できない | 対応中（UT-304と同じ原因） |  |  |
-| API-1302 | 存在しないプロジェクトの更新 | 存在しないIDで`PUT` | 404 | OK |  |  |  |  |
-| API-1303 | 更新でstatus省略時に既存値維持 | `status`を省略して`PUT` | 200、既存の`status`が変わらない | NG | 500（`サーバー内部でエラーが発生しました。`）が返り、更新できない | 対応中（UT-304と同じ原因） |  |  |
-| API-1401 | プロジェクト削除成功 | `DELETE /api/projects/{id}` | 204、ボディなし | OK |  |  |  |  |
-| API-1402 | 存在しないプロジェクトの削除 | 存在しないIDで`DELETE` | 404 | OK |  |  |  |  |
-| API-1403 | 削除時のカスケード | メンバー・タスクが存在するプロジェクトを削除後、`project_members`/`tasks`を確認 | 関連行も削除されている | OK |  |  |  |  |
+| API-1001 | プロジェクト一覧取得 | `GET /api/projects` | 200、登録済みプロジェクトの配列 | OK |  |  | OK |  |
+| API-1101 | プロジェクト作成成功（全項目指定） | 全項目を指定して`POST /api/projects` | 201、作成内容が返る | OK |  |  | OK |  |
+| API-1102 | プロジェクト作成成功（日付未指定） | `startDate`/`endDate`を省略して`POST` | 201、`startDate`/`endDate`が`null`で返る（400にならないこと） | OK |  |  | OK |  |
+| API-1103 | 作成者が自動的にOWNER登録される | 作成後`GET /api/projects/{id}/members` | 作成者が`OWNER`として含まれる | OK |  |  | OK |  |
+| API-1104 | name未指定 | `name`を省略して`POST` | 400、`name`必須メッセージ | OK |  |  | OK |  |
+| API-1105 | name最大文字数超過 | 201文字の`name`で`POST` | 400、文字数エラー | OK |  |  | OK |  |
+| API-1106 | status不正値 | `status: "INVALID"`で`POST` | 400、許可値エラー | OK |  |  | OK |  |
+| API-1107 | status省略時ACTIVEになる | `status`を省略して`POST` | 201、`status: "ACTIVE"` | OK |  |  | OK |  |
+| API-1108 | 日付形式不正 | `startDate: "invalid-date"`で`POST` | 400、`field: "startDate"`、内部情報を含まない日本語メッセージ | OK |  |  | OK |  |
+| API-1109 | 不正なJSON構文 | ボディを壊れたJSONで送信 | 400、`field: "body"`、内部情報を含まない日本語メッセージ | OK |  |  | OK |  |
+| API-1201 | プロジェクト詳細取得（存在する） | `GET /api/projects/{id}` | 200、該当プロジェクト | OK |  |  | OK |  |
+| API-1202 | プロジェクト詳細取得（存在しない） | 存在しないIDで`GET` | 404、`{"message": "指定されたプロジェクトが存在しません。"}` | OK |  |  | OK |  |
+| API-1301 | プロジェクト更新成功 | `PUT /api/projects/{id}`に全項目を指定 | 200、更新内容が返る | NG | 500（`サーバー内部でエラーが発生しました。`）が返り、更新できない | UT-304と同じ原因。同じ修正で対応 | OK |  |
+| API-1302 | 存在しないプロジェクトの更新 | 存在しないIDで`PUT` | 404 | OK |  |  | OK |  |
+| API-1303 | 更新でstatus省略時に既存値維持 | `status`を省略して`PUT` | 200、既存の`status`が変わらない | NG | 500（`サーバー内部でエラーが発生しました。`）が返り、更新できない | UT-304と同じ原因。同じ修正で対応 | OK |  |
+| API-1401 | プロジェクト削除成功 | `DELETE /api/projects/{id}` | 204、ボディなし | OK |  |  | OK |  |
+| API-1402 | 存在しないプロジェクトの削除 | 存在しないIDで`DELETE` | 404 | OK |  |  | OK |  |
+| API-1403 | 削除時のカスケード | メンバー・タスクが存在するプロジェクトを削除後、`project_members`/`tasks`を確認 | 関連行も削除されている | OK |  |  | OK |  |
 
 ### 5.4 プロジェクトメンバーAPI（api-specification.md §15〜17）
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| API-1501 | メンバー一覧取得 | `GET /api/projects/{projectId}/members` | 200、`userId/name/email/role`の配列 | OK |  |  |  |  |
-| API-1502 | 存在しないプロジェクトのメンバー一覧 | 存在しないprojectIdで`GET` | 404 | OK |  |  |  |  |
-| API-1601 | メンバー追加成功 | 未所属ユーザーを`POST /api/projects/{projectId}/members` | 201、`{"projectId","userId","role"}` | OK |  |  |  |  |
-| API-1602 | userId未指定 | `userId`を省略して`POST` | 400、必須エラー | OK |  |  |  |  |
-| API-1603 | role不正値 | `role: "INVALID"`で`POST` | 400、許可値エラー | OK |  |  |  |  |
-| API-1604 | 存在しないプロジェクトへの追加 | 存在しないprojectIdで`POST` | 404 | OK |  |  |  |  |
-| API-1605 | 存在しないユーザーの追加 | 存在しないuserIdで`POST` | 400、`field: "userId"` | OK |  |  |  |  |
-| API-1606 | 重複メンバー追加 | 既に所属しているユーザーで`POST` | 409、`{"message": "指定されたユーザーは既にプロジェクトに参加しています。"}` | OK |  |  |  |  |
-| API-1701 | メンバー削除成功 | `DELETE /api/projects/{projectId}/members/{userId}` | 204 | OK |  |  |  |  |
-| API-1702 | 存在しないメンバーの削除 | 未所属userIdで`DELETE` | 404、`{"message": "指定されたメンバーが存在しません。"}` | OK |  |  |  |  |
-| API-1703 | 存在しないプロジェクトでの削除 | 存在しないprojectIdで`DELETE` | 404 | OK |  |  |  |  |
+| API-1501 | メンバー一覧取得 | `GET /api/projects/{projectId}/members` | 200、`userId/name/email/role`の配列 | OK |  |  | OK |  |
+| API-1502 | 存在しないプロジェクトのメンバー一覧 | 存在しないprojectIdで`GET` | 404 | OK |  |  | OK |  |
+| API-1601 | メンバー追加成功 | 未所属ユーザーを`POST /api/projects/{projectId}/members` | 201、`{"projectId","userId","role"}` | OK |  |  | OK |  |
+| API-1602 | userId未指定 | `userId`を省略して`POST` | 400、必須エラー | OK |  |  | OK |  |
+| API-1603 | role不正値 | `role: "INVALID"`で`POST` | 400、許可値エラー | OK |  |  | OK |  |
+| API-1604 | 存在しないプロジェクトへの追加 | 存在しないprojectIdで`POST` | 404 | OK |  |  | OK |  |
+| API-1605 | 存在しないユーザーの追加 | 存在しないuserIdで`POST` | 400、`field: "userId"` | OK |  |  | OK |  |
+| API-1606 | 重複メンバー追加 | 既に所属しているユーザーで`POST` | 409、`{"message": "指定されたユーザーは既にプロジェクトに参加しています。"}` | OK |  |  | OK |  |
+| API-1701 | メンバー削除成功 | `DELETE /api/projects/{projectId}/members/{userId}` | 204 | OK |  |  | OK |  |
+| API-1702 | 存在しないメンバーの削除 | 未所属userIdで`DELETE` | 404、`{"message": "指定されたメンバーが存在しません。"}` | OK |  |  | OK |  |
+| API-1703 | 存在しないプロジェクトでの削除 | 存在しないprojectIdで`DELETE` | 404 | OK |  |  | OK |  |
 
 ### 5.5 タスクAPI（api-specification.md §18〜22）
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| API-1801 | プロジェクト内タスク一覧取得 | `GET /api/projects/{projectId}/tasks` | 200、タスク配列 | OK |  |  |  |  |
-| API-1802 | 存在しないプロジェクトのタスク一覧 | 存在しないprojectIdで`GET` | 404 | OK |  |  |  |  |
-| API-1901 | タスク作成成功 | `POST /api/projects/{projectId}/tasks` | 201、作成内容が返る | OK |  |  |  |  |
-| API-1902 | title未指定 | `title`を省略して`POST` | 400、必須エラー | OK |  |  |  |  |
-| API-1903 | title最大文字数超過 | 201文字の`title`で`POST` | 400、文字数エラー | OK |  |  |  |  |
-| API-1904 | 存在しない担当者指定 | 存在しないassigneeIdで`POST` | 400、`field: "assigneeId"` | OK |  |  |  |  |
-| API-1905 | status/priority不正値 | 不正な値で`POST` | 400、複数エラーが同時に返る | OK |  |  |  |  |
-| API-1906 | 存在しないプロジェクトへの作成 | 存在しないprojectIdで`POST` | 404 | OK |  |  |  |  |
-| API-2001 | タスク詳細取得（存在する） | `GET /api/tasks/{id}` | 200 | OK |  |  |  |  |
-| API-2002 | タスク詳細取得（存在しない） | 存在しないIDで`GET` | 404、`{"message": "指定されたタスクが存在しません。"}` | OK |  |  |  |  |
-| API-2101 | タスク更新成功 | `PUT /api/tasks/{id}` | 200、更新内容が返る | NG | 500（`サーバー内部でエラーが発生しました。`）が返り、更新できない | 対応中（UT-507と同じ原因） |  |  |
-| API-2102 | 存在しないタスクの更新 | 存在しないIDで`PUT` | 404 | OK |  |  |  |  |
-| API-2201 | タスク削除成功 | `DELETE /api/tasks/{id}` | 204 | OK |  |  |  |  |
-| API-2202 | 存在しないタスクの削除 | 存在しないIDで`DELETE` | 404 | OK |  |  |  |  |
-| API-2203 | 削除時のカスケード | コメントが存在するタスクを削除後`task_comments`を確認 | 関連コメントも削除されている | OK |  |  |  |  |
+| API-1801 | プロジェクト内タスク一覧取得 | `GET /api/projects/{projectId}/tasks` | 200、タスク配列 | OK |  |  | OK |  |
+| API-1802 | 存在しないプロジェクトのタスク一覧 | 存在しないprojectIdで`GET` | 404 | OK |  |  | OK |  |
+| API-1901 | タスク作成成功 | `POST /api/projects/{projectId}/tasks` | 201、作成内容が返る | OK |  |  | OK |  |
+| API-1902 | title未指定 | `title`を省略して`POST` | 400、必須エラー | OK |  |  | OK |  |
+| API-1903 | title最大文字数超過 | 201文字の`title`で`POST` | 400、文字数エラー | OK |  |  | OK |  |
+| API-1904 | 存在しない担当者指定 | 存在しないassigneeIdで`POST` | 400、`field: "assigneeId"` | OK |  |  | OK |  |
+| API-1905 | status/priority不正値 | 不正な値で`POST` | 400、複数エラーが同時に返る | OK |  |  | OK |  |
+| API-1906 | 存在しないプロジェクトへの作成 | 存在しないprojectIdで`POST` | 404 | OK |  |  | OK |  |
+| API-2001 | タスク詳細取得（存在する） | `GET /api/tasks/{id}` | 200 | OK |  |  | OK |  |
+| API-2002 | タスク詳細取得（存在しない） | 存在しないIDで`GET` | 404、`{"message": "指定されたタスクが存在しません。"}` | OK |  |  | OK |  |
+| API-2101 | タスク更新成功 | `PUT /api/tasks/{id}` | 200、更新内容が返る | NG | 500（`サーバー内部でエラーが発生しました。`）が返り、更新できない | UT-507と同じ原因。同じ修正で対応 | OK |  |
+| API-2102 | 存在しないタスクの更新 | 存在しないIDで`PUT` | 404 | OK |  |  | OK |  |
+| API-2201 | タスク削除成功 | `DELETE /api/tasks/{id}` | 204 | OK |  |  | OK |  |
+| API-2202 | 存在しないタスクの削除 | 存在しないIDで`DELETE` | 404 | OK |  |  | OK |  |
+| API-2203 | 削除時のカスケード | コメントが存在するタスクを削除後`task_comments`を確認 | 関連コメントも削除されている | OK |  |  | OK |  |
 
 ### 5.6 コメントAPI（api-specification.md §23〜24）
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| API-2301 | コメント一覧取得 | `GET /api/tasks/{taskId}/comments` | 200、`userName`を含む配列 | OK |  |  |  |  |
-| API-2302 | 存在しないタスクのコメント一覧 | 存在しないtaskIdで`GET` | 404 | OK |  |  |  |  |
-| API-2401 | コメント登録成功 | `POST /api/tasks/{taskId}/comments` | 201、`userName`を含まない形（`id/taskId/userId/comment/createdAt`） | OK |  |  |  |  |
-| API-2402 | 投稿者がJWTのユーザーになる | ログインユーザーと異なるuserIdをボディに含めても無視されるか確認 | 登録された`userId`はJWTのユーザーと一致する（ボディでは指定不可） | OK |  |  |  |  |
-| API-2403 | comment未指定 | `comment`を省略して`POST` | 400、必須エラー | OK |  |  |  |  |
-| API-2404 | comment最大文字数超過 | 1001文字の`comment`で`POST` | 400、文字数エラー | OK |  |  |  |  |
-| API-2405 | 存在しないタスクへの投稿 | 存在しないtaskIdで`POST` | 404 | OK |  |  |  |  |
+| API-2301 | コメント一覧取得 | `GET /api/tasks/{taskId}/comments` | 200、`userName`を含む配列 | OK |  |  | OK |  |
+| API-2302 | 存在しないタスクのコメント一覧 | 存在しないtaskIdで`GET` | 404 | OK |  |  | OK |  |
+| API-2401 | コメント登録成功 | `POST /api/tasks/{taskId}/comments` | 201、`userName`を含まない形（`id/taskId/userId/comment/createdAt`） | OK |  |  | OK |  |
+| API-2402 | 投稿者がJWTのユーザーになる | ログインユーザーと異なるuserIdをボディに含めても無視されるか確認 | 登録された`userId`はJWTのユーザーと一致する（ボディでは指定不可） | OK |  |  | OK |  |
+| API-2403 | comment未指定 | `comment`を省略して`POST` | 400、必須エラー | OK |  |  | OK |  |
+| API-2404 | comment最大文字数超過 | 1001文字の`comment`で`POST` | 400、文字数エラー | OK |  |  | OK |  |
+| API-2405 | 存在しないタスクへの投稿 | 存在しないtaskIdで`POST` | 404 | OK |  |  | OK |  |
 
 ---
 
@@ -245,14 +246,14 @@ APIとDBの連携（外部キー制約・カスケード・トランザクショ
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| IT-001 | プロジェクト削除のカスケード | メンバー・タスク・タスクコメントが存在するプロジェクトを削除し、psqlで各テーブルを確認 | `project_members`/`tasks`/`task_comments`が全て削除される | OK |  |  |  |  |
-| IT-002 | タスク削除のカスケード | コメントが存在するタスクを削除し、`task_comments`を確認 | 関連コメントが削除される | OK |  |  |  |  |
-| IT-003 | ユーザー削除時の担当タスクの扱い | 担当タスクを持つユーザーを削除（DB操作） | `tasks.assignee_id`が`NULL`になり、タスク自体は残る | OK |  |  |  |  |
-| IT-004 | プロジェクト作成のトランザクション性 | プロジェクト作成中にメンバー登録を意図的に失敗させる | プロジェクト・メンバーどちらもDBに残らない | OK |  |  |  |  |
-| IT-005 | メールアドレスの一意制約 | 既存メールと同じメールでユーザーを直接INSERT | 一意制約違反でエラーになる | OK |  |  |  |  |
-| IT-006 | プロジェクトメンバーの重複防止制約 | 同一(project_id, user_id)を直接INSERT | 一意制約違反でエラーになる | OK |  |  |  |  |
-| IT-007 | updated_atの自動更新がDBに反映される | プロジェクト/タスクを更新後、psqlで`updated_at`を確認 | `created_at`と異なる、更新実行時刻に近い値になっている | NG | プロジェクト・タスクの更新APIが500となり、`updated_at` が更新されない | 対応中（UT-308と同じ原因） |  |  |
-| IT-008 | CORS設定 | フロントエンド(localhost:3000)からAPI(localhost:5000)へブラウザ経由でアクセス | プリフライト(OPTIONS)が204で通り、本リクエストが成功する | OK |  |  |  |  |
+| IT-001 | プロジェクト削除のカスケード | メンバー・タスク・タスクコメントが存在するプロジェクトを削除し、psqlで各テーブルを確認 | `project_members`/`tasks`/`task_comments`が全て削除される | OK |  |  | OK |  |
+| IT-002 | タスク削除のカスケード | コメントが存在するタスクを削除し、`task_comments`を確認 | 関連コメントが削除される | OK |  |  | OK |  |
+| IT-003 | ユーザー削除時の担当タスクの扱い | 担当タスクを持つユーザーを削除（DB操作） | `tasks.assignee_id`が`NULL`になり、タスク自体は残る | OK |  |  | OK |  |
+| IT-004 | プロジェクト作成のトランザクション性 | プロジェクト作成中にメンバー登録を意図的に失敗させる | プロジェクト・メンバーどちらもDBに残らない | OK |  |  | OK |  |
+| IT-005 | メールアドレスの一意制約 | 既存メールと同じメールでユーザーを直接INSERT | 一意制約違反でエラーになる | OK |  |  | OK |  |
+| IT-006 | プロジェクトメンバーの重複防止制約 | 同一(project_id, user_id)を直接INSERT | 一意制約違反でエラーになる | OK |  |  | OK |  |
+| IT-007 | updated_atの自動更新がDBに反映される | プロジェクト/タスクを更新後、psqlで`updated_at`を確認 | `created_at`と異なる、更新実行時刻に近い値になっている | NG | プロジェクト・タスクの更新APIが500となり、`updated_at` が更新されない | UT-308と同じ原因。同じ修正で対応 | OK |  |
+| IT-008 | CORS設定 | フロントエンド(localhost:3000)からAPI(localhost:5000)へブラウザ経由でアクセス | プリフライト(OPTIONS)が204で通り、本リクエストが成功する | OK |  |  | OK |  |
 
 ---
 
@@ -264,83 +265,83 @@ APIとDBの連携（外部キー制約・カスケード・トランザクショ
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| SCR-001-01 | ログイン成功 | `/login`で正しいメール・パスワードを入力し「ログイン」押下 | `/projects`へ遷移し、JWT・ユーザー情報がlocalStorageに保存される | OK |  |  |  |  |
-| SCR-001-02 | ログイン失敗 | 誤ったパスワードで「ログイン」押下 | 画面に「メールアドレスまたはパスワードが正しくありません。」が表示される | OK |  |  |  |  |
-| SCR-001-03 | メールアドレス未入力 | メール欄を空のまま「ログイン」押下 | ブラウザのネイティブバリデーションで送信がブロックされる | OK |  |  |  |  |
-| SCR-001-04 | メールアドレス形式不正 | `abc`のような形式で「ログイン」押下 | ブラウザのネイティブバリデーションで送信がブロックされる | OK |  |  |  |  |
-| SCR-001-05 | 未ログインで保護画面にアクセス | localStorageのトークンを削除した状態で`/projects`へ直接アクセス | `/login`へリダイレクトされる | OK |  |  |  |  |
+| SCR-001-01 | ログイン成功 | `/login`で正しいメール・パスワードを入力し「ログイン」押下 | `/projects`へ遷移し、JWT・ユーザー情報がlocalStorageに保存される | OK |  |  | OK |  |
+| SCR-001-02 | ログイン失敗 | 誤ったパスワードで「ログイン」押下 | 画面に「メールアドレスまたはパスワードが正しくありません。」が表示される | OK |  |  | OK |  |
+| SCR-001-03 | メールアドレス未入力 | メール欄を空のまま「ログイン」押下 | ブラウザのネイティブバリデーションで送信がブロックされる | OK |  |  | OK |  |
+| SCR-001-04 | メールアドレス形式不正 | `abc`のような形式で「ログイン」押下 | ブラウザのネイティブバリデーションで送信がブロックされる | OK |  |  | OK |  |
+| SCR-001-05 | 未ログインで保護画面にアクセス | localStorageのトークンを削除した状態で`/projects`へ直接アクセス | `/login`へリダイレクトされる | OK |  |  | OK |  |
 
 ### 7.2 SCR-003 プロジェクト一覧画面
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| SCR-003-01 | 一覧表示 | ログイン後`/projects`を表示 | プロジェクト名・説明・ステータス・開始日・終了日が一覧表示される（日付は`YYYY/MM/DD`形式） | OK |  |  |  |  |
-| SCR-003-02 | プロジェクトが0件の場合 | プロジェクトが存在しない状態で表示 | 「プロジェクトがありません。」と「プロジェクトを作成」リンクが表示される | OK |  |  |  |  |
-| SCR-003-03 | 新規作成画面への遷移 | 「＋新規作成」押下 | `/projects/new`へ遷移する | OK |  |  |  |  |
-| SCR-003-04 | プロジェクト詳細への遷移 | 一覧の行をクリック | `/projects/{id}`へ遷移する | OK |  |  |  |  |
-| SCR-003-05 | API取得失敗時の表示 | バックエンドを停止した状態で表示（またはネットワーク遮断） | 「プロジェクト情報の取得に失敗しました。」が表示される | OK |  |  |  |  |
+| SCR-003-01 | 一覧表示 | ログイン後`/projects`を表示 | プロジェクト名・説明・ステータス・開始日・終了日が一覧表示される（日付は`YYYY/MM/DD`形式） | OK |  |  | OK |  |
+| SCR-003-02 | プロジェクトが0件の場合 | プロジェクトが存在しない状態で表示 | 「プロジェクトがありません。」と「プロジェクトを作成」リンクが表示される | OK |  |  | OK |  |
+| SCR-003-03 | 新規作成画面への遷移 | 「＋新規作成」押下 | `/projects/new`へ遷移する | OK |  |  | OK |  |
+| SCR-003-04 | プロジェクト詳細への遷移 | 一覧の行をクリック | `/projects/{id}`へ遷移する | OK |  |  | OK |  |
+| SCR-003-05 | API取得失敗時の表示 | バックエンドを停止した状態で表示（またはネットワーク遮断） | 「プロジェクト情報の取得に失敗しました。」が表示される | OK |  |  | OK |  |
 
 ### 7.3 SCR-004 プロジェクト登録画面
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| SCR-004-01 | 登録成功（全項目入力） | 全項目を入力して「登録」押下 | プロジェクト詳細画面(`/projects/{id}`)へ遷移する | OK |  |  |  |  |
-| SCR-004-02 | 登録成功（日付未入力） | プロジェクト名のみ入力して「登録」押下 | エラーにならず登録・遷移できる | OK |  |  |  |  |
-| SCR-004-03 | プロジェクト名未入力 | 名前を空のまま「登録」押下 | ブラウザのネイティブバリデーションでブロックされる | OK |  |  |  |  |
-| SCR-004-04 | 終了日が開始日より前 | 開始日より前の終了日を入力して「登録」押下 | 「終了日は開始日以降の日付を指定してください。」が表示され送信されない | OK |  |  |  |  |
-| SCR-004-05 | キャンセル | 「キャンセル」押下 | 入力内容を破棄して`/projects`へ戻る | OK |  |  |  |  |
-| SCR-004-06 | 作成者がメンバーに自動登録される | 登録後、遷移先の詳細画面のメンバー欄を確認 | 自分が`OWNER`として表示される | OK |  |  |  |  |
+| SCR-004-01 | 登録成功（全項目入力） | 全項目を入力して「登録」押下 | プロジェクト詳細画面(`/projects/{id}`)へ遷移する | OK |  |  | OK |  |
+| SCR-004-02 | 登録成功（日付未入力） | プロジェクト名のみ入力して「登録」押下 | エラーにならず登録・遷移できる | OK |  |  | OK |  |
+| SCR-004-03 | プロジェクト名未入力 | 名前を空のまま「登録」押下 | ブラウザのネイティブバリデーションでブロックされる | OK |  |  | OK |  |
+| SCR-004-04 | 終了日が開始日より前 | 開始日より前の終了日を入力して「登録」押下 | 「終了日は開始日以降の日付を指定してください。」が表示され送信されない | OK |  |  | OK |  |
+| SCR-004-05 | キャンセル | 「キャンセル」押下 | 入力内容を破棄して`/projects`へ戻る | OK |  |  | OK |  |
+| SCR-004-06 | 作成者がメンバーに自動登録される | 登録後、遷移先の詳細画面のメンバー欄を確認 | 自分が`OWNER`として表示される | OK |  |  | OK |  |
 
 ### 7.4 SCR-005 プロジェクト詳細画面
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| SCR-005-01 | 詳細表示 | `/projects/{id}`を表示 | プロジェクト名・ステータス・説明・開始日・終了日が表示される | OK |  |  |  |  |
-| SCR-005-02 | 編集モードへの切り替え | 「編集」押下 | 各項目が編集可能なフォームに切り替わる（既存値が反映されている） | OK |  |  |  |  |
-| SCR-005-03 | 編集の保存 | 項目を変更して「保存」押下 | 表示モードに戻り、変更内容が反映されている | NG | 「保存」押下後も編集モードのままとなり、`サーバー内部でエラーが発生しました。` が表示され変更が反映されない | 対応中（UT-304と同じ原因） |  |  |
-| SCR-005-04 | 編集のキャンセル | 項目を変更して「キャンセル」押下 | 変更を破棄して表示モードに戻る | OK |  |  |  |  |
-| SCR-005-05 | 削除確認モーダル表示 | 「削除」押下 | 「このプロジェクトを削除しますか？」等の確認モーダルが表示される | OK |  |  |  |  |
-| SCR-005-06 | 削除のキャンセル | モーダルで「キャンセル」押下 | モーダルが閉じ、プロジェクトは削除されない | OK |  |  |  |  |
-| SCR-005-07 | 削除の実行 | モーダルで「削除」押下 | `/projects`へ遷移し、一覧からそのプロジェクトが消えている | OK |  |  |  |  |
-| SCR-005-08 | メンバー一覧表示 | メンバー欄を確認 | 氏名・メールアドレス・ロールが表示される | OK |  |  |  |  |
-| SCR-005-09 | メンバー追加 | 「メンバー追加」押下→未所属ユーザーとロールを選択→「追加」押下 | メンバー一覧に追加されたユーザーが表示される | OK |  |  |  |  |
-| SCR-005-10 | 追加候補から既存メンバーが除外される | 「メンバー追加」フォームのユーザー選択肢を確認 | 既に所属しているユーザーが選択肢に出ない | OK |  |  |  |  |
-| SCR-005-11 | メンバー削除確認モーダル | メンバーの「削除」押下 | 対象者名を含む確認モーダルが表示される | OK |  |  |  |  |
-| SCR-005-12 | メンバー削除の実行 | モーダルで「削除」押下 | メンバー一覧から削除される | OK |  |  |  |  |
-| SCR-005-13 | タスク一覧への遷移 | 「タスク一覧を見る」押下 | `/projects/{id}/tasks`へ遷移する | OK |  |  |  |  |
+| SCR-005-01 | 詳細表示 | `/projects/{id}`を表示 | プロジェクト名・ステータス・説明・開始日・終了日が表示される | OK |  |  | OK |  |
+| SCR-005-02 | 編集モードへの切り替え | 「編集」押下 | 各項目が編集可能なフォームに切り替わる（既存値が反映されている） | OK |  |  | OK |  |
+| SCR-005-03 | 編集の保存 | 項目を変更して「保存」押下 | 表示モードに戻り、変更内容が反映されている | NG | 「保存」押下後も編集モードのままとなり、`サーバー内部でエラーが発生しました。` が表示され変更が反映されない | UT-304と同じ原因。同じ修正で対応 | OK |  |
+| SCR-005-04 | 編集のキャンセル | 項目を変更して「キャンセル」押下 | 変更を破棄して表示モードに戻る | OK |  |  | OK |  |
+| SCR-005-05 | 削除確認モーダル表示 | 「削除」押下 | 「このプロジェクトを削除しますか？」等の確認モーダルが表示される | OK |  |  | OK |  |
+| SCR-005-06 | 削除のキャンセル | モーダルで「キャンセル」押下 | モーダルが閉じ、プロジェクトは削除されない | OK |  |  | OK |  |
+| SCR-005-07 | 削除の実行 | モーダルで「削除」押下 | `/projects`へ遷移し、一覧からそのプロジェクトが消えている | OK |  |  | OK |  |
+| SCR-005-08 | メンバー一覧表示 | メンバー欄を確認 | 氏名・メールアドレス・ロールが表示される | OK |  |  | OK |  |
+| SCR-005-09 | メンバー追加 | 「メンバー追加」押下→未所属ユーザーとロールを選択→「追加」押下 | メンバー一覧に追加されたユーザーが表示される | OK |  |  | OK |  |
+| SCR-005-10 | 追加候補から既存メンバーが除外される | 「メンバー追加」フォームのユーザー選択肢を確認 | 既に所属しているユーザーが選択肢に出ない | OK |  |  | OK |  |
+| SCR-005-11 | メンバー削除確認モーダル | メンバーの「削除」押下 | 対象者名を含む確認モーダルが表示される | OK |  |  | OK |  |
+| SCR-005-12 | メンバー削除の実行 | モーダルで「削除」押下 | メンバー一覧から削除される | OK |  |  | OK |  |
+| SCR-005-13 | タスク一覧への遷移 | 「タスク一覧を見る」押下 | `/projects/{id}/tasks`へ遷移する | OK |  |  | OK |  |
 
 ### 7.5 SCR-006 タスク一覧画面
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| SCR-006-01 | 一覧表示 | `/projects/{id}/tasks`を表示 | タスク名・担当者・状態・優先度・期限が表示される | OK |  |  |  |  |
-| SCR-006-02 | タスクが0件の場合 | タスクが存在しないプロジェクトで表示 | 「タスクがありません。」と「タスクを追加」ボタンが表示される | OK |  |  |  |  |
-| SCR-006-03 | タスク追加モーダル表示 | 「＋タスク追加」押下 | モーダルでタスク登録フォームが表示される（別画面遷移しないこと） | OK |  |  |  |  |
-| SCR-006-04 | タスク登録成功 | モーダルで必須項目を入力し「登録」押下 | モーダルが閉じ、一覧に新しいタスクが表示される | OK |  |  |  |  |
-| SCR-006-05 | 担当者選択肢がプロジェクトメンバーに限定される | モーダルの担当者選択肢を確認 | プロジェクトメンバー以外が選択肢に出ない | OK |  |  |  |  |
-| SCR-006-06 | タスク詳細への遷移 | 一覧の行をクリック | `/tasks/{id}`へ遷移する | OK |  |  |  |  |
+| SCR-006-01 | 一覧表示 | `/projects/{id}/tasks`を表示 | タスク名・担当者・状態・優先度・期限が表示される | OK |  |  | OK |  |
+| SCR-006-02 | タスクが0件の場合 | タスクが存在しないプロジェクトで表示 | 「タスクがありません。」と「タスクを追加」ボタンが表示される | OK |  |  | OK |  |
+| SCR-006-03 | タスク追加モーダル表示 | 「＋タスク追加」押下 | モーダルでタスク登録フォームが表示される（別画面遷移しないこと） | OK |  |  | OK |  |
+| SCR-006-04 | タスク登録成功 | モーダルで必須項目を入力し「登録」押下 | モーダルが閉じ、一覧に新しいタスクが表示される | OK |  |  | OK |  |
+| SCR-006-05 | 担当者選択肢がプロジェクトメンバーに限定される | モーダルの担当者選択肢を確認 | プロジェクトメンバー以外が選択肢に出ない | OK |  |  | OK |  |
+| SCR-006-06 | タスク詳細への遷移 | 一覧の行をクリック | `/tasks/{id}`へ遷移する | OK |  |  | OK |  |
 
 ### 7.6 SCR-007 タスク詳細画面
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| SCR-007-01 | 詳細表示 | `/tasks/{id}`を表示 | タイトル・ステータス・優先度・担当者・期限・説明が表示される | OK |  |  |  |  |
-| SCR-007-02 | 編集モードへの切り替え・保存 | 「編集」押下→値変更→「保存」押下 | 変更内容が表示に反映される | NG | 「保存」押下後も編集モードのままとなり、`サーバー内部でエラーが発生しました。` が表示され変更が反映されない | 対応中（UT-507と同じ原因） |  |  |
-| SCR-007-03 | 削除確認モーダル・実行 | 「削除」押下→モーダルで「削除」押下 | プロジェクトのタスク一覧(`/projects/{projectId}/tasks`)へ遷移し、一覧から消えている | OK |  |  |  |  |
-| SCR-007-04 | コメント一覧表示 | コメント欄を確認 | 投稿者名・本文・日時（`YYYY/MM/DD HH:mm`）が表示される | OK |  |  |  |  |
-| SCR-007-05 | コメントが0件の場合 | コメントが存在しないタスクで表示 | 「コメントはまだありません。」が表示される | OK |  |  |  |  |
-| SCR-007-06 | コメント投稿成功 | コメント欄に入力して「投稿」押下 | コメント一覧に自分の投稿が追加され、入力欄が空になる | OK |  |  |  |  |
-| SCR-007-07 | 空白のみのコメント投稿 | 空白のみを入力して「投稿」押下 | 「コメントを入力してください。」等のエラーが表示され送信されない | OK |  |  |  |  |
+| SCR-007-01 | 詳細表示 | `/tasks/{id}`を表示 | タイトル・ステータス・優先度・担当者・期限・説明が表示される | OK |  |  | OK |  |
+| SCR-007-02 | 編集モードへの切り替え・保存 | 「編集」押下→値変更→「保存」押下 | 変更内容が表示に反映される | NG | 「保存」押下後も編集モードのままとなり、`サーバー内部でエラーが発生しました。` が表示され変更が反映されない | UT-507と同じ原因。同じ修正で対応 | OK |  |
+| SCR-007-03 | 削除確認モーダル・実行 | 「削除」押下→モーダルで「削除」押下 | プロジェクトのタスク一覧(`/projects/{projectId}/tasks`)へ遷移し、一覧から消えている | OK |  |  | OK |  |
+| SCR-007-04 | コメント一覧表示 | コメント欄を確認 | 投稿者名・本文・日時（`YYYY/MM/DD HH:mm`）が表示される | OK |  |  | OK |  |
+| SCR-007-05 | コメントが0件の場合 | コメントが存在しないタスクで表示 | 「コメントはまだありません。」が表示される | OK |  |  | OK |  |
+| SCR-007-06 | コメント投稿成功 | コメント欄に入力して「投稿」押下 | コメント一覧に自分の投稿が追加され、入力欄が空になる | OK |  |  | OK |  |
+| SCR-007-07 | 空白のみのコメント投稿 | 空白のみを入力して「投稿」押下 | 「コメントを入力してください。」等のエラーが表示され送信されない | OK |  |  | OK |  |
 
 ### 7.7 共通レイアウト・認証状態
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| SCR-COM-01 | ヘッダー表示 | 認証後の任意画面を表示 | システム名とログインユーザー名がヘッダーに表示される | OK |  |  |  |  |
-| SCR-COM-02 | サイドメニュー表示 | 認証後の任意画面を表示 | 「プロジェクト」「ログアウト」がサイドメニューに表示される | OK |  |  |  |  |
-| SCR-COM-03 | ログアウト | サイドメニューの「ログアウト」押下 | localStorageのセッション情報が消え、`/login`へ遷移する | OK |  |  |  |  |
-| SCR-COM-04 | セッション切れ時の自動リダイレクト | localStorageのトークンを不正な値に書き換えた状態で画面操作 | APIが401を返した時点で自動的に`/login`へ遷移する | OK |  |  |  |  |
-| SCR-COM-05 | ローディング表示 | データ取得中の画面を表示（回線を遅くする等） | 「データを読み込んでいます...」が表示される | OK |  |  |  |  |
+| SCR-COM-01 | ヘッダー表示 | 認証後の任意画面を表示 | システム名とログインユーザー名がヘッダーに表示される | OK |  |  | OK |  |
+| SCR-COM-02 | サイドメニュー表示 | 認証後の任意画面を表示 | 「プロジェクト」「ログアウト」がサイドメニューに表示される | OK |  |  | OK |  |
+| SCR-COM-03 | ログアウト | サイドメニューの「ログアウト」押下 | localStorageのセッション情報が消え、`/login`へ遷移する | OK |  |  | OK |  |
+| SCR-COM-04 | セッション切れ時の自動リダイレクト | localStorageのトークンを不正な値に書き換えた状態で画面操作 | APIが401を返した時点で自動的に`/login`へ遷移する | OK |  |  | OK |  |
+| SCR-COM-05 | ローディング表示 | データ取得中の画面を表示（回線を遅くする等） | 「データを読み込んでいます...」が表示される | OK |  |  | OK |  |
 
 ---
 
@@ -350,11 +351,11 @@ APIとDBの連携（外部キー制約・カスケード・トランザクショ
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| ST-001 | 一連のメインフロー | ①ログイン→②プロジェクト新規作成→③プロジェクト詳細でメンバー追加→④タスク一覧でタスク追加→⑤タスク詳細で担当者・ステータス・優先度・期限を編集→⑥コメント投稿→⑦ログアウト | 各画面遷移・データ反映がすべて正常に行われ、エラーが発生しない | NG | ⑤タスク詳細の編集で「保存」押下時に `サーバー内部でエラーが発生しました。` が表示され、担当者・ステータス等が反映されない（①〜④は正常） | 対応中（UT-507と同じ原因） |  |  |
-| ST-002 | プロジェクト削除に伴う関連データの整合性 | タスク・コメント・メンバーが存在するプロジェクトを削除し、関連するタスク詳細URLに直接アクセス | タスクも連動して削除されており、404（「指定されたタスクが存在しません。」）が表示される | NG | タスクは削除されている（APIは404を返す）が、画面には `タスク情報の取得に失敗しました。` が表示され、期待するメッセージと異なる | 対応中（原因: タスク詳細画面が取得失敗時に固定メッセージを表示しており、APIのエラーメッセージを使っていないため。画面と本書の期待結果のどちらに合わせるか要検討） |  |  |
-| ST-003 | 複数ユーザーでの共同作業 | ユーザーAでプロジェクト作成・ユーザーBをメンバー追加→ユーザーBでログインしてタスク作成・コメント投稿 | ユーザーBが招待されたプロジェクトを操作でき、コメントの投稿者名がユーザーBとして記録される | OK |  |  |  |  |
-| ST-004 | ブラウザ再読み込み後のセッション維持 | ログイン後、ブラウザをリロード | 再ログインなしで画面が維持される（localStorageのセッションが有効な間） | OK |  |  |  |  |
-| ST-005 | 未認証状態での全保護画面への直接アクセス | ログアウト状態で`/projects`、`/projects/1`、`/projects/1/tasks`、`/tasks/1`に直接アクセス | すべて`/login`へリダイレクトされる | OK |  |  |  |  |
+| ST-001 | 一連のメインフロー | ①ログイン→②プロジェクト新規作成→③プロジェクト詳細でメンバー追加→④タスク一覧でタスク追加→⑤タスク詳細で担当者・ステータス・優先度・期限を編集→⑥コメント投稿→⑦ログアウト | 各画面遷移・データ反映がすべて正常に行われ、エラーが発生しない | NG | ⑤タスク詳細の編集で「保存」押下時に `サーバー内部でエラーが発生しました。` が表示され、担当者・ステータス等が反映されない（①〜④は正常） | UT-507と同じ原因。同じ修正で対応 | OK |  |
+| ST-002 | プロジェクト削除に伴う関連データの整合性 | タスク・コメント・メンバーが存在するプロジェクトを削除し、関連するタスク詳細URLに直接アクセス | タスクも連動して削除されており、404（「指定されたタスクが存在しません。」）が表示される | NG | タスクは削除されている（APIは404を返す）が、画面には `タスク情報の取得に失敗しました。` が表示され、期待するメッセージと異なる | 原因: タスク詳細画面が取得失敗時に常に固定メッセージを表示していた。修正: APIが404を返した場合はAPIのエラーメッセージ（`指定されたタスクが存在しません。`）を表示するよう変更（それ以外の取得失敗は従来どおり `タスク情報の取得に失敗しました。`） | OK |  |
+| ST-003 | 複数ユーザーでの共同作業 | ユーザーAでプロジェクト作成・ユーザーBをメンバー追加→ユーザーBでログインしてタスク作成・コメント投稿 | ユーザーBが招待されたプロジェクトを操作でき、コメントの投稿者名がユーザーBとして記録される | OK |  |  | OK |  |
+| ST-004 | ブラウザ再読み込み後のセッション維持 | ログイン後、ブラウザをリロード | 再ログインなしで画面が維持される（localStorageのセッションが有効な間） | OK |  |  | OK |  |
+| ST-005 | 未認証状態での全保護画面への直接アクセス | ログアウト状態で`/projects`、`/projects/1`、`/projects/1/tasks`、`/tasks/1`に直接アクセス | すべて`/login`へリダイレクトされる | OK |  |  | OK |  |
 
 ---
 
@@ -362,12 +363,12 @@ APIとDBの連携（外部キー制約・カスケード・トランザクショ
 
 | 分類 | 項目数 | 1回目 OK | 1回目 NG | 1回目 未実施 | 2回目 OK | 2回目 NG | 2回目 未実施 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 単体テスト | 39 | 34 | 5 | 0 |  |  |  |
-| APIテスト | 60 | 57 | 3 | 0 |  |  |  |
-| 結合テスト | 8 | 7 | 1 | 0 |  |  |  |
-| 画面テスト | 47 | 45 | 2 | 0 |  |  |  |
-| システムテスト | 5 | 3 | 2 | 0 |  |  |  |
-| **合計** | **159** | **146** | **13** | **0** |  |  |  |
+| 単体テスト | 39 | 34 | 5 | 0 | 39 | 0 | 0 |
+| APIテスト | 60 | 57 | 3 | 0 | 60 | 0 | 0 |
+| 結合テスト | 8 | 7 | 1 | 0 | 8 | 0 | 0 |
+| 画面テスト | 47 | 45 | 2 | 0 | 47 | 0 | 0 |
+| システムテスト | 5 | 3 | 2 | 0 | 5 | 0 | 0 |
+| **合計** | **159** | **146** | **13** | **0** | **159** | **0** | **0** |
 
 ---
 
