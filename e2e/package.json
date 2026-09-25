@@ -1,0 +1,22 @@
+{
+  "name": "task-management-system-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "APIテスト・結合テスト・画面テスト・システムテスト(Playwright)",
+  "scripts": {
+    "test": "playwright test",
+    "test:api": "playwright test --project=api",
+    "test:integration": "playwright test --project=integration",
+    "test:screen": "playwright test --project=screen",
+    "test:system": "playwright test --project=system",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.3",
+    "@types/pg": "^8.23.1",
+    "bcryptjs": "^3.0.3",
+    "pg": "^8.23.0",
+    "typescript": "^7.0.2"
+  }
+}
