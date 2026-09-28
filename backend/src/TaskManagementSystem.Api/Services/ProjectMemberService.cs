@@ -14,10 +14,9 @@ public class ProjectMemberService : IProjectMemberService
         _dbContext = dbContext;
     }
 
-    public async Task<List<MemberDto>?> GetMembersAsync(long projectId)
+    public async Task<List<MemberDto>?> GetMembersAsync(long projectId, long currentUserId)
     {
-        var projectExists = await _dbContext.Projects.AnyAsync(p => p.Id == projectId);
-        if (!projectExists)
+        if (await _dbContext.GetProjectRoleAsync(projectId, currentUserId) is null)
         {
             return null;
         }
@@ -29,12 +28,17 @@ public class ProjectMemberService : IProjectMemberService
             .ToListAsync();
     }
 
-    public async Task<AddMemberOutcome> AddMemberAsync(long projectId, AddMemberRequest request)
+    public async Task<AddMemberOutcome> AddMemberAsync(long projectId, AddMemberRequest request, long currentUserId)
     {
-        var projectExists = await _dbContext.Projects.AnyAsync(p => p.Id == projectId);
-        if (!projectExists)
+        var role = await _dbContext.GetProjectRoleAsync(projectId, currentUserId);
+        if (role is null)
         {
             return new AddMemberOutcome(AddMemberResult.ProjectNotFound);
+        }
+
+        if (role != ProjectMemberRole.Owner)
+        {
+            return new AddMemberOutcome(AddMemberResult.Forbidden);
         }
 
         var userExists = await _dbContext.Users.AnyAsync(u => u.Id == request.UserId);
@@ -65,12 +69,17 @@ public class ProjectMemberService : IProjectMemberService
             new MemberAddedDto(projectId, member.UserId, member.Role));
     }
 
-    public async Task<RemoveMemberResult> RemoveMemberAsync(long projectId, long userId)
+    public async Task<RemoveMemberResult> RemoveMemberAsync(long projectId, long userId, long currentUserId)
     {
-        var projectExists = await _dbContext.Projects.AnyAsync(p => p.Id == projectId);
-        if (!projectExists)
+        var role = await _dbContext.GetProjectRoleAsync(projectId, currentUserId);
+        if (role is null)
         {
             return RemoveMemberResult.ProjectNotFound;
+        }
+
+        if (role != ProjectMemberRole.Owner)
+        {
+            return RemoveMemberResult.Forbidden;
         }
 
         var member = await _dbContext.ProjectMembers

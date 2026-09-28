@@ -14,10 +14,9 @@ public class TaskService : ITaskService
         _dbContext = dbContext;
     }
 
-    public async Task<List<TaskDto>?> GetByProjectAsync(long projectId)
+    public async Task<List<TaskDto>?> GetByProjectAsync(long projectId, long currentUserId)
     {
-        var projectExists = await _dbContext.Projects.AnyAsync(p => p.Id == projectId);
-        if (!projectExists)
+        if (await _dbContext.GetProjectRoleAsync(projectId, currentUserId) is null)
         {
             return null;
         }
@@ -30,24 +29,30 @@ public class TaskService : ITaskService
         return tasks.Select(ToDto).ToList();
     }
 
-    public async Task<TaskDto?> GetByIdAsync(long id)
+    public async Task<TaskDto?> GetByIdAsync(long id, long currentUserId)
     {
+        if (await _dbContext.GetTaskProjectRoleAsync(id, currentUserId) is null)
+        {
+            return null;
+        }
+
         var task = await _dbContext.Tasks.FindAsync(id);
         return task is null ? null : ToDto(task);
     }
 
-    public async Task<CreateTaskOutcome> CreateAsync(long projectId, TaskRequest request)
+    public async Task<CreateTaskOutcome> CreateAsync(long projectId, TaskRequest request, long currentUserId)
     {
-        var projectExists = await _dbContext.Projects.AnyAsync(p => p.Id == projectId);
-        if (!projectExists)
+        if (await _dbContext.GetProjectRoleAsync(projectId, currentUserId) is null)
         {
             return new CreateTaskOutcome(CreateTaskResult.ProjectNotFound);
         }
 
-        if (request.AssigneeId is not null
-            && !await _dbContext.Users.AnyAsync(u => u.Id == request.AssigneeId))
+        switch (await CheckAssigneeAsync(projectId, request.AssigneeId))
         {
-            return new CreateTaskOutcome(CreateTaskResult.AssigneeNotFound);
+            case AssigneeCheck.NotFound:
+                return new CreateTaskOutcome(CreateTaskResult.AssigneeNotFound);
+            case AssigneeCheck.NotMember:
+                return new CreateTaskOutcome(CreateTaskResult.AssigneeNotMember);
         }
 
         var task = new TaskItem
@@ -75,18 +80,25 @@ public class TaskService : ITaskService
         return new CreateTaskOutcome(CreateTaskResult.Success, ToDto(task));
     }
 
-    public async Task<UpdateTaskOutcome> UpdateAsync(long id, TaskRequest request)
+    public async Task<UpdateTaskOutcome> UpdateAsync(long id, TaskRequest request, long currentUserId)
     {
+        if (await _dbContext.GetTaskProjectRoleAsync(id, currentUserId) is null)
+        {
+            return new UpdateTaskOutcome(UpdateTaskResult.TaskNotFound);
+        }
+
         var task = await _dbContext.Tasks.FindAsync(id);
         if (task is null)
         {
             return new UpdateTaskOutcome(UpdateTaskResult.TaskNotFound);
         }
 
-        if (request.AssigneeId is not null
-            && !await _dbContext.Users.AnyAsync(u => u.Id == request.AssigneeId))
+        switch (await CheckAssigneeAsync(task.ProjectId, request.AssigneeId))
         {
-            return new UpdateTaskOutcome(UpdateTaskResult.AssigneeNotFound);
+            case AssigneeCheck.NotFound:
+                return new UpdateTaskOutcome(UpdateTaskResult.AssigneeNotFound);
+            case AssigneeCheck.NotMember:
+                return new UpdateTaskOutcome(UpdateTaskResult.AssigneeNotMember);
         }
 
         task.AssigneeId = request.AssigneeId;
@@ -112,18 +124,55 @@ public class TaskService : ITaskService
         return new UpdateTaskOutcome(UpdateTaskResult.Success, ToDto(task));
     }
 
-    public async Task<bool> DeleteAsync(long id)
+    public async Task<DeleteTaskResult> DeleteAsync(long id, long currentUserId)
     {
+        var role = await _dbContext.GetTaskProjectRoleAsync(id, currentUserId);
+        if (role is null)
+        {
+            return DeleteTaskResult.TaskNotFound;
+        }
+
+        // タスクに作成者の情報がなく「本人が作成したタスクのみ」を判定できないため、OWNERのみ許可する(security-review.md 5.1)
+        if (role != ProjectMemberRole.Owner)
+        {
+            return DeleteTaskResult.Forbidden;
+        }
+
         var task = await _dbContext.Tasks.FindAsync(id);
         if (task is null)
         {
-            return false;
+            return DeleteTaskResult.TaskNotFound;
         }
 
         _dbContext.Tasks.Remove(task);
         await _dbContext.SaveChangesAsync();
 
-        return true;
+        return DeleteTaskResult.Success;
+    }
+
+    private enum AssigneeCheck
+    {
+        Ok,
+        NotFound,
+        NotMember,
+    }
+
+    /// <summary>担当者はプロジェクトのメンバーに限定する(未割り当ては可)</summary>
+    private async Task<AssigneeCheck> CheckAssigneeAsync(long projectId, long? assigneeId)
+    {
+        if (assigneeId is null)
+        {
+            return AssigneeCheck.Ok;
+        }
+
+        if (!await _dbContext.Users.AnyAsync(u => u.Id == assigneeId))
+        {
+            return AssigneeCheck.NotFound;
+        }
+
+        return await _dbContext.GetProjectRoleAsync(projectId, assigneeId.Value) is null
+            ? AssigneeCheck.NotMember
+            : AssigneeCheck.Ok;
     }
 
     private static TaskDto ToDto(TaskItem task) => new(

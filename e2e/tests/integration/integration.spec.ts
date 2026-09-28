@@ -53,6 +53,8 @@ test.describe("6. 結合テスト", () => {
     const owner = await data.createUser("オーナー");
     const assignee = await data.createUser("担当者");
     const project = await data.createProject(owner);
+    // 担当者はプロジェクトメンバーに限られるため、先にメンバーとして追加する(security-review.md SEC-10)
+    await data.addMember(project.id, owner, assignee);
     const task = await data.createTask(project.id, owner, { assigneeId: assignee.id });
 
     await db.query("DELETE FROM users WHERE id = $1", [assignee.id]);

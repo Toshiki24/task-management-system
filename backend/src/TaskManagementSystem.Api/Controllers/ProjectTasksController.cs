@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TaskManagementSystem.Api.Dtos.Common;
 using TaskManagementSystem.Api.Dtos.Tasks;
+using TaskManagementSystem.Api.Extensions;
 using TaskManagementSystem.Api.Services;
 
 namespace TaskManagementSystem.Api.Controllers;
@@ -19,7 +20,7 @@ public class ProjectTasksController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<TaskDto>>> GetAll(long projectId)
     {
-        var tasks = await _taskService.GetByProjectAsync(projectId);
+        var tasks = await _taskService.GetByProjectAsync(projectId, this.GetCurrentUserId());
         if (tasks is null)
         {
             return NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。"));
@@ -31,7 +32,7 @@ public class ProjectTasksController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<TaskDto>> Create(long projectId, TaskRequest request)
     {
-        var outcome = await _taskService.CreateAsync(projectId, request);
+        var outcome = await _taskService.CreateAsync(projectId, request, this.GetCurrentUserId());
 
         return outcome.Result switch
         {
@@ -42,6 +43,11 @@ public class ProjectTasksController : ControllerBase
                 BadRequest(new ValidationErrorResponse(
                     "入力内容に誤りがあります。",
                     new[] { new ValidationErrorItem("assigneeId", "指定されたユーザーが存在しません。") })),
+
+            CreateTaskResult.AssigneeNotMember =>
+                BadRequest(new ValidationErrorResponse(
+                    "入力内容に誤りがあります。",
+                    new[] { new ValidationErrorItem("assigneeId", "指定されたユーザーはプロジェクトのメンバーではありません。") })),
 
             _ => Created($"/api/tasks/{outcome.Data!.Id}", outcome.Data),
         };

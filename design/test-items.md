@@ -5,11 +5,11 @@
 | 項目     | 内容                                   |
 | ------ | ------------------------------------ |
 | 文書名    | 案件・タスク管理システム テスト項目書                 |
-| バージョン  | 1.2                                  |
+| バージョン  | 1.3                                  |
 | 作成日    | 2026-09-23                           |
-| 更新日    | 2026-09-26                           |
+| 更新日    | 2026-09-28                           |
 | 対象システム | 案件・タスク管理システム                         |
-| 上位文書   | 基本設計書 §25 / API詳細仕様書 / 画面詳細設計書 / ER図 |
+| 上位文書   | 基本設計書 §25 / API詳細仕様書 / 画面詳細設計書 / ER図 / セキュリティ見直し記録 |
 
 ### 改訂履歴
 
@@ -18,12 +18,13 @@
 | 1.0 | 2026-09-23 | 初版作成 |
 | 1.1 | 2026-09-26 | 1回目のテスト結果を記録。2回目（再テスト）の記録欄を追加。自動テストの実装先を追記 |
 | 1.2 | 2026-09-26 | 1回目NG項目の修正内容と、2回目（再テスト）の結果を記録 |
+| 1.3 | 2026-09-28 | セキュリティ対応（認可チェック：SEC-01、SEC-10）に伴い、9章「セキュリティテスト」と単体テスト12項目を追加。認可の仕様追加に合わせて UT-306、UT-307、UT-502、UT-507、UT-510、UT-511、UT-603、IT-003 のテスト方法・期待結果を更新。回帰テストの結果を実施記録に追加し、テスト結果サマリーを10章、次工程を11章に移動 |
 
 ---
 
 ## 2. テスト方針
 
-基本設計書 §25 に基づき、以下5種類のテストを実施する。
+基本設計書 §25 に基づき、以下6種類のテストを実施する。
 
 | 分類     | 対象               | 本書での章 | 自動テストの実装先 |
 | ------ | ---------------- | ----- | ------------------ |
@@ -32,6 +33,7 @@
 | 結合テスト  | APIとDBの連携        | 6     | `e2e/tests/integration`（Playwright） |
 | 画面テスト  | 画面操作およびAPI連携     | 7     | `e2e/tests/screen`（Playwright） |
 | システムテスト | ログイン〜プロジェクト〜タスク管理の一連操作 | 8 | `e2e/tests/system`（Playwright） |
+| セキュリティテスト | セキュリティ見直し記録（`security-review.md`）の課題に対する対策 | 9 | `e2e/tests/security`（Playwright） |
 
 全項目を自動テストとして実装している。各テストの名前は本書のNo.（`UT-101`、`SCR-005-03` 等）で始まり、本書の項目と1対1で対応する。
 
@@ -57,6 +59,11 @@
 | --- | --- | --- | --- | --- |
 | 1回目 | 2026-09-26 | 自動テスト（`backend` で `dotnet test`、`e2e` で `npm test`） | `main`（`051c563`） | 159項目中 OK 146 / NG 13 |
 | 2回目 | 2026-09-26 | 自動テスト（`backend` で `dotnet test`、`e2e` で `npm test`）。全159項目を再実行 | `fix/test-ng-items`（`0aba1af`） | 159項目中 OK 159 / NG 0 |
+| 3回目 | 2026-09-28 | セキュリティ対応①（認可チェック）後の回帰テスト。自動テスト（`backend` で `dotnet test`、`e2e` で `npm test`）で全項目を実行 | `feature/authorization`（`c74250e`） | 195項目中 OK 195 / NG 0（既存159項目の回帰 OK 159、追加36項目 OK 36） |
+
+3回目以降はセキュリティ対応（`security-review.md` §7）の各ステップ後に実施する。そのステップで追加した項目は、その回の結果を各表の「1回目結果」欄に記入する。既存項目の回帰テスト結果は、表に列を追加せず本表にのみ記録する。
+
+3回目では、担当者をプロジェクトメンバーに限定する仕様（SEC-10）に合わせて IT-003 の前提データ（担当者をメンバーとして追加）を修正した。確認内容（ユーザー削除時に`assignee_id`が`NULL`になること）は変更していない。
 
 自動テストは開発用DB（`task_management`）を使用しない。単体テストはテストクラスごとの使い捨てDB、E2Eテスト（API・結合・画面・システム）は実行ごとに作り直す `task_management_e2e` を使用し、アプリはテスト専用ポート（API: 5100、フロントエンド: 3100）で起動する。
 
@@ -92,9 +99,13 @@ Service層の個別ロジック（バリデーション・業務ルール）を�
 | UT-303 | status省略時はACTIVEになる | `Status=null`で`CreateAsync`を実行 | 作成されたプロジェクトの`Status`が`ACTIVE` | OK |  |  | OK |  |
 | UT-304 | 更新時、name/description/startDate/endDateが上書きされる | 既存プロジェクトに対し新しい値で`UpdateAsync` | 全項目が新しい値に置き換わる | NG | `DbUpdateException`（Cannot write DateTime with Kind=UTC to PostgreSQL type 'timestamp without time zone'）が発生し、更新が保存されない | 原因: `AppDbContext.SaveChangesAsync` が `updated_at` に `DateTime.UtcNow`（Kind=Utc）を設定しており、Npgsqlが `timestamp without time zone` 列への書き込みを拒否していた。修正: Kindを `Unspecified` にして設定するよう変更（値はUTCのまま） | OK |  |
 | UT-305 | 更新時、status省略で既存値が維持される | `Status=null`で`UpdateAsync` | 既存の`Status`が変化しない | NG | `DbUpdateException`（Cannot write DateTime with Kind=UTC to PostgreSQL type 'timestamp without time zone'）が発生し、更新が保存されない | 原因: `AppDbContext.SaveChangesAsync` が `updated_at` に `DateTime.UtcNow`（Kind=Utc）を設定しており、Npgsqlが `timestamp without time zone` 列への書き込みを拒否していた。修正: Kindを `Unspecified` にして設定するよう変更（値はUTCのまま） | OK |  |
-| UT-306 | 存在しないIDの更新 | 存在しないIDで`UpdateAsync` | `null`が返る | OK |  |  | OK |  |
-| UT-307 | 存在しないIDの削除 | 存在しないIDで`DeleteAsync` | `false`が返る | OK |  |  | OK |  |
+| UT-306 | 存在しないIDの更新 | 存在しないIDで`UpdateAsync` | `UpdateProjectResult.ProjectNotFound`が返る | OK |  |  | OK |  |
+| UT-307 | 存在しないIDの削除 | 存在しないIDで`DeleteAsync` | `DeleteProjectResult.ProjectNotFound`が返る | OK |  |  | OK |  |
 | UT-308 | 更新時にupdated_atが現在時刻に更新される | `UpdateAsync`実行前後で`updated_at`を比較 | 更新後の値が実行時刻に更新されている | NG | `DbUpdateException`（Cannot write DateTime with Kind=UTC to PostgreSQL type 'timestamp without time zone'）が発生し、更新が保存されない（`updated_at` を確認できない） | 原因: `AppDbContext.SaveChangesAsync` が `updated_at` に `DateTime.UtcNow`（Kind=Utc）を設定しており、Npgsqlが `timestamp without time zone` 列への書き込みを拒否していた。修正: Kindを `Unspecified` にして設定するよう変更（値はUTCのまま） | OK |  |
+| UT-309 | 一覧は自分が所属しているプロジェクトのみ返す | OWNER・MEMBERとして所属するプロジェクトと、所属していないプロジェクトを用意して`GetAllAsync` | 所属しているプロジェクトのみが返る | OK |  |  |  |  |
+| UT-310 | 所属していないプロジェクトの詳細取得 | 非メンバーとして`GetByIdAsync` | `null`が返る | OK |  |  |  |  |
+| UT-311 | 所属していないプロジェクトの更新・削除 | 非メンバーとして`UpdateAsync`・`DeleteAsync` | `ProjectNotFound`が返り、プロジェクトは変更・削除されない | OK |  |  |  |  |
+| UT-312 | MEMBERによるプロジェクトの更新・削除 | MEMBERとして`UpdateAsync`・`DeleteAsync` | `Forbidden`が返り、プロジェクトは変更・削除されない | OK |  |  |  |  |
 
 ### 4.4 ProjectMemberService
 
@@ -107,22 +118,29 @@ Service層の個別ロジック（バリデーション・業務ルール）を�
 | UT-405 | 重複メンバー追加 | 既に所属しているユーザーを`AddMemberAsync` | `AddMemberResult.AlreadyMember`が返る | OK |  |  | OK |  |
 | UT-406 | メンバー削除成功 | 所属しているユーザーを`RemoveMemberAsync` | `RemoveMemberResult.Success`が返り、行が削除される | OK |  |  | OK |  |
 | UT-407 | 存在しないメンバーの削除 | 未所属ユーザーを`RemoveMemberAsync` | `RemoveMemberResult.MemberNotFound`が返る | OK |  |  | OK |  |
+| UT-408 | 所属していないプロジェクトのメンバー操作 | 非メンバーとして`GetMembersAsync`・`AddMemberAsync`（自分自身をOWNERで追加）・`RemoveMemberAsync` | 一覧は`null`、追加・削除は`ProjectNotFound`が返り、メンバー構成は変わらない | OK |  |  |  |  |
+| UT-409 | MEMBERによるメンバーの追加・削除 | MEMBERとして`AddMemberAsync`・`RemoveMemberAsync` | `Forbidden`が返り、メンバー構成は変わらない | OK |  |  |  |  |
+| UT-410 | MEMBERはメンバー一覧を取得できる | MEMBERとして`GetMembersAsync` | メンバー一覧が返る | OK |  |  |  |  |
 
 ### 4.5 TaskService
 
 | No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | UT-501 | 存在しないプロジェクトのタスク一覧取得 | 存在しないprojectIdで`GetByProjectAsync` | `null`が返る | OK |  |  | OK |  |
-| UT-502 | タスク作成成功 | 有効なprojectIdで`CreateAsync` | `CreateTaskResult.Success`とタスク情報が返る | OK |  |  | OK |  |
+| UT-502 | タスク作成成功 | OWNERとして、プロジェクトメンバーを担当者に指定して`CreateAsync` | `CreateTaskResult.Success`とタスク情報が返る | OK |  |  | OK |  |
 | UT-503 | 存在しないプロジェクトへのタスク作成 | 存在しないprojectIdで`CreateAsync` | `CreateTaskResult.ProjectNotFound`が返る | OK |  |  | OK |  |
 | UT-504 | 存在しない担当者を指定したタスク作成 | 存在しないassigneeIdで`CreateAsync` | `CreateTaskResult.AssigneeNotFound`が返る | OK |  |  | OK |  |
 | UT-505 | assigneeId未指定でのタスク作成 | `AssigneeId=null`で`CreateAsync` | 担当者チェックがスキップされ作成成功する | OK |  |  | OK |  |
 | UT-506 | status/priority省略時の初期値 | 省略して`CreateAsync` | `TODO` / `MEDIUM`が設定される | OK |  |  | OK |  |
-| UT-507 | タスク更新成功 | 既存タスクを`UpdateAsync` | `UpdateTaskResult.Success`と更新後の内容が返る | NG | `DbUpdateException`（Cannot write DateTime with Kind=UTC to PostgreSQL type 'timestamp without time zone'）が発生し、更新が保存されない | 原因: `AppDbContext.SaveChangesAsync` が `updated_at` に `DateTime.UtcNow`（Kind=Utc）を設定しており、Npgsqlが `timestamp without time zone` 列への書き込みを拒否していた。修正: Kindを `Unspecified` にして設定するよう変更（値はUTCのまま） | OK |  |
+| UT-507 | タスク更新成功 | OWNERとして、プロジェクトメンバーを担当者に指定して既存タスクを`UpdateAsync` | `UpdateTaskResult.Success`と更新後の内容が返る | NG | `DbUpdateException`（Cannot write DateTime with Kind=UTC to PostgreSQL type 'timestamp without time zone'）が発生し、更新が保存されない | 原因: `AppDbContext.SaveChangesAsync` が `updated_at` に `DateTime.UtcNow`（Kind=Utc）を設定しており、Npgsqlが `timestamp without time zone` 列への書き込みを拒否していた。修正: Kindを `Unspecified` にして設定するよう変更（値はUTCのまま） | OK |  |
 | UT-508 | 存在しないタスクの更新 | 存在しないIDで`UpdateAsync` | `UpdateTaskResult.TaskNotFound`が返る | OK |  |  | OK |  |
 | UT-509 | 存在しない担当者への更新 | 存在しないassigneeIdで`UpdateAsync` | `UpdateTaskResult.AssigneeNotFound`が返る | OK |  |  | OK |  |
-| UT-510 | タスク削除成功 | 既存タスクを`DeleteAsync` | `true`が返り、行が削除される | OK |  |  | OK |  |
-| UT-511 | 存在しないタスクの削除 | 存在しないIDで`DeleteAsync` | `false`が返る | OK |  |  | OK |  |
+| UT-510 | タスク削除成功 | OWNERとして既存タスクを`DeleteAsync` | `DeleteTaskResult.Success`が返り、行が削除される | OK |  |  | OK |  |
+| UT-511 | 存在しないタスクの削除 | 存在しないIDで`DeleteAsync` | `DeleteTaskResult.TaskNotFound`が返る | OK |  |  | OK |  |
+| UT-512 | 所属していないプロジェクトのタスク操作 | 非メンバーとして一覧・詳細取得、作成、更新、削除を実行 | 一覧・詳細は`null`、作成は`ProjectNotFound`、更新・削除は`TaskNotFound`が返り、タスクは変更されない | OK |  |  |  |  |
+| UT-513 | MEMBERはタスクの参照・作成・更新ができる | MEMBERとして一覧・詳細取得、作成、更新を実行 | いずれも成功する | OK |  |  |  |  |
+| UT-514 | MEMBERによるタスク削除 | MEMBERとして`DeleteAsync` | `DeleteTaskResult.Forbidden`が返り、タスクは削除されない | OK |  |  |  |  |
+| UT-515 | プロジェクトに所属していないユーザーを担当者に指定 | 非メンバーを担当者に指定して`CreateAsync`・`UpdateAsync` | `AssigneeNotMember`が返り、担当者は設定されない | OK |  |  |  |  |
 
 ### 4.6 CommentService
 
@@ -130,8 +148,9 @@ Service層の個別ロジック（バリデーション・業務ルール）を�
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | UT-601 | 存在しないタスクのコメント一覧取得 | 存在しないtaskIdで`GetByTaskAsync` | `null`が返る | OK |  |  | OK |  |
 | UT-602 | コメント一覧に投稿者名が含まれる | コメントが存在するタスクで`GetByTaskAsync` | 各コメントに`UserName`が含まれる | OK |  |  | OK |  |
-| UT-603 | コメント登録成功 | 有効なtaskIdで`CreateAsync` | コメントが作成され、投稿者IDがJWTのユーザーと一致する | OK |  |  | OK |  |
+| UT-603 | コメント登録成功 | プロジェクトメンバーとして、有効なtaskIdで`CreateAsync` | コメントが作成され、投稿者IDがJWTのユーザーと一致する | OK |  |  | OK |  |
 | UT-604 | 存在しないタスクへのコメント登録 | 存在しないtaskIdで`CreateAsync` | `null`が返る | OK |  |  | OK |  |
+| UT-605 | 所属していないプロジェクトのコメント一覧取得・登録 | 非メンバーとして`GetByTaskAsync`・`CreateAsync` | どちらも`null`が返り、コメントは登録されない | OK |  |  |  |  |
 
 ### 4.7 JwtTokenService
 
@@ -248,7 +267,7 @@ APIとDBの連携（外部キー制約・カスケード・トランザクショ
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | IT-001 | プロジェクト削除のカスケード | メンバー・タスク・タスクコメントが存在するプロジェクトを削除し、psqlで各テーブルを確認 | `project_members`/`tasks`/`task_comments`が全て削除される | OK |  |  | OK |  |
 | IT-002 | タスク削除のカスケード | コメントが存在するタスクを削除し、`task_comments`を確認 | 関連コメントが削除される | OK |  |  | OK |  |
-| IT-003 | ユーザー削除時の担当タスクの扱い | 担当タスクを持つユーザーを削除（DB操作） | `tasks.assignee_id`が`NULL`になり、タスク自体は残る | OK |  |  | OK |  |
+| IT-003 | ユーザー削除時の担当タスクの扱い | 担当タスクを持つユーザー（プロジェクトメンバー）を削除（DB操作） | `tasks.assignee_id`が`NULL`になり、タスク自体は残る | OK |  |  | OK |  |
 | IT-004 | プロジェクト作成のトランザクション性 | プロジェクト作成中にメンバー登録を意図的に失敗させる | プロジェクト・メンバーどちらもDBに残らない | OK |  |  | OK |  |
 | IT-005 | メールアドレスの一意制約 | 既存メールと同じメールでユーザーを直接INSERT | 一意制約違反でエラーになる | OK |  |  | OK |  |
 | IT-006 | プロジェクトメンバーの重複防止制約 | 同一(project_id, user_id)を直接INSERT | 一意制約違反でエラーになる | OK |  |  | OK |  |
@@ -359,7 +378,59 @@ APIとDBの連携（外部キー制約・カスケード・トランザクショ
 
 ---
 
-## 9. テスト結果サマリー
+## 9. セキュリティテスト
+
+セキュリティ見直し記録（`security-review.md`）の課題に対する対策を確認する。No.は `SEC-{課題番号}-{連番}` とし、対応する課題が分かるようにする。
+
+所属していないプロジェクトへの操作は、リソースの存在自体を開示しないため404（`指定されたプロジェクトが存在しません。` / `指定されたタスクが存在しません。`）、MEMBERによるOWNER権限の操作は403（`この操作を行う権限がありません。`）となることを確認する。
+
+### 9.1 SEC-01 認可チェック（プロジェクトに所属していないユーザー）
+
+| No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| SEC-01-01 | プロジェクト一覧に所属していないプロジェクトが含まれない | 他ユーザーのプロジェクトと自分のプロジェクトを用意し、`GET /api/projects` | 自分のプロジェクトのみ含まれる | OK |  |  |  |  |
+| SEC-01-02 | 所属していないプロジェクトの詳細取得 | 非メンバーで`GET /api/projects/{id}` | 404 | OK |  |  |  |  |
+| SEC-01-03 | 所属していないプロジェクトの更新 | 非メンバーで`PUT /api/projects/{id}` | 404、プロジェクトは変更されない | OK |  |  |  |  |
+| SEC-01-04 | 所属していないプロジェクトの削除 | 非メンバーで`DELETE /api/projects/{id}` | 404、プロジェクトは削除されない | OK |  |  |  |  |
+| SEC-01-05 | 所属していないプロジェクトのメンバー一覧取得 | 非メンバーで`GET /api/projects/{projectId}/members` | 404 | OK |  |  |  |  |
+| SEC-01-06 | 所属していないプロジェクトに自分自身をメンバー追加 | 非メンバーが自分を`OWNER`として`POST /api/projects/{projectId}/members` | 404、メンバーに追加されない | OK |  |  |  |  |
+| SEC-01-07 | 所属していないプロジェクトのメンバー削除 | 非メンバーでOWNERを`DELETE /api/projects/{projectId}/members/{userId}` | 404、メンバーは削除されない | OK |  |  |  |  |
+| SEC-01-08 | 所属していないプロジェクトのタスク一覧取得・タスク登録 | 非メンバーで`GET`・`POST /api/projects/{projectId}/tasks` | どちらも404、タスクは登録されない | OK |  |  |  |  |
+| SEC-01-09 | 所属していないプロジェクトのタスク詳細取得 | 非メンバーで`GET /api/tasks/{id}` | 404 | OK |  |  |  |  |
+| SEC-01-10 | 所属していないプロジェクトのタスク更新 | 非メンバーで`PUT /api/tasks/{id}` | 404、タスクは変更されない | OK |  |  |  |  |
+| SEC-01-11 | 所属していないプロジェクトのタスク削除 | 非メンバーで`DELETE /api/tasks/{id}` | 404、タスクは削除されない | OK |  |  |  |  |
+| SEC-01-12 | 所属していないプロジェクトのコメント一覧取得・コメント登録 | 非メンバーで`GET`・`POST /api/tasks/{taskId}/comments` | どちらも404、コメントは登録されない | OK |  |  |  |  |
+
+### 9.2 SEC-01 認可チェック（プロジェクト内権限）
+
+| No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| SEC-01-13 | MEMBERによるプロジェクト更新 | MEMBERで`PUT /api/projects/{id}` | 403、プロジェクトは変更されない | OK |  |  |  |  |
+| SEC-01-14 | MEMBERによるプロジェクト削除 | MEMBERで`DELETE /api/projects/{id}` | 403、プロジェクトは削除されない | OK |  |  |  |  |
+| SEC-01-15 | MEMBERによるメンバー追加 | MEMBERで`POST /api/projects/{projectId}/members` | 403、メンバーに追加されない | OK |  |  |  |  |
+| SEC-01-16 | MEMBERによるメンバー削除 | MEMBERでOWNERを`DELETE /api/projects/{projectId}/members/{userId}` | 403、メンバーは削除されない | OK |  |  |  |  |
+| SEC-01-17 | MEMBERによるタスク削除 | MEMBERで`DELETE /api/tasks/{id}` | 403、タスクは削除されない | OK |  |  |  |  |
+| SEC-01-18 | MEMBERが許可された操作を行える | MEMBERでプロジェクト・メンバー・タスク・コメントの参照、タスク登録・更新（自分を担当者に指定）、コメント登録 | 参照は200、登録は201、更新は200 | OK |  |  |  |  |
+| SEC-01-19 | 作成者以外のOWNERがOWNER権限の操作を行える | 作成者が別ユーザーをOWNERとして追加し、そのユーザーでプロジェクト更新、メンバー削除、タスク削除、プロジェクト削除 | 更新は200、削除は204（作成者ではなくプロジェクト内権限で判定されている） | OK |  |  |  |  |
+
+### 9.3 SEC-10 タスク担当者の所属チェック
+
+| No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| SEC-10-01 | 所属していないユーザーを担当者にしてタスク登録 | 非メンバーの`assigneeId`を指定して`POST /api/projects/{projectId}/tasks` | 400、`assigneeId`に`指定されたユーザーはプロジェクトのメンバーではありません。`、タスクは登録されない | OK |  |  |  |  |
+| SEC-10-02 | 所属していないユーザーを担当者にしてタスク更新 | 非メンバーの`assigneeId`を指定して`PUT /api/tasks/{id}` | 400、`assigneeId`に同上のエラー、担当者は変更されない | OK |  |  |  |  |
+
+### 9.4 SEC-01 認可チェック（画面）
+
+| No. | テスト項目 | テスト方法 | 期待結果 | 1回目結果 | 1回目NG内容 | 修正内容 | 2回目結果 | 2回目NG内容 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| SEC-01-20 | プロジェクト一覧画面に所属していないプロジェクトが表示されない | 他ユーザーのプロジェクトがある状態でプロジェクト一覧画面を表示 | 自分のプロジェクトのみ表示される | OK |  |  |  |  |
+| SEC-01-21 | 所属していないプロジェクトの詳細画面にURLで直接アクセス | 非メンバーで`/projects/{id}`に直接アクセス | `プロジェクト情報の取得に失敗しました。`が表示され、プロジェクト名は表示されない | OK |  |  |  |  |
+| SEC-01-22 | MEMBERがプロジェクト削除を実行すると権限エラーが表示される | MEMBERでプロジェクト詳細画面から削除を実行 | `この操作を行う権限がありません。`が表示され、プロジェクトは削除されない | OK |  |  |  |  |
+
+---
+
+## 10. テスト結果サマリー
 
 | 分類 | 項目数 | 1回目 OK | 1回目 NG | 1回目 未実施 | 2回目 OK | 2回目 NG | 2回目 未実施 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -370,9 +441,23 @@ APIとDBの連携（外部キー制約・カスケード・トランザクショ
 | システムテスト | 5 | 3 | 2 | 0 | 5 | 0 | 0 |
 | **合計** | **159** | **146** | **13** | **0** | **159** | **0** | **0** |
 
+上表は初回テスト（1回目・2回目）の結果である。セキュリティ対応で追加した項目を含む、最新の実施結果は以下のとおり（3.1 実施記録の3回目）。
+
+| 分類 | 項目数 | OK | NG | 未実施 |
+| --- | ---: | ---: | ---: | ---: |
+| 単体テスト | 51 | 51 | 0 | 0 |
+| APIテスト | 60 | 60 | 0 | 0 |
+| 結合テスト | 8 | 8 | 0 | 0 |
+| 画面テスト | 47 | 47 | 0 | 0 |
+| システムテスト | 5 | 5 | 0 | 0 |
+| セキュリティテスト | 24 | 24 | 0 | 0 |
+| **合計** | **195** | **195** | **0** | **0** |
+
 ---
 
-## 10. 次工程
+## 11. 次工程
 
 テスト実施後、NG項目については修正内容欄に対応を記録し、再テストを実施して2回目の欄に結果を記録する。
 全項目がOKとなった時点でテスト完了とし、README整備・AWSデプロイ工程へ進む（基本設計書 §26 開発フェーズ）。
+
+AWSデプロイの前に、セキュリティ見直し記録（`security-review.md` §7）の対応計画に沿ってセキュリティ対応を行う。各ステップでは本書にテスト項目を追加し、全項目の回帰テストとあわせて実施して、結果を3.1 実施記録に記録する。

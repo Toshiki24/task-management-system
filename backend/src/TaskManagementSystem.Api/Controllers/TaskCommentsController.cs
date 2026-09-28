@@ -20,7 +20,7 @@ public class TaskCommentsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<CommentDto>>> GetAll(long taskId)
     {
-        var comments = await _commentService.GetByTaskAsync(taskId);
+        var comments = await _commentService.GetByTaskAsync(taskId, this.GetCurrentUserId());
         if (comments is null)
         {
             return NotFound(new ErrorResponse("指定されたタスクが存在しません。"));

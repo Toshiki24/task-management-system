@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TaskManagementSystem.Api.Dtos.Common;
 using TaskManagementSystem.Api.Dtos.ProjectMembers;
+using TaskManagementSystem.Api.Extensions;
 using TaskManagementSystem.Api.Services;
 
 namespace TaskManagementSystem.Api.Controllers;
@@ -19,7 +20,7 @@ public class ProjectMembersController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<MemberDto>>> GetAll(long projectId)
     {
-        var members = await _projectMemberService.GetMembersAsync(projectId);
+        var members = await _projectMemberService.GetMembersAsync(projectId, this.GetCurrentUserId());
         if (members is null)
         {
             return NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。"));
@@ -31,12 +32,14 @@ public class ProjectMembersController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<MemberAddedDto>> Add(long projectId, AddMemberRequest request)
     {
-        var outcome = await _projectMemberService.AddMemberAsync(projectId, request);
+        var outcome = await _projectMemberService.AddMemberAsync(projectId, request, this.GetCurrentUserId());
 
         return outcome.Result switch
         {
             AddMemberResult.ProjectNotFound =>
                 NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。")),
+
+            AddMemberResult.Forbidden => this.ForbiddenError(),
 
             AddMemberResult.UserNotFound =>
                 BadRequest(new ValidationErrorResponse(
@@ -53,12 +56,14 @@ public class ProjectMembersController : ControllerBase
     [HttpDelete("{userId}")]
     public async Task<IActionResult> Remove(long projectId, long userId)
     {
-        var result = await _projectMemberService.RemoveMemberAsync(projectId, userId);
+        var result = await _projectMemberService.RemoveMemberAsync(projectId, userId, this.GetCurrentUserId());
 
         return result switch
         {
             RemoveMemberResult.ProjectNotFound =>
                 NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。")),
+
+            RemoveMemberResult.Forbidden => this.ForbiddenError(),
 
             RemoveMemberResult.MemberNotFound =>
                 NotFound(new ErrorResponse("指定されたメンバーが存在しません。")),

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TaskManagementSystem.Api.Dtos.Common;
 using TaskManagementSystem.Api.Dtos.Tasks;
+using TaskManagementSystem.Api.Extensions;
 using TaskManagementSystem.Api.Services;
 
 namespace TaskManagementSystem.Api.Controllers;
@@ -19,7 +20,7 @@ public class TasksController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<TaskDto>> GetById(long id)
     {
-        var task = await _taskService.GetByIdAsync(id);
+        var task = await _taskService.GetByIdAsync(id, this.GetCurrentUserId());
         if (task is null)
         {
             return NotFound(new ErrorResponse("指定されたタスクが存在しません。"));
@@ -31,7 +32,7 @@ public class TasksController : ControllerBase
     [HttpPut("{id}")]
     public async Task<ActionResult<TaskDto>> Update(long id, TaskRequest request)
     {
-        var outcome = await _taskService.UpdateAsync(id, request);
+        var outcome = await _taskService.UpdateAsync(id, request, this.GetCurrentUserId());
 
         return outcome.Result switch
         {
@@ -43,6 +44,11 @@ public class TasksController : ControllerBase
                     "入力内容に誤りがあります。",
                     new[] { new ValidationErrorItem("assigneeId", "指定されたユーザーが存在しません。") })),
 
+            UpdateTaskResult.AssigneeNotMember =>
+                BadRequest(new ValidationErrorResponse(
+                    "入力内容に誤りがあります。",
+                    new[] { new ValidationErrorItem("assigneeId", "指定されたユーザーはプロジェクトのメンバーではありません。") })),
+
             _ => Ok(outcome.Data),
         };
     }
@@ -50,12 +56,16 @@ public class TasksController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(long id)
     {
-        var deleted = await _taskService.DeleteAsync(id);
-        if (!deleted)
-        {
-            return NotFound(new ErrorResponse("指定されたタスクが存在しません。"));
-        }
+        var result = await _taskService.DeleteAsync(id, this.GetCurrentUserId());
 
-        return NoContent();
+        return result switch
+        {
+            DeleteTaskResult.TaskNotFound =>
+                NotFound(new ErrorResponse("指定されたタスクが存在しません。")),
+
+            DeleteTaskResult.Forbidden => this.ForbiddenError(),
+
+            _ => NoContent(),
+        };
     }
 }

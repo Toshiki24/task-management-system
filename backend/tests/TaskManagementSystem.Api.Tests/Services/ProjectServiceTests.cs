@@ -70,16 +70,16 @@ public class ProjectServiceTests : IClassFixture<TestDatabaseFixture>
     public async Task UpdateAsync_OverwritesAllFields()
     {
         await using var arrange = _db.CreateContext();
-        var project = await TestData.CreateProjectAsync(arrange);
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
 
         var request = new ProjectRequest(
             TestData.Unique("ut-updated"), "更新後の説明", ProjectStatus.Completed,
             new DateOnly(2027, 1, 1), new DateOnly(2027, 3, 31));
 
         await using var context = _db.CreateContext();
-        var updated = await new ProjectService(context).UpdateAsync(project.Id, request);
+        var outcome = await new ProjectService(context).UpdateAsync(project.Id, request, owner.Id);
 
-        Assert.NotNull(updated);
+        Assert.Equal(UpdateProjectResult.Success, outcome.Result);
         await using var assert = _db.CreateContext();
         var saved = await assert.Projects.SingleAsync(p => p.Id == project.Id);
         Assert.Equal(request.Name, saved.Name);
@@ -93,40 +93,46 @@ public class ProjectServiceTests : IClassFixture<TestDatabaseFixture>
     public async Task UpdateAsync_KeepsStatus_WhenStatusIsNull()
     {
         await using var arrange = _db.CreateContext();
-        var project = await TestData.CreateProjectAsync(arrange, ProjectStatus.Archived);
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange, ProjectStatus.Archived);
 
         await using var context = _db.CreateContext();
-        var updated = await new ProjectService(context).UpdateAsync(project.Id, NewRequest(status: null));
+        var outcome = await new ProjectService(context).UpdateAsync(project.Id, NewRequest(status: null), owner.Id);
 
-        Assert.NotNull(updated);
-        Assert.Equal(ProjectStatus.Archived, updated.Status);
+        Assert.Equal(UpdateProjectResult.Success, outcome.Result);
+        Assert.Equal(ProjectStatus.Archived, outcome.Data!.Status);
         await using var assert = _db.CreateContext();
         Assert.Equal(ProjectStatus.Archived, (await assert.Projects.SingleAsync(p => p.Id == project.Id)).Status);
     }
 
     [Fact(DisplayName = "UT-306 存在しないIDの更新")]
-    public async Task UpdateAsync_ReturnsNull_WhenNotExists()
+    public async Task UpdateAsync_ReturnsProjectNotFound_WhenNotExists()
     {
-        await using var context = _db.CreateContext();
-        var result = await new ProjectService(context).UpdateAsync(TestData.NonExistentId, NewRequest());
+        await using var arrange = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(arrange);
 
-        Assert.Null(result);
+        await using var context = _db.CreateContext();
+        var outcome = await new ProjectService(context).UpdateAsync(TestData.NonExistentId, NewRequest(), user.Id);
+
+        Assert.Equal(UpdateProjectResult.ProjectNotFound, outcome.Result);
     }
 
     [Fact(DisplayName = "UT-307 存在しないIDの削除")]
-    public async Task DeleteAsync_ReturnsFalse_WhenNotExists()
+    public async Task DeleteAsync_ReturnsProjectNotFound_WhenNotExists()
     {
-        await using var context = _db.CreateContext();
-        var result = await new ProjectService(context).DeleteAsync(TestData.NonExistentId);
+        await using var arrange = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(arrange);
 
-        Assert.False(result);
+        await using var context = _db.CreateContext();
+        var result = await new ProjectService(context).DeleteAsync(TestData.NonExistentId, user.Id);
+
+        Assert.Equal(DeleteProjectResult.ProjectNotFound, result);
     }
 
     [Fact(DisplayName = "UT-308 更新時にupdated_atが現在時刻に更新される")]
     public async Task UpdateAsync_SetsUpdatedAtToNow()
     {
         await using var arrange = _db.CreateContext();
-        var project = await TestData.CreateProjectAsync(arrange);
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
         await using (var before = _db.CreateContext())
         {
             project = await before.Projects.SingleAsync(p => p.Id == project.Id);
@@ -134,11 +140,81 @@ public class ProjectServiceTests : IClassFixture<TestDatabaseFixture>
 
         var executedAt = DateTime.UtcNow;
         await using var context = _db.CreateContext();
-        await new ProjectService(context).UpdateAsync(project.Id, NewRequest());
+        await new ProjectService(context).UpdateAsync(project.Id, NewRequest(), owner.Id);
 
         await using var assert = _db.CreateContext();
         var saved = await assert.Projects.SingleAsync(p => p.Id == project.Id);
         Assert.True(saved.UpdatedAt > project.UpdatedAt, $"更新前 {project.UpdatedAt:O} / 更新後 {saved.UpdatedAt:O}");
         Assert.InRange(saved.UpdatedAt, executedAt.AddSeconds(-5), DateTime.UtcNow.AddSeconds(5));
+    }
+
+    [Fact(DisplayName = "UT-309 一覧は自分が所属しているプロジェクトのみ返す")]
+    public async Task GetAllAsync_ReturnsOnlyProjectsTheUserBelongsTo()
+    {
+        await using var arrange = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(arrange);
+        var owned = await TestData.CreateProjectAsync(arrange);
+        await TestData.AddMemberAsync(arrange, owned.Id, user.Id, ProjectMemberRole.Owner);
+        var joined = await TestData.CreateProjectAsync(arrange);
+        await TestData.AddMemberAsync(arrange, joined.Id, user.Id, ProjectMemberRole.Member);
+        var (others, _) = await TestData.CreateProjectWithOwnerAsync(arrange);
+
+        await using var context = _db.CreateContext();
+        var result = await new ProjectService(context).GetAllAsync(user.Id);
+
+        Assert.Equal(new[] { owned.Id, joined.Id }, result.Select(p => p.Id).ToArray());
+        Assert.DoesNotContain(result, p => p.Id == others.Id);
+    }
+
+    [Fact(DisplayName = "UT-310 所属していないプロジェクトの詳細取得")]
+    public async Task GetByIdAsync_ReturnsNull_WhenUserIsNotMember()
+    {
+        await using var arrange = _db.CreateContext();
+        var (project, _) = await TestData.CreateProjectWithOwnerAsync(arrange);
+        var outsider = await TestData.CreateUserAsync(arrange);
+
+        await using var context = _db.CreateContext();
+        var result = await new ProjectService(context).GetByIdAsync(project.Id, outsider.Id);
+
+        Assert.Null(result);
+    }
+
+    [Fact(DisplayName = "UT-311 所属していないプロジェクトの更新・削除")]
+    public async Task UpdateAndDeleteAsync_ReturnProjectNotFound_WhenUserIsNotMember()
+    {
+        await using var arrange = _db.CreateContext();
+        var (project, _) = await TestData.CreateProjectWithOwnerAsync(arrange);
+        var outsider = await TestData.CreateUserAsync(arrange);
+
+        await using var context = _db.CreateContext();
+        var service = new ProjectService(context);
+        var updateOutcome = await service.UpdateAsync(project.Id, NewRequest(), outsider.Id);
+        var deleteResult = await service.DeleteAsync(project.Id, outsider.Id);
+
+        Assert.Equal(UpdateProjectResult.ProjectNotFound, updateOutcome.Result);
+        Assert.Equal(DeleteProjectResult.ProjectNotFound, deleteResult);
+        await using var assert = _db.CreateContext();
+        var saved = await assert.Projects.SingleAsync(p => p.Id == project.Id);
+        Assert.Equal(project.Name, saved.Name);
+    }
+
+    [Fact(DisplayName = "UT-312 MEMBERによるプロジェクトの更新・削除")]
+    public async Task UpdateAndDeleteAsync_ReturnForbidden_WhenUserIsMember()
+    {
+        await using var arrange = _db.CreateContext();
+        var (project, _) = await TestData.CreateProjectWithOwnerAsync(arrange);
+        var member = await TestData.CreateUserAsync(arrange);
+        await TestData.AddMemberAsync(arrange, project.Id, member.Id, ProjectMemberRole.Member);
+
+        await using var context = _db.CreateContext();
+        var service = new ProjectService(context);
+        var updateOutcome = await service.UpdateAsync(project.Id, NewRequest(), member.Id);
+        var deleteResult = await service.DeleteAsync(project.Id, member.Id);
+
+        Assert.Equal(UpdateProjectResult.Forbidden, updateOutcome.Result);
+        Assert.Equal(DeleteProjectResult.Forbidden, deleteResult);
+        await using var assert = _db.CreateContext();
+        var saved = await assert.Projects.SingleAsync(p => p.Id == project.Id);
+        Assert.Equal(project.Name, saved.Name);
     }
 }

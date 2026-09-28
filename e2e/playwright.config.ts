@@ -25,6 +25,7 @@ export default defineConfig({
     { name: "integration", testDir: "./tests/integration", use: { ...devices["Desktop Chrome"] } },
     { name: "screen", testDir: "./tests/screen", use: { ...devices["Desktop Chrome"] } },
     { name: "system", testDir: "./tests/system", use: { ...devices["Desktop Chrome"] } },
+    { name: "security", testDir: "./tests/security", use: { ...devices["Desktop Chrome"] } },
   ],
 
   webServer: [

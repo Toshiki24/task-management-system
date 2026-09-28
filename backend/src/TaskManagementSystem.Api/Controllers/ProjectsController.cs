@@ -20,13 +20,13 @@ public class ProjectsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<ProjectDto>>> GetAll()
     {
-        return Ok(await _projectService.GetAllAsync());
+        return Ok(await _projectService.GetAllAsync(this.GetCurrentUserId()));
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<ProjectDto>> GetById(long id)
     {
-        var project = await _projectService.GetByIdAsync(id);
+        var project = await _projectService.GetByIdAsync(id, this.GetCurrentUserId());
         if (project is null)
         {
             return NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。"));
@@ -45,24 +45,32 @@ public class ProjectsController : ControllerBase
     [HttpPut("{id}")]
     public async Task<ActionResult<ProjectDto>> Update(long id, ProjectRequest request)
     {
-        var updated = await _projectService.UpdateAsync(id, request);
-        if (updated is null)
-        {
-            return NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。"));
-        }
+        var outcome = await _projectService.UpdateAsync(id, request, this.GetCurrentUserId());
 
-        return Ok(updated);
+        return outcome.Result switch
+        {
+            UpdateProjectResult.ProjectNotFound =>
+                NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。")),
+
+            UpdateProjectResult.Forbidden => this.ForbiddenError(),
+
+            _ => Ok(outcome.Data),
+        };
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(long id)
     {
-        var deleted = await _projectService.DeleteAsync(id);
-        if (!deleted)
-        {
-            return NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。"));
-        }
+        var result = await _projectService.DeleteAsync(id, this.GetCurrentUserId());
 
-        return NoContent();
+        return result switch
+        {
+            DeleteProjectResult.ProjectNotFound =>
+                NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。")),
+
+            DeleteProjectResult.Forbidden => this.ForbiddenError(),
+
+            _ => NoContent(),
+        };
     }
 }

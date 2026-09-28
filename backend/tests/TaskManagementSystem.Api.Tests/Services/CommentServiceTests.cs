@@ -17,8 +17,11 @@ public class CommentServiceTests : IClassFixture<TestDatabaseFixture>
     [Fact(DisplayName = "UT-601 存在しないタスクのコメント一覧取得")]
     public async Task GetByTaskAsync_ReturnsNull_WhenTaskNotExists()
     {
+        await using var arrange = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(arrange);
+
         await using var context = _db.CreateContext();
-        var result = await new CommentService(context).GetByTaskAsync(TestData.NonExistentId);
+        var result = await new CommentService(context).GetByTaskAsync(TestData.NonExistentId, user.Id);
 
         Assert.Null(result);
     }
@@ -27,7 +30,7 @@ public class CommentServiceTests : IClassFixture<TestDatabaseFixture>
     public async Task GetByTaskAsync_IncludesUserName()
     {
         await using var arrange = _db.CreateContext();
-        var project = await TestData.CreateProjectAsync(arrange);
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
         var task = await TestData.CreateTaskAsync(arrange, project.Id);
         var user1 = await TestData.CreateUserAsync(arrange);
         var user2 = await TestData.CreateUserAsync(arrange);
@@ -35,7 +38,7 @@ public class CommentServiceTests : IClassFixture<TestDatabaseFixture>
         var comment2 = await TestData.CreateCommentAsync(arrange, task.Id, user2.Id);
 
         await using var context = _db.CreateContext();
-        var result = await new CommentService(context).GetByTaskAsync(task.Id);
+        var result = await new CommentService(context).GetByTaskAsync(task.Id, owner.Id);
 
         Assert.NotNull(result);
         Assert.Collection(
@@ -51,6 +54,7 @@ public class CommentServiceTests : IClassFixture<TestDatabaseFixture>
         var project = await TestData.CreateProjectAsync(arrange);
         var task = await TestData.CreateTaskAsync(arrange, project.Id);
         var user = await TestData.CreateUserAsync(arrange);
+        await TestData.AddMemberAsync(arrange, project.Id, user.Id);
         var request = new CommentRequest(TestData.Unique("ut-comment"));
 
         // コントローラーはJWTのsubクレームから取得したユーザーIDをそのまま渡す
@@ -78,5 +82,25 @@ public class CommentServiceTests : IClassFixture<TestDatabaseFixture>
             .CreateAsync(TestData.NonExistentId, user.Id, new CommentRequest("コメント"));
 
         Assert.Null(created);
+    }
+
+    [Fact(DisplayName = "UT-605 所属していないプロジェクトのコメント一覧取得・登録")]
+    public async Task CommentOperations_ReturnNull_WhenUserIsNotMember()
+    {
+        await using var arrange = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
+        var task = await TestData.CreateTaskAsync(arrange, project.Id);
+        await TestData.CreateCommentAsync(arrange, task.Id, owner.Id);
+        var outsider = await TestData.CreateUserAsync(arrange);
+
+        await using var context = _db.CreateContext();
+        var service = new CommentService(context);
+        var list = await service.GetByTaskAsync(task.Id, outsider.Id);
+        var created = await service.CreateAsync(task.Id, outsider.Id, new CommentRequest("コメント"));
+
+        Assert.Null(list);
+        Assert.Null(created);
+        await using var assert = _db.CreateContext();
+        Assert.False(await assert.TaskComments.AnyAsync(c => c.TaskId == task.Id && c.UserId == outsider.Id));
     }
 }

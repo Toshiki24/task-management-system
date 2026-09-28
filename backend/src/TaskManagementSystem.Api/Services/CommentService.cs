@@ -14,10 +14,9 @@ public class CommentService : ICommentService
         _dbContext = dbContext;
     }
 
-    public async Task<List<CommentDto>?> GetByTaskAsync(long taskId)
+    public async Task<List<CommentDto>?> GetByTaskAsync(long taskId, long currentUserId)
     {
-        var taskExists = await _dbContext.Tasks.AnyAsync(t => t.Id == taskId);
-        if (!taskExists)
+        if (await _dbContext.GetTaskProjectRoleAsync(taskId, currentUserId) is null)
         {
             return null;
         }
@@ -31,8 +30,8 @@ public class CommentService : ICommentService
 
     public async Task<CommentCreatedDto?> CreateAsync(long taskId, long userId, CommentRequest request)
     {
-        var taskExists = await _dbContext.Tasks.AnyAsync(t => t.Id == taskId);
-        if (!taskExists)
+        // 投稿者(=ログイン中のユーザー)がタスクのプロジェクトに所属している場合のみ投稿できる
+        if (await _dbContext.GetTaskProjectRoleAsync(taskId, userId) is null)
         {
             return null;
         }

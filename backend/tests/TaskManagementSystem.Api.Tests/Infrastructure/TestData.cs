@@ -45,6 +45,16 @@ public static class TestData
         return project;
     }
 
+    /// <summary>プロジェクトと、そのOWNERとして登録済みのユーザーを作成する</summary>
+    public static async Task<(Project Project, User Owner)> CreateProjectWithOwnerAsync(
+        AppDbContext context, string status = ProjectStatus.Active)
+    {
+        var project = await CreateProjectAsync(context, status);
+        var owner = await CreateUserAsync(context);
+        await AddMemberAsync(context, project.Id, owner.Id, ProjectMemberRole.Owner);
+        return (project, owner);
+    }
+
     public static async Task<ProjectMember> AddMemberAsync(
         AppDbContext context, long projectId, long userId, string role = ProjectMemberRole.Member)
     {
