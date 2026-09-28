@@ -9,7 +9,7 @@ export interface CurrentUser {
   email: string;
 }
 
+/** BFFのログイン・セッション確認のレスポンス(トークンは含まない) */
 export interface LoginResponse {
-  accessToken: string;
   user: CurrentUser;
 }

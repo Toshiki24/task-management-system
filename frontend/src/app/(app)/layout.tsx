@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
-import { clearSession, getAccessToken, getCurrentUser } from "@/lib/auth";
+import { fetchCurrentUser, logout } from "@/lib/auth";
 import type { CurrentUser } from "@/types/auth";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -14,19 +14,31 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   >({ status: "checking" });
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      router.replace("/login");
-      return;
-    }
-
-    // localStorageはブラウザでしか参照できず、SSR時点では認証状態が分からないため、
-    // マウント後にeffect内で確定させる(ハイドレーション不整合を避けるための意図的な設計)。
-    setAuthState({ status: "ready", user: getCurrentUser() });
+    // ログイン状態はHttpOnlyのCookieで管理しており、JavaScriptからは分からないため、BFFに問い合わせて確定させる
+    let cancelled = false;
+    fetchCurrentUser()
+      .then((user) => {
+        if (cancelled) return;
+        if (user) {
+          setAuthState({ status: "ready", user });
+        } else {
+          router.replace("/login");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) router.replace("/login");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
-  function handleLogout() {
-    clearSession();
-    router.replace("/login");
+  async function handleLogout() {
+    try {
+      await logout();
+    } finally {
+      router.replace("/login");
+    }
   }
 
   if (authState.status === "checking") {

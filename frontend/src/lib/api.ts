@@ -1,7 +1,8 @@
-import { clearSession, getAccessToken } from "@/lib/auth";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5000/api";
+/**
+ * 画面からのAPI呼び出しはすべて同じオリジンのBFF(/api/bff)を経由する。
+ * アクセストークンはBFFが暗号化Cookieの中で管理するため、ここでは扱わない(security-review.md 5.3)。
+ */
+const BFF_BASE_URL = "/api/bff";
 
 interface ApiErrorBody {
   message?: string;
@@ -20,21 +21,18 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getAccessToken();
-
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${BFF_BASE_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      // CSRF対策として、BFFは更新系リクエストにこのヘッダーを必須としている(security-review.md 5.4)
+      "X-Requested-With": "XMLHttpRequest",
       ...options?.headers,
     },
   });
 
   if (!response.ok) {
     if (response.status === 401) {
-      clearSession();
-
       // ログイン画面自体での認証失敗(パスワード誤り等)は画面上にエラー表示するため遷移させない。
       // それ以外の画面での401はセッション切れとみなし、ログイン画面へ強制的に戻す。
       if (typeof window !== "undefined" && window.location.pathname !== "/login") {

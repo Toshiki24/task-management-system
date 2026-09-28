@@ -84,9 +84,11 @@ const server = spawn(
       ...process.env,
       ASPNETCORE_ENVIRONMENT: "Development",
       ConnectionStrings__DefaultConnection: E2E_DB_CONNECTION_STRING,
-      Cors__AllowedOrigins__0: E2E_WEB_URL,
       // 再利用検知(猶予期間を過ぎた置き換え済みトークンの使用)を、長く待たずに確認できるよう短くする
       RefreshToken__ReuseGraceSeconds: "2",
+      // アクセストークンの有効期限を12秒にする。BFFは期限の10秒前から再発行するため、
+      // ログインから2秒以上経過した画面操作ではトークンの再発行(リフレッシュ)が行われる
+      Jwt__ExpiresMinutes: "0.2",
     },
   },
 );

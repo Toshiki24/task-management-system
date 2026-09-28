@@ -142,10 +142,11 @@ test.describe("6. 結合テスト", () => {
     }
   });
 
-  test("IT-008 CORS設定", async ({ api, data, page }) => {
+  test("IT-008 CORS設定（ブラウザからAPIを直接呼び出させない）", async ({ api, data, page }) => {
     const user = await data.createUser();
 
-    // プリフライト: フロントエンドのオリジンからのPOST(JSON・Authorizationヘッダー付き)が許可される
+    // プリフライト: 画面(フロントエンド)のオリジンからのAPI呼び出しは許可されない
+    // (ブラウザはBFFとのみ通信するため、APIはCORSを許可しない。security-review.md 5.3)
     const preflight = await api.fetch("/api/projects", {
       method: "OPTIONS",
       headers: {
@@ -154,15 +155,19 @@ test.describe("6. 結合テスト", () => {
         "Access-Control-Request-Headers": "authorization,content-type",
       },
     });
-    expect(preflight.status()).toBe(204);
-    expect(preflight.headers()["access-control-allow-origin"]).toBe(WEB_URL);
+    expect(preflight.headers()["access-control-allow-origin"]).toBeUndefined();
 
-    // 本リクエスト: ブラウザ上のフロントエンドから実際にAPIを呼び出して成功する
+    // 画面からのログイン・一覧表示は、同一オリジンのBFFを経由して成功する
+    const apiRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().startsWith(API_URL)) apiRequests.push(request.url());
+    });
     const loginResponse = page.waitForResponse(
-      (response) => response.url() === `${API_URL}/api/auth/login` && response.request().method() === "POST",
+      (response) => response.url() === `${WEB_URL}/api/bff/auth/login` && response.request().method() === "POST",
     );
     await loginViaUi(page, { ...user, password: PASSWORD });
     expect((await loginResponse).status()).toBe(200);
     await expect(page.getByRole("heading", { name: "プロジェクト一覧" })).toBeVisible();
+    expect(apiRequests, "ブラウザからAPIへ直接通信していないこと").toEqual([]);
   });
 });
