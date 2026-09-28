@@ -58,7 +58,10 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         .UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
         .UseSnakeCaseNamingConvention());
 
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+// ログイン失敗回数はアプリ全体で共有するため、シングルトンで保持する
+builder.Services.AddSingleton<ILoginAttemptLimiter, LoginAttemptLimiter>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();

@@ -14,8 +14,13 @@ public class AuthServiceTests : IClassFixture<TestDatabaseFixture>
         _db = db;
     }
 
-    private AuthService CreateService(Api.Data.AppDbContext context) =>
-        new(context, new JwtTokenService(JwtTestConfiguration.Create()));
+    private readonly ManualTimeProvider _time = new();
+
+    private AuthService CreateService(Api.Data.AppDbContext context, ILoginAttemptLimiter? limiter = null) =>
+        new(
+            context,
+            new JwtTokenService(JwtTestConfiguration.Create()),
+            limiter ?? new LoginAttemptLimiter(LoginAttemptLimiterTests.CreateConfiguration(), _time));
 
     [Fact(DisplayName = "UT-101 正しいメール・パスワードでログイン成功")]
     public async Task LoginAsync_ReturnsTokenAndUser_WhenCredentialsAreValid()
@@ -24,8 +29,10 @@ public class AuthServiceTests : IClassFixture<TestDatabaseFixture>
         var user = await TestData.CreateUserAsync(arrange);
 
         await using var context = _db.CreateContext();
-        var result = await CreateService(context).LoginAsync(new LoginRequest(user.Email, TestData.DefaultPassword));
+        var outcome = await CreateService(context).LoginAsync(new LoginRequest(user.Email, TestData.DefaultPassword));
 
+        Assert.Equal(LoginResult.Success, outcome.Result);
+        var result = outcome.Data;
         Assert.NotNull(result);
         Assert.False(string.IsNullOrWhiteSpace(result.AccessToken));
         Assert.Equal(user.Id, result.User.Id);
@@ -34,25 +41,27 @@ public class AuthServiceTests : IClassFixture<TestDatabaseFixture>
     }
 
     [Fact(DisplayName = "UT-102 存在しないメールでログイン失敗")]
-    public async Task LoginAsync_ReturnsNull_WhenEmailDoesNotExist()
+    public async Task LoginAsync_ReturnsInvalidCredentials_WhenEmailDoesNotExist()
     {
         await using var context = _db.CreateContext();
-        var result = await CreateService(context).LoginAsync(
+        var outcome = await CreateService(context).LoginAsync(
             new LoginRequest($"{TestData.Unique("missing")}@example.test", TestData.DefaultPassword));
 
-        Assert.Null(result);
+        Assert.Equal(LoginResult.InvalidCredentials, outcome.Result);
+        Assert.Null(outcome.Data);
     }
 
     [Fact(DisplayName = "UT-103 パスワード不一致でログイン失敗")]
-    public async Task LoginAsync_ReturnsNull_WhenPasswordIsWrong()
+    public async Task LoginAsync_ReturnsInvalidCredentials_WhenPasswordIsWrong()
     {
         await using var arrange = _db.CreateContext();
         var user = await TestData.CreateUserAsync(arrange);
 
         await using var context = _db.CreateContext();
-        var result = await CreateService(context).LoginAsync(new LoginRequest(user.Email, "WrongPassword!"));
+        var outcome = await CreateService(context).LoginAsync(new LoginRequest(user.Email, "WrongPassword!"));
 
-        Assert.Null(result);
+        Assert.Equal(LoginResult.InvalidCredentials, outcome.Result);
+        Assert.Null(outcome.Data);
     }
 
     [Fact(DisplayName = "UT-104 パスワードがBCryptで検証される")]
@@ -65,6 +74,56 @@ public class AuthServiceTests : IClassFixture<TestDatabaseFixture>
         Assert.StartsWith("$2", user.PasswordHash);
         Assert.True(BCrypt.Net.BCrypt.Verify(TestData.DefaultPassword, user.PasswordHash));
         Assert.False(BCrypt.Net.BCrypt.Verify("WrongPassword!", user.PasswordHash));
+    }
+
+    [Fact(DisplayName = "UT-105 失敗回数が上限に達すると、正しいパスワードでもログインできない")]
+    public async Task LoginAsync_ReturnsTooManyAttempts_WhenFailuresReachLimit()
+    {
+        await using var arrange = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(arrange);
+        using var limiter = new LoginAttemptLimiter(LoginAttemptLimiterTests.CreateConfiguration(), _time);
+
+        await using var context = _db.CreateContext();
+        var service = CreateService(context, limiter);
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.Equal(
+                LoginResult.InvalidCredentials,
+                (await service.LoginAsync(new LoginRequest(user.Email, "WrongPassword!"))).Result);
+        }
+
+        var outcome = await service.LoginAsync(new LoginRequest(user.Email, TestData.DefaultPassword));
+
+        Assert.Equal(LoginResult.TooManyAttempts, outcome.Result);
+        Assert.Null(outcome.Data);
+        Assert.Equal(TimeSpan.FromSeconds(60), outcome.RetryAfter);
+    }
+
+    [Fact(DisplayName = "UT-106 存在しないメールアドレスの失敗も数えられ、ログイン成功で失敗回数がリセットされる")]
+    public async Task LoginAsync_RecordsFailuresForUnknownEmail_AndResetsOnSuccess()
+    {
+        await using var arrange = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(arrange);
+        var unknownEmail = $"{TestData.Unique("missing")}@example.test";
+        using var limiter = new LoginAttemptLimiter(LoginAttemptLimiterTests.CreateConfiguration(), _time);
+
+        await using var context = _db.CreateContext();
+        var service = CreateService(context, limiter);
+        for (var i = 0; i < 5; i++)
+        {
+            await service.LoginAsync(new LoginRequest(unknownEmail, "WrongPassword!"));
+            await service.LoginAsync(new LoginRequest(user.Email, "WrongPassword!"));
+            if (i == 3)
+            {
+                // 4回失敗した時点でログインに成功させ、失敗回数をリセットする
+                Assert.Equal(
+                    LoginResult.Success,
+                    (await service.LoginAsync(new LoginRequest(user.Email, TestData.DefaultPassword))).Result);
+            }
+        }
+
+        Assert.NotNull(limiter.GetRetryAfter(unknownEmail));
+        Assert.Null(limiter.GetRetryAfter(user.Email));
     }
 }
 
