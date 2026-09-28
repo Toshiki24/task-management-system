@@ -10,6 +10,9 @@ using TaskManagementSystem.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 使用しているWebサーバー(Server: Kestrel)を外部に知らせない(security-review.md 5.5)
+builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
+
 // Add services to the container.
 
 builder.Services.AddControllers();
@@ -124,6 +127,28 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 });
 
 var app = builder.Build();
+
+// すべてのレスポンス(エラーを含む)にセキュリティヘッダーを付ける(security-review.md 5.5)。
+// 例外ハンドラーはレスポンスヘッダーを消去するため、送信直前(OnStarting)に設定する
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        var headers = context.Response.Headers;
+        headers.XContentTypeOptions = "nosniff";
+        headers.XFrameOptions = "DENY";
+        // JSONのみを返すAPIのため、あらゆるリソースの読み込みを禁止する。
+        // 開発時のSwagger UIはスクリプトやスタイルを読み込むため対象外とする
+        if (!context.Request.Path.StartsWithSegments("/swagger"))
+        {
+            headers.ContentSecurityPolicy = "default-src 'none'; frame-ancestors 'none'";
+        }
+
+        return Task.CompletedTask;
+    });
+
+    await next();
+});
 
 // 未処理例外はスタックトレース等の内部情報を返さず、共通エラー形式に変換する(API仕様書§32.3)
 app.UseExceptionHandler(errorApp =>

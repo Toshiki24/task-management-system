@@ -13,6 +13,15 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
+    // XSS対策(security-review.md 5.5)
+    rules: {
+      // HTMLをエスケープせずに埋め込む dangerouslySetInnerHTML を禁止する
+      "react/no-danger": "error",
+      // href 等に javascript: スキームのURLを書くことを禁止する
+      "react/jsx-no-script-url": "error",
+    },
+  },
+  {
     ignores: [
       "node_modules/**",
       ".next/**",

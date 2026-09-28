@@ -174,10 +174,44 @@ BFF 移行後はセッションCookie による認証となり、BFF 上の**す
 
 BFF 移行によりトークンは盗まれなくなるが、XSS が発生すると、画面を開いている間は攻撃者のスクリプトが本人として BFF を呼び出せる。このため、XSS そのものの対策も継続する。
 
-* `Content-Security-Policy` を設定する（`script-src 'self'`、`object-src 'none'`、`frame-ancestors 'none'` 等）。
-* `X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin`、`X-Frame-Options: DENY` を設定する。
-* `dangerouslySetInnerHTML` の使用を ESLint（`react/no-danger`）で禁止する。将来 Markdown 等を表示する場合は DOMPurify 等で無害化する。
-* ユーザー入力値を `href` 等の URL 属性に使用する場合は、`http:` / `https:` 以外のスキームを拒否する。
+**画面（Next.js、`frontend/next.config.ts`）**
+
+* `Content-Security-Policy` を設定する。
+
+  | ディレクティブ         | 値                                   | 目的                                       |
+  | --------------- | ----------------------------------- | ---------------------------------------- |
+  | default-src     | `'self'`                            | 読み込み元を自サイトに限定する                          |
+  | script-src      | `'self' 'unsafe-inline'`（開発時のみ `'unsafe-eval'` も追加） | 外部サイトのスクリプトの読み込みを禁止する（下記の制約を参照）          |
+  | style-src       | `'self' 'unsafe-inline'`            | スタイルの読み込み元を自サイトに限定する                     |
+  | img-src         | `'self' data: blob:`                | 画像の読み込み元を限定する                            |
+  | font-src        | `'self'`                            | フォントは `next/font` により自サイトから配信する            |
+  | connect-src     | `'self'`（開発時のみ `ws:` も追加）         | 通信先をBFF（同一オリジン）に限定し、XSSで盗んだ情報を外部へ送信されるのを防ぐ |
+  | object-src      | `'none'`                            | プラグイン（`<object>` 等）を禁止する                   |
+  | base-uri        | `'self'`                            | `<base>` タグによる相対URLの書き換えを防ぐ               |
+  | form-action     | `'self'`                            | フォームの送信先を自サイトに限定する                       |
+  | frame-ancestors | `'none'`                            | 他サイトの iframe に埋め込ませない（クリックジャッキング対策）        |
+
+* `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`（カメラ・マイク・位置情報を無効化）を設定する。
+* `X-Powered-By: Next.js` ヘッダーを出力しない（使用しているフレームワークを外部に知らせない）。
+
+**`script-src` に `'unsafe-inline'` を許可した理由と制約**
+
+* 当初は `script-src 'self'` とする方針だったが、実際に設定したところ、Next.js（App Router）がページの描画に使うインラインスクリプト（ログイン画面で7つ）がすべてブロックされ、画面が動作しなかった。
+* インラインスクリプトの内容はページ・リクエストごとに変わるため、ハッシュ値での許可はできない。
+* リクエストごとに発行する nonce で許可する方式は最も安全だが、middleware が必要で、全ページがリクエストごとの描画になる。デプロイ先の Amplify Hosting は Edge ランタイムの middleware に対応しておらず、Node.js ランタイムの middleware への対応も未確認のため、見送った。
+* `'unsafe-inline'` を許可しているため、HTMLに注入されたインラインスクリプトはCSPでは防げない。XSSの防止は、React の自動エスケープ、`dangerouslySetInnerHTML` の禁止（下記）に依存する。一方、外部サイトのスクリプトの読み込みと、外部への通信（`connect-src 'self'`）はCSPで防げる。
+* **残課題**：デプロイ時に Amplify での middleware の対応状況を確認し、対応していれば nonce 方式への切り替えを検討する。
+
+**API（ASP.NET Core、`Program.cs`）**
+
+* すべてのレスポンス（エラーを含む）に `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` を付与する。JSONのみを返すAPIのため、あらゆるリソースの読み込みを禁止する（開発時の Swagger UI は対象外）。
+* `Server: Kestrel` ヘッダーを出力しない。
+
+**コーディング規約（ESLint）**
+
+* `dangerouslySetInnerHTML` の使用を `react/no-danger` で禁止する。将来 Markdown 等を表示する場合は DOMPurify 等で無害化する。
+* `href` 等への `javascript:` URL の記述を `react/jsx-no-script-url` で禁止する。
+* ユーザー入力値を `href` 等の URL 属性に使用する場合は、`http:` / `https:` 以外のスキームを拒否する（現時点で該当箇所はない）。
 
 ## 5.6 その他（SEC-07 〜 SEC-13）
 
@@ -284,7 +318,7 @@ Amplify が Next.js 16 に公式対応した時点で、バージョンアップ
 | 3 | Next.js 15・Node.js 24 への固定      | －（6.2）                  | 基本設計書 4章                                  | 対応済み（#18） |
 | 4a | リフレッシュトークンAPI（発行・ローテーション・失効、アクセストークンの短命化） | SEC-05 | API詳細仕様書 8章、DDL・ER図（refresh_tokens） | 対応済み（#19） |
 | 4b | BFF への移行（暗号化Cookie、CSRF 対策） | SEC-04 | 基本設計書 3章・14章、API詳細仕様書 6章 | 対応済み（#20） |
-| 5 | CSP・セキュリティヘッダー                   | SEC-06                  | 基本設計書 17章                                 | 未着手 |
+| 5 | CSP・セキュリティヘッダー                   | SEC-06                  | 基本設計書 17章                                 | 対応済み（#21） |
 | 6 | その他の対応                          | SEC-07、SEC-08、SEC-09、SEC-11、SEC-12、SEC-13 | 基本設計書 17章                                 | 未着手 |
 
 ---
