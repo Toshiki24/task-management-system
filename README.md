@@ -46,7 +46,7 @@
 | バックエンド | C# / ASP.NET Core Web API |
 | ORM | Entity Framework Core（Code First / Migrations） |
 | データベース | PostgreSQL |
-| 認証 | JWT（BCryptによるパスワードハッシュ化） |
+| 認証 | JWT＋リフレッシュトークン（BCryptによるパスワードハッシュ化）。BFF（Next.js Route Handler）がトークンを暗号化Cookieで管理 |
 | ローカルDB環境 | Docker / Docker Compose |
 | クラウド（予定） | AWS（Amplify / API Gateway / Lambda / RDS） |
 | ソース管理 | Git / GitHub（Pull Requestベースの開発） |
@@ -57,10 +57,10 @@
 
 ```text
 [Browser]
-    │
+    │  HttpOnly のセッションCookie
     ▼
-[Next.js / TypeScript]
-    │  REST API (HTTPS)
+[Next.js / TypeScript]  画面 ＋ BFF（Route Handler）
+    │  REST API (HTTPS)  Authorization: Bearer {JWT}
     ▼
 [ASP.NET Core Web API]
     │  Controller → Service → DbContext
@@ -72,6 +72,8 @@
 ```
 
 フロントエンドはコンポーネント指向（`components/layout`, `components/common`, `components/project`, `components/task`）、バックエンドはController／Service層で責務を分離しています。詳細は [basic-design.md](design/basic-design.md) を参照してください。
+
+ブラウザはAPIを直接呼び出さず、Next.js の Route Handler で作ったBFFを経由します。アクセストークン・リフレッシュトークンはBFFが暗号化したHttpOnly Cookieに保存し、ブラウザのJavaScriptからは読み取れません。この構成にした理由は [セキュリティ見直し記録](design/security-review.md) を参照してください。
 
 ---
 
@@ -143,6 +145,8 @@ cp .env.example .env.local
 npm install
 npm run dev
 ```
+
+`.env.local` には、BFFが呼び出すAPIのURL（`API_BASE_URL`）と、セッションCookieの暗号化鍵（`SESSION_SECRET`、32文字以上）を設定します。詳しくは [frontend/README.md](frontend/README.md) を参照してください。
 
 `http://localhost:3000` にアクセスするとログイン画面が表示されます。
 

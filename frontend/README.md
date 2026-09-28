@@ -28,9 +28,25 @@ npm run dev
 
 ## 環境変数
 
+いずれもサーバー側（BFF）でのみ使用し、ブラウザには公開しません。
+
 | 変数名 | 内容 | 例 |
 | --- | --- | --- |
-| `NEXT_PUBLIC_API_BASE_URL` | バックエンドAPIのベースURL | `http://localhost:5000/api` |
+| `API_BASE_URL` | BFFが呼び出すバックエンドAPIのベースURL | `http://localhost:5000/api` |
+| `SESSION_SECRET` | セッションCookieの暗号化鍵（32文字以上のランダムな文字列）。変更すると全ユーザーがログアウトされる | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` で生成 |
+
+## BFF（`src/app/api/bff`）
+
+画面からのAPI呼び出しは、すべて同一オリジンのBFF（Next.js の Route Handler）を経由します。
+
+| パス | 内容 |
+| --- | --- |
+| `auth/login` | ログイン。トークンを暗号化Cookie（`tms_session`）に保存し、ユーザー情報だけを返す |
+| `auth/logout` | ログアウト。リフレッシュトークンを失効させ、Cookieを削除する |
+| `auth/session` | ログイン中のユーザー情報を返す |
+| `[...path]` | Cookie内のアクセストークンを付けてAPIへ中継する（期限が近ければ自動で再発行） |
+
+更新系リクエストには、CSRF対策として同一オリジンの `Origin` ヘッダーと `X-Requested-With: XMLHttpRequest` ヘッダーが必要です（`src/lib/api.ts` が付与します）。詳細は [API詳細仕様書 6.3](../design/api-specification.md) を参照してください。
 
 ## スクリプト
 
