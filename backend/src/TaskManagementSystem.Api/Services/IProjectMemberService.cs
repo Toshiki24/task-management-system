@@ -17,6 +17,7 @@ public enum RemoveMemberResult
     ProjectNotFound,
     Forbidden,
     MemberNotFound,
+    LastOwner,
 }
 
 public record AddMemberOutcome(AddMemberResult Result, MemberAddedDto? Data = null);

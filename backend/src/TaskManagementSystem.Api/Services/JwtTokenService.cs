@@ -1,6 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 using Microsoft.IdentityModel.Tokens;
 using TaskManagementSystem.Api.Models;
 
@@ -18,8 +17,6 @@ public class JwtTokenService : IJwtTokenService
     public AccessToken GenerateToken(User user)
     {
         var jwtSection = _configuration.GetSection("Jwt");
-        var key = jwtSection["Key"]
-            ?? throw new InvalidOperationException("Jwt:Key が設定されていません。");
         var issuer = jwtSection["Issuer"];
         var audience = jwtSection["Audience"];
         // リフレッシュトークンで再発行する前提のため短命にする(security-review.md 5.3)。
@@ -37,7 +34,7 @@ public class JwtTokenService : IJwtTokenService
         };
 
         var signingCredentials = new SigningCredentials(
-            new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
+            JwtSigningKey.Create(_configuration),
             SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(

@@ -1,4 +1,3 @@
-using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -62,6 +61,8 @@ builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
+// 鍵が未設定・短すぎる場合は、起動時にエラーにして気付けるようにする(security-review.md SEC-07)
+var jwtSigningKey = JwtSigningKey.Create(builder.Configuration);
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -77,8 +78,9 @@ builder.Services
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwtSection["Issuer"],
             ValidAudience = jwtSection["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSection["Key"] ?? string.Empty)),
+            IssuerSigningKey = jwtSigningKey,
+            // サーバー間の時刻のずれとして許容する時間。既定の5分のままだと、期限切れ後も5分間トークンが使えてしまう
+            ClockSkew = TimeSpan.FromSeconds(30),
         };
 
         // 未認証・トークン期限切れ時も既定の空ボディではなく共通エラー形式を返す
@@ -166,6 +168,12 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+
+// 本番環境では、ブラウザに以後HTTPSでのみ接続させる(HSTS。security-review.md SEC-08)
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
 }
 
 app.UseHttpsRedirection();
