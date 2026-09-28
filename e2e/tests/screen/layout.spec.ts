@@ -1,6 +1,8 @@
-import { API_URL } from "../../support/env";
+import { WEB_URL } from "../../support/env";
 import { expect, test } from "../../support/fixtures";
-import { signIn } from "../../support/ui";
+import { bffUrl, signIn } from "../../support/ui";
+
+const SESSION_COOKIE = "tms_session";
 
 test.describe("7.7 共通レイアウト・認証状態", () => {
   test("SCR-COM-01 ヘッダー表示", async ({ page, data }) => {
@@ -33,23 +35,25 @@ test.describe("7.7 共通レイアウト・認証状態", () => {
     await page.getByRole("button", { name: "ログアウト" }).click();
 
     await expect(page).toHaveURL("/login");
-    const session = await page.evaluate(() => [localStorage.getItem("accessToken"), localStorage.getItem("currentUser")]);
-    expect(session).toEqual([null, null]);
+    const cookies = await page.context().cookies(WEB_URL);
+    expect(cookies.find((c) => c.name === SESSION_COOKIE), "セッションCookieが削除されていること").toBeUndefined();
+    // ログアウト後はBFFのセッション確認も認証エラーになる
+    expect((await page.request.get("/api/bff/auth/session")).status()).toBe(401);
   });
 
   test("SCR-COM-04 セッション切れ時の自動リダイレクト", async ({ page, data }) => {
     const user = await data.createUser();
     await signIn(page, user);
-    await page.evaluate(() => localStorage.setItem("accessToken", "invalid-token"));
+    // 改ざん等で復号できないセッションCookieに置き換える
+    await page.context().addCookies([{ name: SESSION_COOKIE, value: "invalid-session", url: WEB_URL }]);
 
     const unauthorized = page.waitForResponse(
-      (response) => response.url() === `${API_URL}/api/projects` && response.status() === 401,
+      (response) => response.url() === bffUrl("/auth/session") && response.status() === 401,
     );
     await page.goto("/projects");
 
     await unauthorized;
     await expect(page).toHaveURL("/login");
-    expect(await page.evaluate(() => localStorage.getItem("accessToken"))).toBeNull();
   });
 
   test("SCR-COM-05 ローディング表示", async ({ page, data }) => {
@@ -58,7 +62,7 @@ test.describe("7.7 共通レイアウト・認証状態", () => {
     // 回線が遅い状況を再現するため、一覧APIの応答を遅らせる
     let release!: () => void;
     const released = new Promise<void>((resolve) => (release = resolve));
-    await page.route(`${API_URL}/api/projects`, async (route) => {
+    await page.route(bffUrl("/projects"), async (route) => {
       await released;
       await route.continue();
     });

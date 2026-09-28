@@ -1,17 +1,20 @@
 import { expect, type Locator, type Page, type Request } from "@playwright/test";
-import { API_URL } from "./env";
+import { WEB_URL } from "./env";
 import type { TestUser } from "./fixtures";
 
-/** ログイン画面を経由せず、ログイン済みの状態(localStorageのセッション)を作る */
+/** 画面からBFFへの更新系リクエストに付くヘッダー(CSRF対策のため、BFFはこれがないリクエストを拒否する) */
+export const BFF_HEADERS = { Origin: WEB_URL, "X-Requested-With": "XMLHttpRequest" };
+
+/**
+ * ログイン画面を操作せずに、ログイン済みの状態(BFFのセッションCookie)を作る。
+ * page.request はブラウザとCookieを共有するため、BFFのログインAPIを呼ぶとブラウザにもCookieが保存される。
+ */
 export async function signIn(page: Page, user: TestUser): Promise<void> {
-  await page.goto("/login");
-  await page.evaluate(
-    ({ token, currentUser }) => {
-      localStorage.setItem("accessToken", token);
-      localStorage.setItem("currentUser", JSON.stringify(currentUser));
-    },
-    { token: user.token, currentUser: { id: user.id, name: user.name, email: user.email } },
-  );
+  const response = await page.request.post("/api/bff/auth/login", {
+    headers: BFF_HEADERS,
+    data: { email: user.email, password: user.password },
+  });
+  expect(response.status(), "BFF経由でログインできること").toBe(200);
 }
 
 /** ログイン画面から実際にログインする */
@@ -28,16 +31,25 @@ export function modal(page: Page, title: string): Locator {
   return page.locator("div.fixed.inset-0").filter({ has: page.getByRole("heading", { name: title }) });
 }
 
-/** 指定したAPIへのリクエストを記録する(「送信されないこと」の検証に使う) */
+/**
+ * 指定したAPIへのリクエストを記録する(「送信されないこと」の検証に使う)。
+ * 画面はBFF(/api/bff/...)経由でAPIを呼び出すため、BFFのパスをAPIのパス(/api/...)に読み替えて path と照合する。
+ */
 export function recordApiRequests(page: Page, method: string, path: RegExp): Request[] {
   const requests: Request[] = [];
   page.on("request", (request) => {
-    const url = request.url();
-    if (request.method() === method && url.startsWith(API_URL) && path.test(new URL(url).pathname)) {
+    const url = new URL(request.url());
+    const apiPath = url.pathname.replace(/^\/api\/bff\//, "/api/");
+    if (request.method() === method && url.origin === WEB_URL && url.pathname.startsWith("/api/bff/") && path.test(apiPath)) {
       requests.push(request);
     }
   });
   return requests;
+}
+
+/** 画面からのAPI呼び出し(BFF)のURL。例: bffUrl("/projects") → http://localhost:3100/api/bff/projects */
+export function bffUrl(apiPath: string): string {
+  return `${WEB_URL}/api/bff${apiPath}`;
 }
 
 export function tableRow(page: Page, text: string): Locator {

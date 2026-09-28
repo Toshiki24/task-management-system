@@ -2,9 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch, formatApiErrorMessage } from "@/lib/api";
-import { saveSession } from "@/lib/auth";
-import type { LoginRequest, LoginResponse } from "@/types/auth";
+import { formatApiErrorMessage } from "@/lib/api";
+import { login } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,13 +18,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      const requestBody: LoginRequest = { email, password };
-      const data = await apiFetch<LoginResponse>("/auth/login", {
-        method: "POST",
-        body: JSON.stringify(requestBody),
-      });
-
-      saveSession(data.accessToken, data.user);
+      await login({ email, password });
       router.push("/projects");
     } catch (err) {
       setError(

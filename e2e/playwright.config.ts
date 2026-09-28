@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
 import { API_URL, DB_CONFIG, DB_CONNECTION_STRING, WEB_PORT, WEB_URL } from "./support/env";
 
@@ -59,7 +60,10 @@ export default defineConfig({
       stdout: "ignore",
       stderr: "pipe",
       env: {
-        NEXT_PUBLIC_API_BASE_URL: `${API_URL}/api`,
+        // BFFがサーバー側から呼び出すAPIのURL(ブラウザには公開されない)
+        API_BASE_URL: `${API_URL}/api`,
+        // セッションCookieの暗号化鍵。テスト実行ごとに生成する
+        SESSION_SECRET: randomBytes(32).toString("hex"),
         NEXT_DIST_DIR: ".next-e2e",
       },
     },

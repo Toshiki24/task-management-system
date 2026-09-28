@@ -38,20 +38,8 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-const string FrontendCorsPolicy = "FrontendCorsPolicy";
-var corsAllowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-    ?? Array.Empty<string>();
-
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy(FrontendCorsPolicy, policy =>
-    {
-        policy
-            .WithOrigins(corsAllowedOrigins)
-            .AllowAnyHeader()
-            .AllowAnyMethod();
-    });
-});
+// ブラウザはBFF(Next.js)とのみ通信し、APIを直接呼び出さない(security-review.md 5.3)。
+// そのためCORSは設定せず、他のオリジンのブラウザからのAPI呼び出しは許可しない。
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options
@@ -156,8 +144,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
-app.UseCors(FrontendCorsPolicy);
 
 app.UseAuthentication();
 app.UseAuthorization();

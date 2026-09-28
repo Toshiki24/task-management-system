@@ -1,8 +1,7 @@
-import { API_URL } from "../../support/env";
 import { expect, test } from "../../support/fixtures";
-import { alertMessage, signIn, tableRow } from "../../support/ui";
+import { alertMessage, bffUrl, signIn, tableRow } from "../../support/ui";
 
-const PROJECTS_API = `${API_URL}/api/projects`;
+const PROJECTS_API = bffUrl("/projects");
 
 test.describe("7.2 SCR-003 プロジェクト一覧画面", () => {
   test("SCR-003-01 一覧表示", async ({ page, data }) => {
@@ -28,11 +27,7 @@ test.describe("7.2 SCR-003 プロジェクト一覧画面", () => {
   });
 
   test("SCR-003-02 プロジェクトが0件の場合", async ({ page, data }) => {
-    // プロジェクト一覧APIは全プロジェクトを返すため、実データを0件にすると並列実行中の他テストに影響する。
-    // そのため一覧APIの応答だけを0件に差し替えて、0件時の表示を確認する。
-    await page.route(PROJECTS_API, (route) =>
-      route.request().method() === "GET" ? route.fulfill({ json: [] }) : route.continue(),
-    );
+    // プロジェクト一覧は所属プロジェクトのみを返すため、プロジェクトに所属していない新規ユーザーでは0件になる
     const user = await data.createUser();
     await signIn(page, user);
 

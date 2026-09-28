@@ -12,6 +12,7 @@
     "node": ">=24 <25"
   },
   "dependencies": {
+    "iron-session": "9.0.1",
     "next": "15.5.26",
     "react": "19.2.8",
     "react-dom": "19.2.8"
