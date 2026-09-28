@@ -1,0 +1,43 @@
+# Dependabot: 依存ライブラリの脆弱性の通知と、更新のプルリクエストを自動で作成する(security-review.md SEC-11)。
+# 更新のプルリクエストでもCIが実行されるため、テストが通ることを確認してからマージする。
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    groups:
+      # マイナー・パッチ更新はまとめて1つのプルリクエストにする
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # デプロイ先の Amplify Hosting の SSR が Next.js 15 までの対応のため、メジャー更新は行わない
+      # (基本設計書 4.1、security-review.md 6.2)
+      - dependency-name: next
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint-config-next
+        update-types: ["version-update:semver-major"]
+      # Node.js 24 に合わせて固定している(基本設計書 4.1)
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: npm
+    directory: /e2e
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: nuget
+    directory: /backend
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

@@ -56,5 +56,6 @@ npm run dev
 | `npm run build` | 本番用にビルドする |
 | `npm run start` | ビルド結果を起動する |
 | `npm run lint` | ESLint を実行する |
+| `npm run typecheck` | ルートの型を生成（`next typegen`）してから、TypeScript の型チェックを実行する |
 
 画面・API連携のテストは `e2e/`（Playwright）にあります。実行方法はルートのREADMEの「自動テスト」を参照してください。

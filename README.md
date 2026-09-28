@@ -1,12 +1,14 @@
 # 案件・タスク管理システム (Task Management System)
 
+[![CI](https://github.com/Toshiki24/task-management-system/actions/workflows/ci.yml/badge.svg)](https://github.com/Toshiki24/task-management-system/actions/workflows/ci.yml)
+
 プロジェクト単位でタスクを管理するWebアプリケーションです。
 
 要件定義・基本設計・DB設計・API設計・画面設計という設計工程を経てから実装し、実装後は設計書との照合・不具合修正を経て、テスト項目書に基づくテストまで完了しています。個人開発のポートフォリオとして、Webアプリケーション開発の一連の工程（設計→実装→照合・テスト→デプロイ）を経験することを目的に制作しています。
 
 > **現在の状況**: MVP機能の実装、設計書との照合・不具合修正、テストまで完了しています。テストは[テスト項目書](design/test-items.md)の全159項目を自動テスト化して実施し、1回目でNGとなった13項目を修正した上で、2回目の再テストで全項目OKとなりました。
 >
-> AWSデプロイの前にセキュリティ面を見直し、認可チェックの未実装などの課題を洗い出しました。現在は[セキュリティ見直し記録](design/security-review.md)の対応計画に沿って、課題を優先度の高い順に対応しています。対応が完了した後、AWS環境構築・本番デプロイに進みます。
+> AWSデプロイの前にセキュリティ面を見直し、認可チェックの未実装などの課題を洗い出して、[セキュリティ見直し記録](design/security-review.md)の対応計画に沿ってすべて対応しました（認可チェック、ログイン試行回数の制限、BFF構成とリフレッシュトークンへの移行、CSRF対策、CSP・セキュリティヘッダー等）。テストは全253項目がOKで、GitHub Actions のCIでプルリクエストごとに自動実行しています。次の工程はAWS環境構築・本番デプロイです。
 
 ---
 
@@ -165,6 +167,7 @@ npm run dev
 | 結合テスト (IT) | `e2e/tests/integration` | Playwright + pg（node-postgres。DBを直接参照して確認） |
 | 画面テスト (SCR) | `e2e/tests/screen` | Playwright |
 | システムテスト (ST) | `e2e/tests/system` | Playwright |
+| セキュリティテスト (SEC) | `e2e/tests/security` | Playwright |
 
 ### 実行方法
 
@@ -180,7 +183,11 @@ cd e2e
 npm test
 ```
 
-分類ごとの実行は `npm run test:api` / `test:integration` / `test:screen` / `test:system`、結果レポートは `npm run report` で確認できます。
+分類ごとの実行は `npm run test:api` / `test:integration` / `test:screen` / `test:system` / `test:security`、結果レポートは `npm run report` で確認できます。
+
+### CI（GitHub Actions）
+
+プルリクエストの作成・更新時と main への push 時に、単体テスト・E2Eテスト・ESLint と型チェック・依存ライブラリの脆弱性確認（`npm audit`、`dotnet list package --vulnerable`）を自動で実行します（`.github/workflows/ci.yml`）。脆弱性確認は週1回も実行し、Dependabot が依存ライブラリの更新プルリクエストを作成します。
 
 ### テストデータの扱い
 
@@ -214,8 +221,8 @@ npm test
 ```text
 要件定義 → 基本設計 → DB設計・ER図 → API詳細設計 → 画面詳細設計
    → 開発環境構築 → バックエンド実装 → フロントエンド実装
-   → 設計書との照合・不具合修正 → テスト実施 ← ここまで完了
-   → セキュリティ見直し・対応 ← 対応中
+   → 設計書との照合・不具合修正 → テスト実施
+   → セキュリティ見直し・対応 ← ここまで完了
    → AWS環境構築 → 本番デプロイ → README整備
 ```
 
@@ -228,6 +235,7 @@ npm test
 - [x] [テスト項目書](design/test-items.md)に基づくテストの自動化・1回目の実施（結果の記録）
 - [x] 1回目でNGとなった項目の修正・再テスト（2回目、全項目OK）
 - [x] セキュリティ見直し（課題の洗い出し・対策方針・対応計画の策定。[セキュリティ見直し記録](design/security-review.md)）
-- [ ] セキュリティ対応（認可チェック、ログイン保護、BFF構成への移行等。進捗は[セキュリティ見直し記録 §7](design/security-review.md)を参照）
-- [ ] AWS環境構築・本番デプロイ（Amplify / API Gateway / Lambda / RDS）
+- [x] セキュリティ対応（認可チェック、ログイン保護、BFF構成への移行、CSP等。[セキュリティ見直し記録 §7](design/security-review.md)）
+- [x] CI（GitHub Actions）によるテスト・依存ライブラリの脆弱性確認の自動化
+- [ ] AWS環境構築・本番デプロイ（Amplify / API Gateway / Lambda / RDS）。デプロイ時の確認事項は[セキュリティ見直し記録 §8](design/security-review.md)を参照
 - [ ] Phase 2機能（タスク検索・絞り込み、ダッシュボード、タスクステータス履歴、詳細な権限管理）
