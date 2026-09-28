@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<TaskItem> Tasks => Set<TaskItem>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<TaskStatusHistory> TaskStatusHistories => Set<TaskStatusHistory>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -171,6 +172,33 @@ public class AppDbContext : DbContext
                 tb.HasCheckConstraint(
                     "chk_task_status_histories_to_status",
                     "to_status IN ('TODO', 'IN_PROGRESS', 'DONE')");
+            });
+        });
+
+        // ============================================================
+        // RefreshTokens (security-review.md 5.3)
+        // ============================================================
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            // SHA-256のハッシュ値(16進数64文字)
+            entity.Property(e => e.TokenHash).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.RevokedReason).HasMaxLength(30);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.TokenHash).IsUnique().HasDatabaseName("refresh_tokens_token_hash_key");
+            entity.HasIndex(e => e.UserId).HasDatabaseName("idx_refresh_tokens_user_id");
+
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.RefreshTokens)
+                .HasForeignKey(e => e.UserId)
+                .HasConstraintName("fk_refresh_tokens_user")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(tb =>
+            {
+                tb.HasCheckConstraint(
+                    "chk_refresh_tokens_revoked_reason",
+                    "revoked_reason IS NULL OR revoked_reason IN ('ROTATED', 'LOGOUT', 'REUSE_DETECTED')");
             });
         });
 

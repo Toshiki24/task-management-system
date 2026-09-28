@@ -40,4 +40,25 @@ public class AuthController : ControllerBase
                 return Ok(outcome.Data);
         }
     }
+
+    /// <summary>リフレッシュトークンでアクセストークンを再発行する(リフレッシュトークンも新しいものに置き換わる)</summary>
+    [HttpPost("refresh")]
+    public async Task<ActionResult<LoginResponse>> Refresh(RefreshTokenRequest request)
+    {
+        var response = await _authService.RefreshAsync(request);
+        if (response is null)
+        {
+            return Unauthorized(new ErrorResponse("認証の有効期限が切れました。再度ログインしてください。"));
+        }
+
+        return Ok(response);
+    }
+
+    /// <summary>リフレッシュトークンを失効させる。既に失効している場合も成功として扱う</summary>
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout(RefreshTokenRequest request)
+    {
+        await _authService.LogoutAsync(request);
+        return NoContent();
+    }
 }

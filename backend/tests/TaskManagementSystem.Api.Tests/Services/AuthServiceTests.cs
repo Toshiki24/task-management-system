@@ -20,7 +20,8 @@ public class AuthServiceTests : IClassFixture<TestDatabaseFixture>
         new(
             context,
             new JwtTokenService(JwtTestConfiguration.Create()),
-            limiter ?? new LoginAttemptLimiter(LoginAttemptLimiterTests.CreateConfiguration(), _time));
+            limiter ?? new LoginAttemptLimiter(LoginAttemptLimiterTests.CreateConfiguration(), _time),
+            new RefreshTokenService(context, _time, RefreshTokenServiceTests.CreateConfiguration()));
 
     [Fact(DisplayName = "UT-101 正しいメール・パスワードでログイン成功")]
     public async Task LoginAsync_ReturnsTokenAndUser_WhenCredentialsAreValid()
@@ -35,6 +36,8 @@ public class AuthServiceTests : IClassFixture<TestDatabaseFixture>
         var result = outcome.Data;
         Assert.NotNull(result);
         Assert.False(string.IsNullOrWhiteSpace(result.AccessToken));
+        Assert.False(string.IsNullOrWhiteSpace(result.RefreshToken));
+        Assert.True(result.AccessTokenExpiresAt > DateTime.UtcNow);
         Assert.Equal(user.Id, result.User.Id);
         Assert.Equal(user.Name, result.User.Name);
         Assert.Equal(user.Email, result.User.Email);
@@ -124,6 +127,39 @@ public class AuthServiceTests : IClassFixture<TestDatabaseFixture>
 
         Assert.NotNull(limiter.GetRetryAfter(unknownEmail));
         Assert.Null(limiter.GetRetryAfter(user.Email));
+    }
+
+    [Fact(DisplayName = "UT-107 リフレッシュトークンでアクセストークンとリフレッシュトークンが再発行される")]
+    public async Task RefreshAsync_ReturnsNewTokens()
+    {
+        await using var arrange = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(arrange);
+        await using var loginContext = _db.CreateContext();
+        var login = (await CreateService(loginContext).LoginAsync(new LoginRequest(user.Email, TestData.DefaultPassword))).Data!;
+
+        await using var context = _db.CreateContext();
+        var refreshed = await CreateService(context).RefreshAsync(new RefreshTokenRequest(login.RefreshToken));
+
+        Assert.NotNull(refreshed);
+        Assert.False(string.IsNullOrWhiteSpace(refreshed.AccessToken));
+        Assert.NotEqual(login.RefreshToken, refreshed.RefreshToken);
+        Assert.Equal(user.Id, refreshed.User.Id);
+    }
+
+    [Fact(DisplayName = "UT-108 ログアウトしたリフレッシュトークンでは再発行できない")]
+    public async Task RefreshAsync_ReturnsNull_AfterLogout()
+    {
+        await using var arrange = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(arrange);
+        await using var loginContext = _db.CreateContext();
+        var login = (await CreateService(loginContext).LoginAsync(new LoginRequest(user.Email, TestData.DefaultPassword))).Data!;
+        await using var logoutContext = _db.CreateContext();
+        await CreateService(logoutContext).LogoutAsync(new RefreshTokenRequest(login.RefreshToken));
+
+        await using var context = _db.CreateContext();
+        var refreshed = await CreateService(context).RefreshAsync(new RefreshTokenRequest(login.RefreshToken));
+
+        Assert.Null(refreshed);
     }
 }
 

@@ -63,6 +63,7 @@ builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 // ログイン失敗回数はアプリ全体で共有するため、シングルトンで保持する
 builder.Services.AddSingleton<ILoginAttemptLimiter, LoginAttemptLimiter>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IProjectMemberService, ProjectMemberService>();

@@ -14,4 +14,9 @@ public record LoginOutcome(LoginResult Result, LoginResponse? Data = null, TimeS
 public interface IAuthService
 {
     Task<LoginOutcome> LoginAsync(LoginRequest request);
+
+    /// <summary>リフレッシュトークンでアクセストークンを再発行する。無効なトークンの場合は null を返す。</summary>
+    Task<LoginResponse?> RefreshAsync(RefreshTokenRequest request);
+
+    Task LogoutAsync(RefreshTokenRequest request);
 }
