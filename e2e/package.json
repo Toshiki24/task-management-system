@@ -9,6 +9,7 @@
     "test:integration": "playwright test --project=integration",
     "test:screen": "playwright test --project=screen",
     "test:system": "playwright test --project=system",
+    "test:security": "playwright test --project=security",
     "report": "playwright show-report"
   },
   "devDependencies": {

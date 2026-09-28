@@ -6,6 +6,7 @@ public enum AddMemberResult
 {
     Success,
     ProjectNotFound,
+    Forbidden,
     UserNotFound,
     AlreadyMember,
 }
@@ -14,6 +15,7 @@ public enum RemoveMemberResult
 {
     Success,
     ProjectNotFound,
+    Forbidden,
     MemberNotFound,
 }
 
@@ -21,7 +23,7 @@ public record AddMemberOutcome(AddMemberResult Result, MemberAddedDto? Data = nu
 
 public interface IProjectMemberService
 {
-    Task<List<MemberDto>?> GetMembersAsync(long projectId);
-    Task<AddMemberOutcome> AddMemberAsync(long projectId, AddMemberRequest request);
-    Task<RemoveMemberResult> RemoveMemberAsync(long projectId, long userId);
+    Task<List<MemberDto>?> GetMembersAsync(long projectId, long currentUserId);
+    Task<AddMemberOutcome> AddMemberAsync(long projectId, AddMemberRequest request, long currentUserId);
+    Task<RemoveMemberResult> RemoveMemberAsync(long projectId, long userId, long currentUserId);
 }

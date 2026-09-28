@@ -18,8 +18,11 @@ public class ProjectMemberServiceTests : IClassFixture<TestDatabaseFixture>
     [Fact(DisplayName = "UT-401 存在しないプロジェクトのメンバー一覧取得")]
     public async Task GetMembersAsync_ReturnsNull_WhenProjectNotExists()
     {
+        await using var arrange = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(arrange);
+
         await using var context = _db.CreateContext();
-        var result = await new ProjectMemberService(context).GetMembersAsync(TestData.NonExistentId);
+        var result = await new ProjectMemberService(context).GetMembersAsync(TestData.NonExistentId, user.Id);
 
         Assert.Null(result);
     }
@@ -28,12 +31,12 @@ public class ProjectMemberServiceTests : IClassFixture<TestDatabaseFixture>
     public async Task AddMemberAsync_ReturnsSuccess_WhenUserIsNotMember()
     {
         await using var arrange = _db.CreateContext();
-        var project = await TestData.CreateProjectAsync(arrange);
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
         var user = await TestData.CreateUserAsync(arrange);
 
         await using var context = _db.CreateContext();
         var outcome = await new ProjectMemberService(context)
-            .AddMemberAsync(project.Id, new AddMemberRequest(user.Id, ProjectMemberRole.Member));
+            .AddMemberAsync(project.Id, new AddMemberRequest(user.Id, ProjectMemberRole.Member), owner.Id);
 
         Assert.Equal(AddMemberResult.Success, outcome.Result);
         Assert.Equal(new MemberAddedDto(project.Id, user.Id, ProjectMemberRole.Member), outcome.Data);
@@ -49,7 +52,7 @@ public class ProjectMemberServiceTests : IClassFixture<TestDatabaseFixture>
 
         await using var context = _db.CreateContext();
         var outcome = await new ProjectMemberService(context)
-            .AddMemberAsync(TestData.NonExistentId, new AddMemberRequest(user.Id, ProjectMemberRole.Member));
+            .AddMemberAsync(TestData.NonExistentId, new AddMemberRequest(user.Id, ProjectMemberRole.Member), user.Id);
 
         Assert.Equal(AddMemberResult.ProjectNotFound, outcome.Result);
     }
@@ -58,11 +61,11 @@ public class ProjectMemberServiceTests : IClassFixture<TestDatabaseFixture>
     public async Task AddMemberAsync_ReturnsUserNotFound_WhenUserNotExists()
     {
         await using var arrange = _db.CreateContext();
-        var project = await TestData.CreateProjectAsync(arrange);
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
 
         await using var context = _db.CreateContext();
         var outcome = await new ProjectMemberService(context)
-            .AddMemberAsync(project.Id, new AddMemberRequest(TestData.NonExistentId, ProjectMemberRole.Member));
+            .AddMemberAsync(project.Id, new AddMemberRequest(TestData.NonExistentId, ProjectMemberRole.Member), owner.Id);
 
         Assert.Equal(AddMemberResult.UserNotFound, outcome.Result);
     }
@@ -71,13 +74,13 @@ public class ProjectMemberServiceTests : IClassFixture<TestDatabaseFixture>
     public async Task AddMemberAsync_ReturnsAlreadyMember_WhenUserIsMember()
     {
         await using var arrange = _db.CreateContext();
-        var project = await TestData.CreateProjectAsync(arrange);
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
         var user = await TestData.CreateUserAsync(arrange);
         await TestData.AddMemberAsync(arrange, project.Id, user.Id);
 
         await using var context = _db.CreateContext();
         var outcome = await new ProjectMemberService(context)
-            .AddMemberAsync(project.Id, new AddMemberRequest(user.Id, ProjectMemberRole.Owner));
+            .AddMemberAsync(project.Id, new AddMemberRequest(user.Id, ProjectMemberRole.Owner), owner.Id);
 
         Assert.Equal(AddMemberResult.AlreadyMember, outcome.Result);
     }
@@ -86,12 +89,12 @@ public class ProjectMemberServiceTests : IClassFixture<TestDatabaseFixture>
     public async Task RemoveMemberAsync_ReturnsSuccess_AndDeletesRow()
     {
         await using var arrange = _db.CreateContext();
-        var project = await TestData.CreateProjectAsync(arrange);
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
         var user = await TestData.CreateUserAsync(arrange);
         await TestData.AddMemberAsync(arrange, project.Id, user.Id);
 
         await using var context = _db.CreateContext();
-        var result = await new ProjectMemberService(context).RemoveMemberAsync(project.Id, user.Id);
+        var result = await new ProjectMemberService(context).RemoveMemberAsync(project.Id, user.Id, owner.Id);
 
         Assert.Equal(RemoveMemberResult.Success, result);
         await using var assert = _db.CreateContext();
@@ -102,12 +105,72 @@ public class ProjectMemberServiceTests : IClassFixture<TestDatabaseFixture>
     public async Task RemoveMemberAsync_ReturnsMemberNotFound_WhenUserIsNotMember()
     {
         await using var arrange = _db.CreateContext();
-        var project = await TestData.CreateProjectAsync(arrange);
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
         var user = await TestData.CreateUserAsync(arrange);
 
         await using var context = _db.CreateContext();
-        var result = await new ProjectMemberService(context).RemoveMemberAsync(project.Id, user.Id);
+        var result = await new ProjectMemberService(context).RemoveMemberAsync(project.Id, user.Id, owner.Id);
 
         Assert.Equal(RemoveMemberResult.MemberNotFound, result);
+    }
+
+    [Fact(DisplayName = "UT-408 所属していないプロジェクトのメンバー操作")]
+    public async Task MemberOperations_ReturnProjectNotFound_WhenUserIsNotMember()
+    {
+        await using var arrange = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
+        var outsider = await TestData.CreateUserAsync(arrange);
+
+        await using var context = _db.CreateContext();
+        var service = new ProjectMemberService(context);
+        var members = await service.GetMembersAsync(project.Id, outsider.Id);
+        // 非メンバーが自分自身をOWNERとしてプロジェクトに追加しようとするケース
+        var addOutcome = await service.AddMemberAsync(
+            project.Id, new AddMemberRequest(outsider.Id, ProjectMemberRole.Owner), outsider.Id);
+        var removeResult = await service.RemoveMemberAsync(project.Id, owner.Id, outsider.Id);
+
+        Assert.Null(members);
+        Assert.Equal(AddMemberResult.ProjectNotFound, addOutcome.Result);
+        Assert.Equal(RemoveMemberResult.ProjectNotFound, removeResult);
+        await using var assert = _db.CreateContext();
+        Assert.False(await assert.ProjectMembers.AnyAsync(pm => pm.ProjectId == project.Id && pm.UserId == outsider.Id));
+        Assert.True(await assert.ProjectMembers.AnyAsync(pm => pm.ProjectId == project.Id && pm.UserId == owner.Id));
+    }
+
+    [Fact(DisplayName = "UT-409 MEMBERによるメンバーの追加・削除")]
+    public async Task AddAndRemoveMemberAsync_ReturnForbidden_WhenUserIsMember()
+    {
+        await using var arrange = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
+        var member = await TestData.CreateUserAsync(arrange);
+        await TestData.AddMemberAsync(arrange, project.Id, member.Id, ProjectMemberRole.Member);
+        var user = await TestData.CreateUserAsync(arrange);
+
+        await using var context = _db.CreateContext();
+        var service = new ProjectMemberService(context);
+        var addOutcome = await service.AddMemberAsync(
+            project.Id, new AddMemberRequest(user.Id, ProjectMemberRole.Member), member.Id);
+        var removeResult = await service.RemoveMemberAsync(project.Id, owner.Id, member.Id);
+
+        Assert.Equal(AddMemberResult.Forbidden, addOutcome.Result);
+        Assert.Equal(RemoveMemberResult.Forbidden, removeResult);
+        await using var assert = _db.CreateContext();
+        Assert.False(await assert.ProjectMembers.AnyAsync(pm => pm.ProjectId == project.Id && pm.UserId == user.Id));
+        Assert.True(await assert.ProjectMembers.AnyAsync(pm => pm.ProjectId == project.Id && pm.UserId == owner.Id));
+    }
+
+    [Fact(DisplayName = "UT-410 MEMBERはメンバー一覧を取得できる")]
+    public async Task GetMembersAsync_ReturnsMembers_WhenUserIsMember()
+    {
+        await using var arrange = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
+        var member = await TestData.CreateUserAsync(arrange);
+        await TestData.AddMemberAsync(arrange, project.Id, member.Id, ProjectMemberRole.Member);
+
+        await using var context = _db.CreateContext();
+        var result = await new ProjectMemberService(context).GetMembersAsync(project.Id, member.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(new[] { owner.Id, member.Id }, result.Select(m => m.UserId).ToArray());
     }
 }

@@ -14,17 +14,24 @@ public class ProjectService : IProjectService
         _dbContext = dbContext;
     }
 
-    public async Task<List<ProjectDto>> GetAllAsync()
+    public async Task<List<ProjectDto>> GetAllAsync(long currentUserId)
     {
+        // 自分が所属しているプロジェクトのみ返す
         var projects = await _dbContext.Projects
+            .Where(p => p.ProjectMembers.Any(pm => pm.UserId == currentUserId))
             .OrderBy(p => p.Id)
             .ToListAsync();
 
         return projects.Select(ToDto).ToList();
     }
 
-    public async Task<ProjectDto?> GetByIdAsync(long id)
+    public async Task<ProjectDto?> GetByIdAsync(long id, long currentUserId)
     {
+        if (await _dbContext.GetProjectRoleAsync(id, currentUserId) is null)
+        {
+            return null;
+        }
+
         var project = await _dbContext.Projects.FindAsync(id);
         return project is null ? null : ToDto(project);
     }
@@ -64,12 +71,23 @@ public class ProjectService : IProjectService
         return ToDto(project);
     }
 
-    public async Task<ProjectDto?> UpdateAsync(long id, ProjectRequest request)
+    public async Task<UpdateProjectOutcome> UpdateAsync(long id, ProjectRequest request, long currentUserId)
     {
+        var role = await _dbContext.GetProjectRoleAsync(id, currentUserId);
+        if (role is null)
+        {
+            return new UpdateProjectOutcome(UpdateProjectResult.ProjectNotFound);
+        }
+
+        if (role != ProjectMemberRole.Owner)
+        {
+            return new UpdateProjectOutcome(UpdateProjectResult.Forbidden);
+        }
+
         var project = await _dbContext.Projects.FindAsync(id);
         if (project is null)
         {
-            return null;
+            return new UpdateProjectOutcome(UpdateProjectResult.ProjectNotFound);
         }
 
         project.Name = request.Name;
@@ -87,21 +105,32 @@ public class ProjectService : IProjectService
 
         await _dbContext.SaveChangesAsync();
 
-        return ToDto(project);
+        return new UpdateProjectOutcome(UpdateProjectResult.Success, ToDto(project));
     }
 
-    public async Task<bool> DeleteAsync(long id)
+    public async Task<DeleteProjectResult> DeleteAsync(long id, long currentUserId)
     {
+        var role = await _dbContext.GetProjectRoleAsync(id, currentUserId);
+        if (role is null)
+        {
+            return DeleteProjectResult.ProjectNotFound;
+        }
+
+        if (role != ProjectMemberRole.Owner)
+        {
+            return DeleteProjectResult.Forbidden;
+        }
+
         var project = await _dbContext.Projects.FindAsync(id);
         if (project is null)
         {
-            return false;
+            return DeleteProjectResult.ProjectNotFound;
         }
 
         _dbContext.Projects.Remove(project);
         await _dbContext.SaveChangesAsync();
 
-        return true;
+        return DeleteProjectResult.Success;
     }
 
     private static ProjectDto ToDto(Project project) => new(
