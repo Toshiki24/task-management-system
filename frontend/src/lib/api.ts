@@ -40,7 +40,6 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
       if (typeof window !== "undefined" && window.location.pathname !== "/login") {
         // apiFetchはReactコンポーネント外(通常の関数)からも呼ばれるためuseRouter()が使えない。
         // セッション切れ時は状態を確実にリセットしたいので、あえてハードナビゲーションにしている。
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.assign("/login");
       }
     }

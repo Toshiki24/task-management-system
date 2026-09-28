@@ -42,7 +42,7 @@
 
 | 分類 | 技術 |
 | --- | --- |
-| フロントエンド | Next.js (App Router) / TypeScript / React / Tailwind CSS |
+| フロントエンド | Next.js 15 (App Router) / TypeScript / React / Tailwind CSS |
 | バックエンド | C# / ASP.NET Core Web API |
 | ORM | Entity Framework Core（Code First / Migrations） |
 | データベース | PostgreSQL |
@@ -108,7 +108,7 @@ task-management-system/
 
 - Docker Desktop
 - .NET SDK 8.0
-- Node.js（npm）
+- Node.js 24（npm）。`frontend/.nvmrc` で指定しています
 
 ### 1. PostgreSQLの起動
 
