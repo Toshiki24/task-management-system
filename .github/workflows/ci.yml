@@ -114,7 +114,8 @@ jobs:
         run: npm run lint
         working-directory: frontend
       - name: 型チェック
-        run: npx tsc --noEmit
+        # LayoutProps 等のルートの型は Next.js が生成するため、ビルドしていない状態では先に生成する(next typegen)
+        run: npm run typecheck
         working-directory: frontend
 
   dependency-audit:
