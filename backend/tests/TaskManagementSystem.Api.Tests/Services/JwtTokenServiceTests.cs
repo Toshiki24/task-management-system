@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using Microsoft.Extensions.Configuration;
 using TaskManagementSystem.Api.Models;
 using TaskManagementSystem.Api.Services;
 
@@ -44,5 +45,24 @@ public class JwtTokenServiceTests
         Assert.InRange(expiresAt, issuedFrom.AddMinutes(expiresMinutes), issuedTo.AddMinutes(expiresMinutes));
         // 呼び出し側(ログインAPIのレスポンス)に返す有効期限は、トークンのexpクレームと一致する
         Assert.Equal(expiresAt, generated.ExpiresAt);
+    }
+
+    [Fact(DisplayName = "UT-703 署名鍵が32バイト未満の場合はエラーになる")]
+    public void JwtSigningKey_Throws_WhenKeyIsTooShort()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Jwt:Key"] = new string('k', 31) })
+            .Build();
+
+        var error = Assert.Throws<InvalidOperationException>(() => JwtSigningKey.Create(configuration));
+        Assert.Contains("32バイト以上", error.Message);
+    }
+
+    [Fact(DisplayName = "UT-704 署名鍵が設定されていない場合はエラーになる")]
+    public void JwtSigningKey_Throws_WhenKeyIsMissing()
+    {
+        var configuration = new ConfigurationBuilder().Build();
+
+        Assert.Throws<InvalidOperationException>(() => JwtSigningKey.Create(configuration));
     }
 }

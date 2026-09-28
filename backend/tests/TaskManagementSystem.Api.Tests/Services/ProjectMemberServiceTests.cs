@@ -173,4 +173,54 @@ public class ProjectMemberServiceTests : IClassFixture<TestDatabaseFixture>
         Assert.NotNull(result);
         Assert.Equal(new[] { owner.Id, member.Id }, result.Select(m => m.UserId).ToArray());
     }
+
+    [Fact(DisplayName = "UT-411 プロジェクトの最後のOWNERは削除できない")]
+    public async Task RemoveMemberAsync_ReturnsLastOwner_WhenRemovingOnlyOwner()
+    {
+        await using var arrange = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
+
+        await using var context = _db.CreateContext();
+        var result = await new ProjectMemberService(context).RemoveMemberAsync(project.Id, owner.Id, owner.Id);
+
+        Assert.Equal(RemoveMemberResult.LastOwner, result);
+        await using var assert = _db.CreateContext();
+        Assert.True(await assert.ProjectMembers.AnyAsync(pm => pm.ProjectId == project.Id && pm.UserId == owner.Id));
+    }
+
+    [Fact(DisplayName = "UT-412 OWNERが複数いれば、OWNERを削除できる")]
+    public async Task RemoveMemberAsync_RemovesOwner_WhenAnotherOwnerExists()
+    {
+        await using var arrange = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
+        var secondOwner = await TestData.CreateUserAsync(arrange);
+        await TestData.AddMemberAsync(arrange, project.Id, secondOwner.Id, ProjectMemberRole.Owner);
+
+        await using var context = _db.CreateContext();
+        var result = await new ProjectMemberService(context).RemoveMemberAsync(project.Id, owner.Id, secondOwner.Id);
+
+        Assert.Equal(RemoveMemberResult.Success, result);
+    }
+
+    [Fact(DisplayName = "UT-413 メンバーを削除すると、そのプロジェクトで担当していたタスクは未割り当てになる")]
+    public async Task RemoveMemberAsync_UnassignsTasksInTheProject()
+    {
+        await using var arrange = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
+        var member = await TestData.CreateUserAsync(arrange);
+        await TestData.AddMemberAsync(arrange, project.Id, member.Id);
+        var task = await TestData.CreateTaskAsync(arrange, project.Id, member.Id);
+        var (otherProject, _) = await TestData.CreateProjectWithOwnerAsync(arrange);
+        await TestData.AddMemberAsync(arrange, otherProject.Id, member.Id);
+        var otherTask = await TestData.CreateTaskAsync(arrange, otherProject.Id, member.Id);
+
+        await using var context = _db.CreateContext();
+        var result = await new ProjectMemberService(context).RemoveMemberAsync(project.Id, member.Id, owner.Id);
+
+        Assert.Equal(RemoveMemberResult.Success, result);
+        await using var assert = _db.CreateContext();
+        Assert.Null((await assert.Tasks.SingleAsync(t => t.Id == task.Id)).AssigneeId);
+        // 別のプロジェクトのタスクは影響を受けない
+        Assert.Equal(member.Id, (await assert.Tasks.SingleAsync(t => t.Id == otherTask.Id)).AssigneeId);
+    }
 }

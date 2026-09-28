@@ -68,6 +68,9 @@ public class ProjectMembersController : ControllerBase
             RemoveMemberResult.MemberNotFound =>
                 NotFound(new ErrorResponse("指定されたメンバーが存在しません。")),
 
+            RemoveMemberResult.LastOwner =>
+                Conflict(new ErrorResponse("プロジェクトには少なくとも1人のOWNERが必要です。")),
+
             _ => NoContent(),
         };
     }

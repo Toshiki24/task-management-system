@@ -89,6 +89,23 @@ public class ProjectMemberService : IProjectMemberService
             return RemoveMemberResult.MemberNotFound;
         }
 
+        // OWNERが1人もいなくなると、誰もプロジェクトを管理できなくなるため削除させない(security-review.md SEC-12)
+        if (member.Role == ProjectMemberRole.Owner
+            && await _dbContext.ProjectMembers.CountAsync(pm => pm.ProjectId == projectId && pm.Role == ProjectMemberRole.Owner) <= 1)
+        {
+            return RemoveMemberResult.LastOwner;
+        }
+
+        // 担当者はプロジェクトメンバーに限るため、削除するユーザーが担当していたタスクは未割り当てにする(SEC-13)。
+        // メンバー削除と同じ SaveChanges で保存し、一方だけが反映される状態を防ぐ
+        var assignedTasks = await _dbContext.Tasks
+            .Where(t => t.ProjectId == projectId && t.AssigneeId == userId)
+            .ToListAsync();
+        foreach (var task in assignedTasks)
+        {
+            task.AssigneeId = null;
+        }
+
         _dbContext.ProjectMembers.Remove(member);
         await _dbContext.SaveChangesAsync();
 
