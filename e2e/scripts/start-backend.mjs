@@ -85,6 +85,8 @@ const server = spawn(
       ASPNETCORE_ENVIRONMENT: "Development",
       ConnectionStrings__DefaultConnection: E2E_DB_CONNECTION_STRING,
       Cors__AllowedOrigins__0: E2E_WEB_URL,
+      // 再利用検知(猶予期間を過ぎた置き換え済みトークンの使用)を、長く待たずに確認できるよう短くする
+      RefreshToken__ReuseGraceSeconds: "2",
     },
   },
 );

@@ -15,14 +15,17 @@ public class JwtTokenService : IJwtTokenService
         _configuration = configuration;
     }
 
-    public string GenerateToken(User user)
+    public AccessToken GenerateToken(User user)
     {
         var jwtSection = _configuration.GetSection("Jwt");
         var key = jwtSection["Key"]
             ?? throw new InvalidOperationException("Jwt:Key が設定されていません。");
         var issuer = jwtSection["Issuer"];
         var audience = jwtSection["Audience"];
-        var expiresMinutes = jwtSection.GetValue("ExpiresMinutes", 60);
+        // リフレッシュトークンで再発行する前提のため短命にする(security-review.md 5.3)。
+        // E2Eテストで期限切れ時の動作を短時間で確認できるよう、小数(0.1分=6秒など)も指定できる
+        var expiresMinutes = jwtSection.GetValue("ExpiresMinutes", 15d);
+        var expiresAt = DateTime.UtcNow.AddMinutes(expiresMinutes);
 
         var claims = new[]
         {
@@ -41,9 +44,10 @@ public class JwtTokenService : IJwtTokenService
             issuer: issuer,
             audience: audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(expiresMinutes),
+            expires: expiresAt,
             signingCredentials: signingCredentials);
 
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        // expクレームは秒単位のため、呼び出し側に返す有効期限もトークンの値(ValidTo)に揃える
+        return new AccessToken(new JwtSecurityTokenHandler().WriteToken(token), token.ValidTo);
     }
 }

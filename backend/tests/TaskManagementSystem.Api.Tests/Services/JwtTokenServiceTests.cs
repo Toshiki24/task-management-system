@@ -18,7 +18,7 @@ public class JwtTokenServiceTests
     [Fact(DisplayName = "UT-701 トークンにユーザー情報が含まれる")]
     public void GenerateToken_ContainsUserClaims()
     {
-        var token = new JwtTokenService(JwtTestConfiguration.Create()).GenerateToken(TestUser);
+        var token = new JwtTokenService(JwtTestConfiguration.Create()).GenerateToken(TestUser).Token;
 
         // jwt.io等と同様に、ペイロードに実際に書き込まれたクレーム名で検証する
         var payload = new JwtSecurityTokenHandler().ReadJwtToken(token).Payload;
@@ -37,10 +37,12 @@ public class JwtTokenServiceTests
         // expクレームは秒単位のため、前後を秒に丸めて比較する
         var issuedFrom = DateTime.UtcNow.AddSeconds(-1);
 
-        var token = new JwtTokenService(JwtTestConfiguration.Create(expiresMinutes)).GenerateToken(TestUser);
+        var generated = new JwtTokenService(JwtTestConfiguration.Create(expiresMinutes)).GenerateToken(TestUser);
 
         var issuedTo = DateTime.UtcNow.AddSeconds(1);
-        var expiresAt = new JwtSecurityTokenHandler().ReadJwtToken(token).ValidTo;
+        var expiresAt = new JwtSecurityTokenHandler().ReadJwtToken(generated.Token).ValidTo;
         Assert.InRange(expiresAt, issuedFrom.AddMinutes(expiresMinutes), issuedTo.AddMinutes(expiresMinutes));
+        // 呼び出し側(ログインAPIのレスポンス)に返す有効期限は、トークンのexpクレームと一致する
+        Assert.Equal(expiresAt, generated.ExpiresAt);
     }
 }

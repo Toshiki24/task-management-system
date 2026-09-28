@@ -2,4 +2,6 @@ using TaskManagementSystem.Api.Dtos.Common;
 
 namespace TaskManagementSystem.Api.Dtos.Auth;
 
-public record LoginResponse(string AccessToken, UserDto User);
+/// <summary>ログインAPI・リフレッシュAPIのレスポンス</summary>
+/// <param name="AccessTokenExpiresAt">アクセストークンの有効期限(UTC)。BFFが再発行のタイミングを判断するために使う</param>
+public record LoginResponse(string AccessToken, DateTime AccessTokenExpiresAt, string RefreshToken, UserDto User);

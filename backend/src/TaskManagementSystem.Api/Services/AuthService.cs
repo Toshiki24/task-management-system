@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TaskManagementSystem.Api.Data;
 using TaskManagementSystem.Api.Dtos.Auth;
 using TaskManagementSystem.Api.Dtos.Common;
+using TaskManagementSystem.Api.Models;
 
 namespace TaskManagementSystem.Api.Services;
 
@@ -14,12 +15,18 @@ public class AuthService : IAuthService
     private readonly AppDbContext _dbContext;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly ILoginAttemptLimiter _loginAttemptLimiter;
+    private readonly IRefreshTokenService _refreshTokenService;
 
-    public AuthService(AppDbContext dbContext, IJwtTokenService jwtTokenService, ILoginAttemptLimiter loginAttemptLimiter)
+    public AuthService(
+        AppDbContext dbContext,
+        IJwtTokenService jwtTokenService,
+        ILoginAttemptLimiter loginAttemptLimiter,
+        IRefreshTokenService refreshTokenService)
     {
         _dbContext = dbContext;
         _jwtTokenService = jwtTokenService;
         _loginAttemptLimiter = loginAttemptLimiter;
+        _refreshTokenService = refreshTokenService;
     }
 
     public async Task<LoginOutcome> LoginAsync(LoginRequest request)
@@ -45,9 +52,25 @@ public class AuthService : IAuthService
 
         _loginAttemptLimiter.Reset(request.Email);
 
+        var refreshToken = await _refreshTokenService.IssueAsync(user.Id);
+        return new LoginOutcome(LoginResult.Success, CreateResponse(user, refreshToken));
+    }
+
+    public async Task<LoginResponse?> RefreshAsync(RefreshTokenRequest request)
+    {
+        var rotated = await _refreshTokenService.RotateAsync(request.RefreshToken);
+        return rotated is null ? null : CreateResponse(rotated.User, rotated.NewRefreshToken);
+    }
+
+    public Task LogoutAsync(RefreshTokenRequest request) => _refreshTokenService.RevokeAsync(request.RefreshToken);
+
+    private LoginResponse CreateResponse(User user, string refreshToken)
+    {
         var accessToken = _jwtTokenService.GenerateToken(user);
-        return new LoginOutcome(
-            LoginResult.Success,
-            new LoginResponse(accessToken, new UserDto(user.Id, user.Name, user.Email)));
+        return new LoginResponse(
+            accessToken.Token,
+            accessToken.ExpiresAt,
+            refreshToken,
+            new UserDto(user.Id, user.Name, user.Email));
     }
 }
