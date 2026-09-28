@@ -3,8 +3,9 @@
 -- Database Definition Language
 --
 -- DBMS: PostgreSQL
--- Version: 1.0
+-- Version: 1.1
 -- Created: 2026-09-22
+-- Updated: 2026-09-28 (refresh_tokens を追加。design/security-review.md 5.3)
 --
 -- Based on:
 --   docs/requirements.md
@@ -222,6 +223,44 @@ COMMENT ON COLUMN task_status_histories.created_at IS '変更日時';
 
 
 -- ============================================================
+-- 6-2. Refresh Tokens
+-- ============================================================
+-- セキュリティ見直し（design/security-review.md 5.3）で追加。
+-- トークンそのものは保存せず、SHA-256のハッシュ値のみを保存する。
+-- ============================================================
+
+CREATE TABLE refresh_tokens (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    token_hash VARCHAR(64) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    revoked_at TIMESTAMP,
+    revoked_reason VARCHAR(30),
+
+    CONSTRAINT refresh_tokens_token_hash_key
+        UNIQUE (token_hash),
+
+    CONSTRAINT fk_refresh_tokens_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_refresh_tokens_revoked_reason
+        CHECK (revoked_reason IS NULL OR revoked_reason IN ('ROTATED', 'LOGOUT', 'REUSE_DETECTED'))
+);
+
+COMMENT ON TABLE refresh_tokens IS 'リフレッシュトークン';
+COMMENT ON COLUMN refresh_tokens.id IS 'リフレッシュトークンID';
+COMMENT ON COLUMN refresh_tokens.user_id IS 'ユーザーID';
+COMMENT ON COLUMN refresh_tokens.token_hash IS 'トークンのSHA-256ハッシュ値（16進数）';
+COMMENT ON COLUMN refresh_tokens.expires_at IS '有効期限';
+COMMENT ON COLUMN refresh_tokens.created_at IS '発行日時';
+COMMENT ON COLUMN refresh_tokens.revoked_at IS '失効日時';
+COMMENT ON COLUMN refresh_tokens.revoked_reason IS '失効理由（ROTATED: 置き換え / LOGOUT: ログアウト / REUSE_DETECTED: 再利用検知）';
+
+
+-- ============================================================
 -- 7. Indexes
 -- ============================================================
 
@@ -262,6 +301,12 @@ CREATE INDEX idx_task_status_histories_task_id
     ON task_status_histories(task_id);
 
 
+-- Refresh Tokens
+-- token_hash はUNIQUE制約によるインデックスを利用する。
+CREATE INDEX idx_refresh_tokens_user_id
+    ON refresh_tokens(user_id);
+
+
 -- ============================================================
 -- 8. Table Summary
 -- ============================================================
@@ -283,5 +328,8 @@ CREATE INDEX idx_task_status_histories_task_id
 --
 -- task_status_histories
 --   └── タスクのステータス変更履歴（Phase 2）
+--
+-- refresh_tokens
+--   └── リフレッシュトークン（ハッシュ値のみ保存）
 --
 -- ============================================================

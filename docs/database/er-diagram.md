@@ -5,19 +5,27 @@
 | 項目     | 内容                        |
 | ------ | ------------------------- |
 | 文書名    | 案件・タスク管理システム ER図・データベース設計 |
-| バージョン  | 1.0                       |
+| バージョン  | 1.1                       |
 | 作成日    | 2026-09-22                |
+| 更新日    | 2026-09-28                |
 | 対象システム | 案件・タスク管理システム              |
 | 上位文書   | 要件定義書 / 基本設計書             |
 | DBMS   | PostgreSQL                |
+
+### 改訂履歴
+
+| バージョン | 日付 | 内容 |
+| --- | --- | --- |
+| 1.0 | 2026-09-22 | 初版作成 |
+| 1.1 | 2026-09-28 | セキュリティ見直し（`design/security-review.md` 5.3）に伴い、`refresh_tokens` を追加 |
 
 ---
 
 # 2. データベース概要
 
-本システムでは、ユーザー、プロジェクト、プロジェクトメンバー、タスク、コメント、タスクステータス履歴を管理する。
+本システムでは、ユーザー、プロジェクト、プロジェクトメンバー、タスク、コメント、タスクステータス履歴、リフレッシュトークンを管理する。
 
-主要なテーブルは以下の6テーブルとする。
+主要なテーブルは以下の7テーブルとする。
 
 | テーブル名                 | 論理名        | MVP |
 | --------------------- | ---------- | --- |
@@ -27,6 +35,7 @@
 | tasks                 | タスク        | ○   |
 | task_comments         | タスクコメント    | ○   |
 | task_status_histories | タスクステータス履歴 | △   |
+| refresh_tokens        | リフレッシュトークン | ○   |
 
 `task_status_histories` は基本設計上のPhase 2機能であるため、MVPでは必須機能として使用しない。
 
@@ -52,6 +61,8 @@ erDiagram
 
     TASKS ||--o{ TASK_STATUS_HISTORIES : "履歴を持つ"
     USERS ||--o{ TASK_STATUS_HISTORIES : "変更する"
+
+    USERS ||--o{ REFRESH_TOKENS : "発行される"
 
     USERS {
         bigint id PK
@@ -109,6 +120,16 @@ erDiagram
         varchar from_status
         varchar to_status
         timestamp created_at
+    }
+
+    REFRESH_TOKENS {
+        bigint id PK
+        bigint user_id FK
+        varchar token_hash UK
+        timestamp expires_at
+        timestamp created_at
+        timestamp revoked_at
+        varchar revoked_reason
     }
 ```
 
@@ -273,9 +294,37 @@ UNIQUE(project_id, user_id)
 
 ---
 
-# 12. テーブル間リレーション
+# 12. refresh_tokens
 
-## 12.1 users - project_members
+リフレッシュトークンを管理する。セキュリティ見直し（`design/security-review.md` 5.3）で追加した。
+
+| カラム            | 型           | NULL | 制約      | 説明                   |
+| -------------- | ----------- | ---- | ------- | -------------------- |
+| id             | BIGSERIAL   | NO   | PK      | リフレッシュトークンID         |
+| user_id        | BIGINT      | NO   | FK      | ユーザーID               |
+| token_hash     | VARCHAR(64) | NO   | UNIQUE  | トークンのSHA-256ハッシュ値（16進数） |
+| expires_at     | TIMESTAMP   | NO   | -       | 有効期限                 |
+| created_at     | TIMESTAMP   | NO   | DEFAULT | 発行日時                 |
+| revoked_at     | TIMESTAMP   | YES  | -       | 失効日時                 |
+| revoked_reason | VARCHAR(30) | YES  | CHECK   | 失効理由                 |
+
+### revoked_reason
+
+| 値              | 内容                                  |
+| -------------- | ----------------------------------- |
+| ROTATED        | リフレッシュ時に新しいトークンへ置き換えられた             |
+| LOGOUT         | ログアウトにより失効した                        |
+| REUSE_DETECTED | 置き換え済みのトークンが再利用されたため、漏洩とみなして失効させた |
+
+トークンそのものは保存せず、ハッシュ値のみを保存する。DBの内容が漏洩しても、トークンを復元して使うことはできない。
+
+1人のユーザーは、ログインした端末ごとに複数のリフレッシュトークンを持つことができる。
+
+---
+
+# 13. テーブル間リレーション
+
+## 13.1 users - project_members
 
 ```text
 users 1 --- N project_members
@@ -285,7 +334,7 @@ users 1 --- N project_members
 
 ---
 
-## 12.2 projects - project_members
+## 13.2 projects - project_members
 
 ```text
 projects 1 --- N project_members
@@ -297,7 +346,7 @@ projects 1 --- N project_members
 
 ---
 
-## 12.3 projects - tasks
+## 13.3 projects - tasks
 
 ```text
 projects 1 --- N tasks
@@ -309,7 +358,7 @@ projects 1 --- N tasks
 
 ---
 
-## 12.4 users - tasks
+## 13.4 users - tasks
 
 ```text
 users 1 --- N tasks
@@ -321,7 +370,7 @@ users 1 --- N tasks
 
 ---
 
-## 12.5 tasks - task_comments
+## 13.5 tasks - task_comments
 
 ```text
 tasks 1 --- N task_comments
@@ -331,7 +380,7 @@ tasks 1 --- N task_comments
 
 ---
 
-## 12.6 users - task_comments
+## 13.6 users - task_comments
 
 ```text
 users 1 --- N task_comments
@@ -341,7 +390,7 @@ users 1 --- N task_comments
 
 ---
 
-## 12.7 tasks - task_status_histories
+## 13.7 tasks - task_status_histories
 
 ```text
 tasks 1 --- N task_status_histories
@@ -353,7 +402,7 @@ tasks 1 --- N task_status_histories
 
 ---
 
-## 12.8 users - task_status_histories
+## 13.8 users - task_status_histories
 
 ```text
 users 1 --- N task_status_histories
@@ -363,7 +412,17 @@ users 1 --- N task_status_histories
 
 ---
 
-# 13. 外部キー設計
+## 13.9 users - refresh_tokens
+
+```text
+users 1 --- N refresh_tokens
+```
+
+1人のユーザーに対して、複数のリフレッシュトークンを発行できる。
+
+---
+
+# 14. 外部キー設計
 
 | 子テーブル                 | カラム         | 親テーブル    | カラム | 削除時      |
 | --------------------- | ----------- | -------- | --- | -------- |
@@ -375,6 +434,7 @@ users 1 --- N task_status_histories
 | task_comments         | user_id     | users    | id  | CASCADE  |
 | task_status_histories | task_id     | tasks    | id  | CASCADE  |
 | task_status_histories | changed_by  | users    | id  | CASCADE  |
+| refresh_tokens        | user_id     | users    | id  | CASCADE  |
 
 ### 削除方針
 
@@ -386,7 +446,7 @@ users 1 --- N task_status_histories
 
 ---
 
-# 14. インデックス設計
+# 15. インデックス設計
 
 大量データになった場合の検索性能を考慮し、以下のインデックスを設定する。
 
@@ -401,12 +461,13 @@ users 1 --- N task_status_histories
 | tasks                 | due_date    | 期限による検索        |
 | task_comments         | task_id     | タスクコメント検索      |
 | task_status_histories | task_id     | ステータス履歴検索      |
+| refresh_tokens        | user_id     | ユーザーのトークン一括失効  |
 
-`users.email` および `project_members(project_id, user_id)` の一意制約によるインデックスも利用する。
+`users.email`、`project_members(project_id, user_id)` および `refresh_tokens.token_hash` の一意制約によるインデックスも利用する。
 
 ---
 
-# 15. ダッシュボードのデータ設計
+# 16. ダッシュボードのデータ設計
 
 ダッシュボードはPhase 2の機能として実装する。
 
@@ -434,7 +495,7 @@ users
 
 ---
 
-# 16. タスク検索・絞り込みのデータ設計
+# 17. タスク検索・絞り込みのデータ設計
 
 タスク検索・絞り込みはPhase 2の機能として実装する。
 
@@ -453,7 +514,7 @@ EF Core / LINQによって条件を動的に組み立てる。
 
 ---
 
-# 17. ステータス履歴のデータ設計
+# 18. ステータス履歴のデータ設計
 
 ステータス履歴はPhase 2で使用する。
 
@@ -487,11 +548,11 @@ DONE
 
 ---
 
-# 18. データ整合性
+# 19. データ整合性
 
 以下のルールによりデータ整合性を確保する。
 
-## 18.1 プロジェクト
+## 19.1 プロジェクト
 
 タスクは必ずプロジェクトに所属する。
 
@@ -499,7 +560,7 @@ DONE
 tasks.project_id NOT NULL
 ```
 
-## 18.2 プロジェクトメンバー
+## 19.2 プロジェクトメンバー
 
 同一ユーザーを同一プロジェクトへ複数回登録できない。
 
@@ -507,7 +568,7 @@ tasks.project_id NOT NULL
 UNIQUE(project_id, user_id)
 ```
 
-## 18.3 タスク担当者
+## 19.3 タスク担当者
 
 担当者未設定を許可する。
 
@@ -515,7 +576,7 @@ UNIQUE(project_id, user_id)
 tasks.assignee_id NULL
 ```
 
-## 18.4 コメント
+## 19.4 コメント
 
 コメントは必ずタスクおよびユーザーに紐付ける。
 
@@ -524,7 +585,7 @@ task_comments.task_id NOT NULL
 task_comments.user_id NOT NULL
 ```
 
-## 18.5 ステータス履歴
+## 19.5 ステータス履歴
 
 変更後ステータスは必須とする。
 
@@ -534,11 +595,11 @@ task_status_histories.to_status NOT NULL
 
 ---
 
-# 19. 命名規則
+# 20. 命名規則
 
 データベースの命名規則は以下とする。
 
-## 19.1 テーブル
+## 20.1 テーブル
 
 小文字のスネークケースを使用する。
 
@@ -549,7 +610,7 @@ project_members
 task_comments
 ```
 
-## 19.2 カラム
+## 20.2 カラム
 
 小文字のスネークケースを使用する。
 
@@ -560,11 +621,11 @@ project_id
 assignee_id
 ```
 
-## 19.3 主キー
+## 20.3 主キー
 
 各テーブルの主キーは `id` とする。
 
-## 19.4 外部キー
+## 20.4 外部キー
 
 参照先テーブル名 + `_id` を基本とする。
 
@@ -578,7 +639,7 @@ task_id
 
 ---
 
-# 20. PostgreSQL設計方針
+# 21. PostgreSQL設計方針
 
 DBMSにはPostgreSQLを使用する。
 
@@ -609,7 +670,7 @@ due_date
 
 ---
 
-# 21. Entity Framework Coreとの対応
+# 22. Entity Framework Coreとの対応
 
 各テーブルはEntity Framework CoreのEntityとして管理する。
 
@@ -622,6 +683,7 @@ ProjectMember
 Task
 TaskComment
 TaskStatusHistory
+RefreshToken
 ```
 
 Entity間のリレーションはEF CoreのNavigation PropertyおよびForeign Keyによって定義する。
@@ -642,7 +704,7 @@ Task
 
 ---
 
-# 22. MVPとDB設計の関係
+# 23. MVPとDB設計の関係
 
 MVPでは以下のテーブルを主に使用する。
 
@@ -652,6 +714,7 @@ projects
 project_members
 tasks
 task_comments
+refresh_tokens
 ```
 
 `task_status_histories` はテーブル自体を先に定義するが、MVPでは必須機能として実装しない。
@@ -660,7 +723,7 @@ task_comments
 
 ---
 
-# 23. DB設計完了条件
+# 24. DB設計完了条件
 
 以下を満たした時点でER・DB設計を完了とする。
 
@@ -679,7 +742,7 @@ task_comments
 
 ---
 
-# 24. 次工程
+# 25. 次工程
 
 ER・DB設計完了後、以下を作成する。
 
