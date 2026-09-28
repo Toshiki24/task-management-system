@@ -21,12 +21,23 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request)
     {
-        var result = await _authService.LoginAsync(request);
-        if (result is null)
-        {
-            return Unauthorized(new ErrorResponse("メールアドレスまたはパスワードが正しくありません。"));
-        }
+        var outcome = await _authService.LoginAsync(request);
 
-        return Ok(result);
+        switch (outcome.Result)
+        {
+            case LoginResult.InvalidCredentials:
+                return Unauthorized(new ErrorResponse("メールアドレスまたはパスワードが正しくありません。"));
+
+            case LoginResult.TooManyAttempts:
+                // 何秒後に再試行できるかを標準のRetry-Afterヘッダーで返す(秒単位、切り上げ)
+                Response.Headers.RetryAfter =
+                    Math.Max(1, (int)Math.Ceiling(outcome.RetryAfter!.Value.TotalSeconds)).ToString();
+                return StatusCode(
+                    StatusCodes.Status429TooManyRequests,
+                    new ErrorResponse("ログインの試行回数が上限に達しました。しばらくしてから再度お試しください。"));
+
+            default:
+                return Ok(outcome.Data);
+        }
     }
 }

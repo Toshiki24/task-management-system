@@ -7,26 +7,47 @@ namespace TaskManagementSystem.Api.Services;
 
 public class AuthService : IAuthService
 {
+    // メールアドレスが存在しない場合にも照合するダミーのハッシュ。
+    // 照合時間を実際のユーザーと揃えるため、ユーザー登録時と同じコスト(BCrypt.Net の既定値11)で生成する。
+    private static readonly string DummyPasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString());
+
     private readonly AppDbContext _dbContext;
     private readonly IJwtTokenService _jwtTokenService;
+    private readonly ILoginAttemptLimiter _loginAttemptLimiter;
 
-    public AuthService(AppDbContext dbContext, IJwtTokenService jwtTokenService)
+    public AuthService(AppDbContext dbContext, IJwtTokenService jwtTokenService, ILoginAttemptLimiter loginAttemptLimiter)
     {
         _dbContext = dbContext;
         _jwtTokenService = jwtTokenService;
+        _loginAttemptLimiter = loginAttemptLimiter;
     }
 
-    public async Task<LoginResponse?> LoginAsync(LoginRequest request)
+    public async Task<LoginOutcome> LoginAsync(LoginRequest request)
     {
+        // 制限中は、パスワードが正しいかどうかに関わらず照合しない(総当たりを続けても結果が分からないようにする)
+        var retryAfter = _loginAttemptLimiter.GetRetryAfter(request.Email);
+        if (retryAfter is not null)
+        {
+            return new LoginOutcome(LoginResult.TooManyAttempts, RetryAfter: retryAfter);
+        }
+
         var user = await _dbContext.Users
             .SingleOrDefaultAsync(u => u.Email == request.Email);
 
-        if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        // ユーザーが存在しない場合もBCryptの照合を行い、応答時間の差からメールアドレスの登録有無を推測できないようにする
+        var passwordMatches = BCrypt.Net.BCrypt.Verify(request.Password, user?.PasswordHash ?? DummyPasswordHash);
+
+        if (user is null || !passwordMatches)
         {
-            return null;
+            _loginAttemptLimiter.RecordFailure(request.Email);
+            return new LoginOutcome(LoginResult.InvalidCredentials);
         }
 
+        _loginAttemptLimiter.Reset(request.Email);
+
         var accessToken = _jwtTokenService.GenerateToken(user);
-        return new LoginResponse(accessToken, new UserDto(user.Id, user.Name, user.Email));
+        return new LoginOutcome(
+            LoginResult.Success,
+            new LoginResponse(accessToken, new UserDto(user.Id, user.Name, user.Email)));
     }
 }
