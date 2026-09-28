@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# frontend
 
-## Getting Started
+案件・タスク管理システムのフロントエンド（Next.js App Router / TypeScript / React / Tailwind CSS）です。
 
-First, run the development server:
+システム全体の概要とセットアップ手順は [ルートのREADME](../README.md) を参照してください。
+
+## バージョン
+
+| 技術 | バージョン | 備考 |
+| --- | --- | --- |
+| Node.js | 24系 | `.nvmrc` と `package.json` の `engines` で指定 |
+| Next.js | 15.5.26（固定） | デプロイ先の Amplify Hosting の SSR が Next.js 15 までの対応のため（[基本設計書 4.1](../design/basic-design.md)、[セキュリティ見直し記録 6.2](../design/security-review.md)） |
+
+Next.js 15 が内部で使用する PostCSS 8.4.31 には既知の脆弱性があるため、`package.json` の `overrides` で修正版（8.5.23以上）に置き換えています。
+
+## 開発サーバーの起動
+
+バックエンド（`http://localhost:5000`）を起動した状態で実行します。
 
 ```bash
+nvm use
+cp .env.example .env.local
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`http://localhost:3000` でログイン画面が表示されます。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 環境変数
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| 変数名 | 内容 | 例 |
+| --- | --- | --- |
+| `NEXT_PUBLIC_API_BASE_URL` | バックエンドAPIのベースURL | `http://localhost:5000/api` |
 
-## Learn More
+## スクリプト
 
-To learn more about Next.js, take a look at the following resources:
+| コマンド | 内容 |
+| --- | --- |
+| `npm run dev` | 開発サーバーを起動する |
+| `npm run build` | 本番用にビルドする |
+| `npm run start` | ビルド結果を起動する |
+| `npm run lint` | ESLint を実行する |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+画面・API連携のテストは `e2e/`（Playwright）にあります。実行方法はルートのREADMEの「自動テスト」を参照してください。

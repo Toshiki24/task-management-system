@@ -21,7 +21,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     // localStorageはブラウザでしか参照できず、SSR時点では認証状態が分からないため、
     // マウント後にeffect内で確定させる(ハイドレーション不整合を避けるための意図的な設計)。
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAuthState({ status: "ready", user: getCurrentUser() });
   }, [router]);
 
