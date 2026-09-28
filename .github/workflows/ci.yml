@@ -1,0 +1,147 @@
+# CI: プルリクエストとmainへのpushごとに、テストと依存ライブラリの脆弱性確認を自動で実行する。
+# 依存ライブラリの脆弱性は日々新たに公開されるため、コードに変更がなくても週1回実行する(security-review.md SEC-11)。
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # 毎週月曜 9:00 (JST)
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  unit-test:
+    name: 単体テスト (xUnit)
+    runs-on: ubuntu-latest
+    services:
+      # テストはクラスごとに使い捨てのDBを作成するため、PostgreSQLサーバーだけを起動する
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: テスト実行
+        run: dotnet test backend/TaskManagementSystem.sln
+
+  e2e-test:
+    name: API・結合・画面・システム・セキュリティテスト (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            e2e/package-lock.json
+      - name: フロントエンドの依存関係をインストール
+        run: npm ci
+        working-directory: frontend
+      - name: E2Eテストの依存関係をインストール
+        run: npm ci
+        working-directory: e2e
+      - name: Playwright のブラウザをインストール
+        run: npx playwright install --with-deps chromium
+        working-directory: e2e
+      - name: テスト実行
+        # テスト専用のDB・ポートでAPIとフロントエンドを起動して実行する(playwright.config.ts の webServer)
+        run: npm test
+        working-directory: e2e
+      - name: テストレポートを保存
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report
+          retention-days: 14
+
+  frontend-lint:
+    name: フロントエンドの静的解析 (ESLint・型チェック)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - name: ESLint
+        run: npm run lint
+        working-directory: frontend
+      - name: 型チェック
+        run: npx tsc --noEmit
+        working-directory: frontend
+
+  dependency-audit:
+    name: 依存ライブラリの脆弱性確認
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+      - name: npm audit (frontend)
+        run: npm audit --audit-level=high
+        working-directory: frontend
+      - name: npm audit (e2e)
+        run: npm audit --audit-level=high
+        working-directory: e2e
+      - name: NuGet パッケージの脆弱性確認 (backend)
+        # 脆弱なパッケージがあってもコマンド自体は成功するため、JSON出力を確認して失敗させる
+        run: |
+          dotnet restore backend/TaskManagementSystem.sln
+          dotnet list backend/TaskManagementSystem.sln package --vulnerable --include-transitive --format json > vulnerable.json
+          cat vulnerable.json
+          count=$(jq '[.projects[].frameworks[]? | (.topLevelPackages // [])[], (.transitivePackages // [])[]] | length' vulnerable.json)
+          if [ "$count" -gt 0 ]; then
+            echo "::error::脆弱性のあるNuGetパッケージが ${count} 件見つかりました。"
+            exit 1
+          fi

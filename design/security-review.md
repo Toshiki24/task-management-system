@@ -221,7 +221,7 @@ BFF 移行によりトークンは盗まれなくなるが、XSS が発生する
 | SEC-08 | 本番環境でのみ HSTS を有効にする（API：`UseHsts()`、画面：`Strict-Transport-Security: max-age=31536000; includeSubDomains`）。API の HSTS は、ASP.NET Core が localhost を対象外とし、E2Eテストは Development 環境で動作するため、ローカルでは確認できない。デプロイ後に確認する |
 | SEC-09 | **リスク受容**とする（下記参照）                                                      |
 | SEC-10 | タスクの担当者はプロジェクトメンバーに限定する                                             |
-| SEC-11 | `npm audit` / `dotnet list package --vulnerable` を CI に組み込む、または Dependabot を有効にする |
+| SEC-11 | GitHub Actions の CI（`.github/workflows/ci.yml`）で、プルリクエスト・mainへのpushごとと毎週1回、`npm audit`（frontend・e2e）と `dotnet list package --vulnerable` を実行し、high以上の脆弱性があれば失敗させる。Dependabot（`.github/dependabot.yml`）で脆弱性の通知と更新のプルリクエストを自動作成する（Next.js のメジャー更新は 6.2 の理由により対象外） |
 | SEC-12 | プロジェクトの最後のOWNERは削除できないようにする（409）                                        |
 | SEC-13 | メンバー削除時に、そのプロジェクトでそのユーザーが担当者のタスクを未割り当てにする（メンバー削除と同じトランザクションで保存する） |
 
@@ -329,11 +329,26 @@ Amplify が Next.js 16 に公式対応した時点で、バージョンアップ
 | 4b | BFF への移行（暗号化Cookie、CSRF 対策） | SEC-04 | 基本設計書 3章・14章、API詳細仕様書 6章 | 対応済み（#20） |
 | 5 | CSP・セキュリティヘッダー                   | SEC-06                  | 基本設計書 17章                                 | 対応済み（#21） |
 | 6a | その他の対応（JWTの許容時間、HSTS、最後のOWNERの保護、メンバー削除時の担当解除、SEC-09のリスク受容） | SEC-07、SEC-08、SEC-09、SEC-12、SEC-13 | 基本設計書 7.2、API詳細仕様書 17章 | 対応済み（#22） |
-| 6b | CI（GitHub Actions）と依存ライブラリの脆弱性確認 | SEC-11 | README、テスト項目書 | 未着手 |
+| 6b | CI（GitHub Actions）と依存ライブラリの脆弱性確認 | SEC-11 | README、テスト項目書 | 対応済み |
 
 ---
 
-# 8. 参考資料
+# 8. 残課題（デプロイ時に確認する事項）
+
+対応計画のステップ0〜6はすべて対応済みである。以下は、ローカル環境では確認できない、またはデプロイ先の構成が決まってから対応する事項である。
+
+| 項目 | 内容 | 関連 |
+| --- | --- | --- |
+| IP単位のレート制限 | API Gateway のスロットリング、または AWS WAF のレートベースルールを設定する（パスワードスプレー等への対策） | 5.2 |
+| 秘密情報の設定 | `Jwt:Key`（32バイト以上）と `SESSION_SECRET`（32文字以上）を、Lambda・Amplify の環境変数（または Secrets Manager）に設定する。リポジトリの値は使わない | 5.3、SEC-07 |
+| APIのHSTS | 本番環境で `Strict-Transport-Security` が返ることを確認する（localhost は対象外のため、ローカルでは確認できない） | SEC-08 |
+| CSPのnonce方式 | Amplify Hosting で Next.js の middleware（Node.js ランタイム）が動作するかを確認し、動作すれば `script-src` を nonce 方式に切り替えて `'unsafe-inline'` をなくす | 5.5 |
+| APIへの直接アクセスの制限 | API Gateway を BFF 以外から呼び出せないようにする（リソースポリシー、共有シークレットのヘッダー等）かを検討する | 5.3 |
+| Next.js 16 への更新 | Amplify Hosting が Next.js 16 に公式対応した時点で更新を検討し、PostCSS の `overrides` が不要になるか確認する | 6.2 |
+
+---
+
+# 9. 参考資料
 
 * [Amplify support for Next.js - AWS Amplify Hosting](https://docs.aws.amazon.com/amplify/latest/userguide/ssr-amplify-support.html)
 * [SSR supported features - AWS Amplify Hosting](https://docs.aws.amazon.com/amplify/latest/userguide/ssr-supported-features.html)
