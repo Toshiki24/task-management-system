@@ -118,6 +118,21 @@ jobs:
         run: npm run typecheck
         working-directory: frontend
 
+  backend-image:
+    name: バックエンドのコンテナイメージのビルド (Lambda用)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: イメージをビルド
+        # Dockerfile が壊れていないことを確認する(ECRへのpushはデプロイ時に行う)
+        run: docker build -t task-management-api:ci backend
+      - name: 開発用の設定ファイルが含まれていないことを確認
+        run: |
+          if docker run --rm --entrypoint sh task-management-api:ci -c 'test -e "$LAMBDA_TASK_ROOT/appsettings.Development.json"'; then
+            echo "::error::appsettings.Development.json(開発用の署名鍵を含む)がイメージに含まれています。"
+            exit 1
+          fi
+
   dependency-audit:
     name: 依存ライブラリの脆弱性確認
     runs-on: ubuntu-latest
