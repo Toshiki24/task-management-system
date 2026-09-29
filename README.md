@@ -131,6 +131,8 @@ dotnet run --project src/TaskManagementSystem.Api
 
 `http://localhost:5000` で起動します（Swagger UIは `/swagger`）。
 
+JWTの署名鍵（`Jwt:Key`）は、ローカル開発では追加の設定は不要です。`dotnet run` は `Properties/launchSettings.json` により Development 環境で起動し、`appsettings.Development.json` にある開発専用の値が使われます。別の値を使いたい場合は、環境変数 `Jwt__Key` に32バイト以上の文字列を設定してから起動してください（未設定・32バイト未満の場合は起動時にエラーになります）。本番環境では `appsettings.json` に値を持たないため、必ず環境変数等で設定します（[セキュリティ見直し記録 §8](design/security-review.md)）。
+
 ### 3. （任意）サンプルデータ投入
 
 ```bash
