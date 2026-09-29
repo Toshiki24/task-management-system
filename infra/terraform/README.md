@@ -19,11 +19,21 @@ state には秘密情報を含めない構成にしていますが、作成し�
 ## 準備（初回のみ）
 
 1. Terraform（1.9 以上）と AWS CLI をインストールする
-2. 作業用 IAM ユーザーのアクセスキーを、プロファイル `tms` として設定する（アクセスキーは自分で入力し、ファイルやチャットに貼らない）
+2. ルートユーザーでサインインして、一時的な認証情報を取得する（ルートユーザーのアクセスキーは作成しない。[AWS構成設計書 4.12](../../design/aws-architecture.md)）
 
    ```bash
-   aws configure --profile tms
+   aws login --profile tms-login
    ```
+
+   `~/.aws/config` に、Terraform 用のプロファイル `tms` を追加する。Terraform の AWS プロバイダーは `aws login` の認証情報を直接読み込めないため、AWS CLI を経由して渡す。
+
+   ```ini
+   [profile tms]
+   region = ap-northeast-1
+   credential_process = aws configure export-credentials --profile tms-login --format process
+   ```
+
+   一時的な認証情報は最長12時間で失効するため、失効したら `aws login --profile tms-login` を再度実行する。
 
 3. 変数ファイルを作成する
 
