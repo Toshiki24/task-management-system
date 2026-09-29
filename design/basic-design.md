@@ -5,7 +5,7 @@
 | 項目     | 内容                 |
 | ------ | ------------------ |
 | 文書名    | 案件・タスク管理システム 基本設計書 |
-| バージョン  | 1.8                |
+| バージョン  | 1.9                |
 | 作成日    | 2026-09-22         |
 | 更新日    | 2026-09-29         |
 | 対象システム | 案件・タスク管理システム       |
@@ -24,6 +24,7 @@
 | 1.6   | 2026-09-28 | 7.2 プロジェクト内権限に、最後のOWNERの保護とメンバー削除時の担当タスクの扱いを追加 |
 | 1.7   | 2026-09-28 | 23.3 CI、25.7 自動テストの実行環境を追加 |
 | 1.8   | 2026-09-29 | 実装に合わせて修正。12 API設計方針に、記載のパスがバックエンドAPIの実体パスであり、ブラウザはBFF経由でアクセスする旨を追記し、不足していたエンドポイント（リフレッシュ、ログアウト、ユーザー、プロジェクトメンバー）を追加。7.1 にMVPではシステムロールを保持しない旨を追記 |
+| 1.9   | 2026-09-29 | 3.2 AWS構成に、APIをLambdaのコンテナイメージで動かす方法と、秘密の値をSecrets Managerから読み込む方法を追記 |
 
 ---
 
@@ -104,6 +105,12 @@ API Gateway / Lambda（ASP.NET Core Web API）
 ```
 
 BFF 構成を採用した理由は `security-review.md` 6.1 を参照。
+
+**API（Lambda）の実行方法**
+
+* ASP.NET Core Web API をコンテナイメージ（ベースイメージ `public.ecr.aws/lambda/dotnet:8`）として Lambda で動かす。`Amazon.Lambda.AspNetCoreServer.Hosting` が API Gateway（HTTP API）からのイベントを ASP.NET Core のリクエストに変換するため、Controller 等のアプリのコードは Lambda 用に変更しない（実装: `backend/Dockerfile`、`backend/src/TaskManagementSystem.Api/Program.cs`）。
+* 署名鍵（`Jwt:Key`）・DB接続文字列などの秘密の値は Secrets Manager に保存し、Lambda の環境変数 `APP_SECRET_ID` で指定したシークレット（設定キーと値のJSON）を起動時に読み込む。リポジトリ・Lambda の環境変数・Terraform の state には秘密の値を置かない（実装: `Configuration/SecretsManagerConfiguration.cs`）。
+* 開発用の署名鍵を含む `appsettings.Development.json` はコンテナイメージに含めない。
 
 ---
 

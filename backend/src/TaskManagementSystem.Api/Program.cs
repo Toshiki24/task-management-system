@@ -3,11 +3,19 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using TaskManagementSystem.Api.Configuration;
 using TaskManagementSystem.Api.Data;
 using TaskManagementSystem.Api.Dtos.Common;
 using TaskManagementSystem.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// 本番(AWS Lambda)では、署名鍵・接続文字列などの秘密情報を Secrets Manager から読み込む。
+// 以降の処理(JwtSigningKey.Create 等)で使うため、設定を参照する前に読み込む
+await builder.Configuration.AddSecretsManagerAsync();
+
+// AWS Lambda の実行環境(環境変数 AWS_LAMBDA_FUNCTION_NAME がある場合)で動いているか
+var runningOnLambda = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME"));
 
 // 使用しているWebサーバー(Server: Kestrel)を外部に知らせない(security-review.md 5.5)
 builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
@@ -15,6 +23,9 @@ builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 // Add services to the container.
 
 builder.Services.AddControllers();
+
+// API Gateway(HTTP API)経由の Lambda で動かす。Lambda 以外(ローカル・テスト)では何もせず、通常どおり Kestrel で動く
+builder.Services.AddAWSLambdaHosting(LambdaEventSource.HttpApi);
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -176,7 +187,11 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// API Gateway は HTTPS でのみ受け付けるため、Lambda では HTTPS へのリダイレクトは不要
+if (!runningOnLambda)
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();
