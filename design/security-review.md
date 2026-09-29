@@ -5,10 +5,18 @@
 | 項目     | 内容                              |
 | ------ | ------------------------------- |
 | 文書名    | 案件・タスク管理システム セキュリティ見直し記録        |
-| バージョン  | 1.0                             |
+| バージョン  | 1.1                             |
 | 作成日    | 2026-09-28                      |
+| 更新日    | 2026-09-29                      |
 | 対象システム | 案件・タスク管理システム                    |
 | 関連文書   | 要件定義書、基本設計書、API詳細仕様書             |
+
+## 改訂履歴
+
+| バージョン | 日付 | 内容 |
+| --- | --- | --- |
+| 1.0 | 2026-09-28 | 初版作成。以降、対応計画（7章）の各ステップの完了に合わせて対応状況・設計判断を更新 |
+| 1.1 | 2026-09-29 | 実装に合わせて修正。4章が見直し時点（BFF移行前）の評価であることを明記し、CORSの記述を現在の実装（CORS設定なし）と区別。8章に `Jwt:Key` のローカル開発での扱いを追記。API詳細仕様書の章番号の振り直しに追従 |
 
 ---
 
@@ -52,6 +60,8 @@ ASP.NET Core Web API ── PostgreSQL
 
 # 4. 現状評価
 
+本章は、見直し時点（2026-09-28、BFF移行前。3章の構成）の評価である。その後の対応による現在の状態は5章・7章を参照。
+
 ## 4.1 対策済みの事項
 
 | 項目               | 内容                                                 |
@@ -62,7 +72,7 @@ ASP.NET Core Web API ── PostgreSQL
 | CSRF             | Cookie を使わず Authorization ヘッダーで認証しているため、CSRF は成立しない   |
 | 内部情報の非公開         | 未処理例外・入力形式エラー時に、スタックトレースや内部例外メッセージを返さない            |
 | 認証必須の既定化         | `FallbackPolicy` により、ログインAPI以外は認証必須                  |
-| CORS             | 許可オリジンを設定ファイルで明示している（ワイルドカード不使用）                   |
+| CORS             | （見直し時点）許可オリジンを設定ファイルで明示していた（ワイルドカード不使用）。BFF移行（ステップ4b）後はブラウザがAPIを直接呼び出さないため、CORS設定自体を削除した（5.3。実装: `backend/src/TaskManagementSystem.Api/Program.cs` に `AddCors` / `UseCors` なし） |
 | 秘密情報             | 本番用の署名鍵・接続文字列をリポジトリに含めない方針                         |
 
 ## 4.2 課題一覧
@@ -158,7 +168,7 @@ RDS for PostgreSQL
 | ログアウト        | リフレッシュトークンを DB 上で失効させ、セッションCookie を削除する                            |
 | セッションCookie  | `HttpOnly`、`Secure`、`SameSite=Lax` 以上、`Path=/`                   |
 | セッションの保存先    | **暗号化Cookie** に保存する（6.4 参照）。BFF はトークンを暗号化して HttpOnly Cookie に入れ、サーバー側にセッション用のストアを持たない |
-| API の直接呼び出し  | ブラウザから API Gateway を直接呼び出さない。API 側の CORS 設定は削除し、他のオリジンのブラウザからの呼び出しを許可しない |
+| API の直接呼び出し  | ブラウザから API Gateway を直接呼び出さない。API 側の CORS 設定は削除し、他のオリジンのブラウザからの呼び出しを許可しない（実装: `backend/src/TaskManagementSystem.Api/Program.cs`） |
 
 ## 5.4 CSRF 対策（BFF 移行に伴う追加対策）
 
@@ -328,7 +338,7 @@ Amplify が Next.js 16 に公式対応した時点で、バージョンアップ
 | 4a | リフレッシュトークンAPI（発行・ローテーション・失効、アクセストークンの短命化） | SEC-05 | API詳細仕様書 8章、DDL・ER図（refresh_tokens） | 対応済み（#19） |
 | 4b | BFF への移行（暗号化Cookie、CSRF 対策） | SEC-04 | 基本設計書 3章・14章、API詳細仕様書 6章 | 対応済み（#20） |
 | 5 | CSP・セキュリティヘッダー                   | SEC-06                  | 基本設計書 17章                                 | 対応済み（#21） |
-| 6a | その他の対応（JWTの許容時間、HSTS、最後のOWNERの保護、メンバー削除時の担当解除、SEC-09のリスク受容） | SEC-07、SEC-08、SEC-09、SEC-12、SEC-13 | 基本設計書 7.2、API詳細仕様書 17章 | 対応済み（#22） |
+| 6a | その他の対応（JWTの許容時間、HSTS、最後のOWNERの保護、メンバー削除時の担当解除、SEC-09のリスク受容） | SEC-07、SEC-08、SEC-09、SEC-12、SEC-13 | 基本設計書 7.2、API詳細仕様書 11.3 | 対応済み（#22） |
 | 6b | CI（GitHub Actions）と依存ライブラリの脆弱性確認 | SEC-11 | README、テスト項目書 | 対応済み（#23） |
 
 ---
@@ -340,7 +350,7 @@ Amplify が Next.js 16 に公式対応した時点で、バージョンアップ
 | 項目 | 内容 | 関連 |
 | --- | --- | --- |
 | IP単位のレート制限 | API Gateway のスロットリング、または AWS WAF のレートベースルールを設定する（パスワードスプレー等への対策） | 5.2 |
-| 秘密情報の設定 | `Jwt:Key`（32バイト以上）と `SESSION_SECRET`（32文字以上）を、Lambda・Amplify の環境変数（または Secrets Manager）に設定する。リポジトリの値は使わない | 5.3、SEC-07 |
+| 秘密情報の設定 | `Jwt:Key`（32バイト以上）と `SESSION_SECRET`（32文字以上）を、Lambda・Amplify の環境変数（または Secrets Manager）に設定する。リポジトリの値は使わない。なお、ローカル開発では `appsettings.Development.json` の開発専用の `Jwt:Key` が使われる（`launchSettings.json` で `ASPNETCORE_ENVIRONMENT=Development` になるため、追加の設定なしで起動できる）。`appsettings.json` には値がないため、本番で環境変数 `Jwt__Key` を設定しないと起動時にエラーになる（実装: `backend/src/TaskManagementSystem.Api/appsettings.Development.json`、`Properties/launchSettings.json`、`Services/JwtSigningKey.cs`） | 5.3、SEC-07 |
 | APIのHSTS | 本番環境で `Strict-Transport-Security` が返ることを確認する（localhost は対象外のため、ローカルでは確認できない） | SEC-08 |
 | CSPのnonce方式 | Amplify Hosting で Next.js の middleware（Node.js ランタイム）が動作するかを確認し、動作すれば `script-src` を nonce 方式に切り替えて `'unsafe-inline'` をなくす | 5.5 |
 | APIへの直接アクセスの制限 | API Gateway を BFF 以外から呼び出せないようにする（リソースポリシー、共有シークレットのヘッダー等）かを検討する | 5.3 |

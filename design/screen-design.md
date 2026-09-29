@@ -5,12 +5,20 @@
 | 項目      | 内容                                   |
 | ------- | ------------------------------------ |
 | 文書名     | 案件・タスク管理システム 画面詳細設計書                 |
-| バージョン   | 1.0                                  |
+| バージョン   | 1.1                                  |
 | 作成日     | 2026-09-22                           |
+| 更新日     | 2026-09-29                           |
 | 対象システム  | 案件・タスク管理システム                         |
 | 上位文書    | 要件定義書 / 基本設計書 / ER図 / DDL / API詳細仕様書 |
 | フロントエンド | Next.js / TypeScript / React         |
-| API     | ASP.NET Core Web API                 |
+| API     | ASP.NET Core Web API（ブラウザからは Next.js の BFF 経由で呼び出す） |
+
+## 改訂履歴
+
+| バージョン | 日付 | 内容 |
+| --- | --- | --- |
+| 1.0 | 2026-09-22 | 初版作成 |
+| 1.1 | 2026-09-29 | 実装に合わせて修正。各画面のAPI欄と26章のパスがバックエンドAPIの実体パスであり、ブラウザはBFF（`/api/bff/...`）経由でアクセスする旨を明記。26章にBFFのパスの列と、不足していたAPI（ログアウト、ログイン状態の確認、ユーザー一覧、メンバーの一覧・追加・削除、担当者表示用のメンバー一覧）を追加。6.6・9.5・20章を実装に合わせて補足 |
 
 ---
 
@@ -221,6 +229,8 @@ Phase 2でダッシュボードを追加する場合は、サイドメニュー�
 ```http
 POST /api/auth/login
 ```
+
+ブラウザは実際には BFF の `POST /api/bff/auth/login` を呼び出す。BFF がバックエンドAPIでログインし、トークンは HttpOnly のセッションCookie に保存する（画面にはユーザー情報のみ返る。実装: `frontend/src/lib/auth.ts`、`frontend/src/app/api/bff/auth/login/route.ts`）。
 
 ---
 
@@ -531,6 +541,14 @@ GET /api/projects/{projectId}/members
 POST /api/projects/{projectId}/members
 DELETE /api/projects/{projectId}/members/{userId}
 ```
+
+メンバー追加（追加するユーザーの選択肢）：
+
+```http
+GET /api/users
+```
+
+（実装: `frontend/src/components/project/ProjectMemberList.tsx`）
 
 ---
 
@@ -1055,6 +1073,8 @@ API通信に失敗した場合は、画面上にエラーメッセージを表�
 
 JWTが無効または期限切れの場合も同様にログイン画面へ遷移する。
 
+ログイン状態は HttpOnly のセッションCookie で管理しており、画面の JavaScript からは確認できないため、保護された画面の表示前に BFF の `GET /api/bff/auth/session` で確認する。アクセストークンの期限が近い場合は BFF が自動で再発行し、再発行できない場合（リフレッシュトークンの期限切れ・失効）は401となってログイン画面へ遷移する。ログアウトは BFF の `POST /api/bff/auth/logout` で行う（実装: `frontend/src/app/(app)/layout.tsx`、`frontend/src/lib/auth.ts`、`frontend/src/lib/api.ts`）。
+
 ---
 
 # 21. 権限制御
@@ -1177,24 +1197,37 @@ TIMESTAMP
 
 # 26. 画面とAPIの対応表
 
-| 画面               | API                                        | 用途        |
-| ---------------- | ------------------------------------------ | --------- |
-| SCR-001 ログイン     | POST `/api/auth/login`                     | 認証        |
-| SCR-003 プロジェクト一覧 | GET `/api/projects`                        | 一覧取得      |
-| SCR-004 プロジェクト登録 | POST `/api/projects`                       | 登録        |
-| SCR-005 プロジェクト詳細 | GET `/api/projects/{id}`                   | 詳細取得      |
-| SCR-005 プロジェクト詳細 | PUT `/api/projects/{id}`                   | 更新        |
-| SCR-005 プロジェクト詳細 | DELETE `/api/projects/{id}`                | 削除        |
-| SCR-005 プロジェクト詳細 | `/api/projects/{projectId}/members`        | メンバー管理    |
-| SCR-006 タスク一覧    | GET `/api/projects/{projectId}/tasks`      | タスク一覧     |
-| SCR-006 タスク一覧    | POST `/api/projects/{projectId}/tasks`     | タスク登録     |
-| SCR-007 タスク詳細    | GET `/api/tasks/{id}`                      | 詳細取得      |
-| SCR-007 タスク詳細    | PUT `/api/tasks/{id}`                      | 更新        |
-| SCR-007 タスク詳細    | DELETE `/api/tasks/{id}`                   | 削除        |
-| SCR-007 タスク詳細    | `/api/tasks/{taskId}/comments`             | コメント管理    |
-| SCR-002 ダッシュボード  | GET `/api/dashboard`                       | Phase 2   |
-| SCR-006 タスク一覧    | GET `/api/tasks`                           | Phase 2検索 |
-| SCR-007 タスク詳細    | GET `/api/tasks/{taskId}/status-histories` | Phase 2   |
+各画面のAPI欄および下表の「バックエンドAPI（実体パス）」は、ASP.NET Core Web API の実体パスである。ブラウザはこれらを直接呼び出さず、実際には Next.js の BFF（`/api/bff/...`）経由でアクセスする（API詳細仕様書 6.3・16章）。
+
+| 画面               | ブラウザが呼び出すBFFのパス                              | バックエンドAPI（実体パス）                              | 用途              |
+| ---------------- | -------------------------------------------- | ------------------------------------------ | --------------- |
+| SCR-001 ログイン     | POST `/api/bff/auth/login`                   | POST `/api/auth/login`                     | 認証              |
+| 共通レイアウト          | GET `/api/bff/auth/session`                  | （期限が近い場合のみ）POST `/api/auth/refresh`         | ログイン状態の確認・トークン再発行 |
+| 共通レイアウト          | POST `/api/bff/auth/logout`                  | POST `/api/auth/logout`                    | ログアウト           |
+| SCR-003 プロジェクト一覧 | GET `/api/bff/projects`                      | GET `/api/projects`                        | 一覧取得            |
+| SCR-004 プロジェクト登録 | POST `/api/bff/projects`                     | POST `/api/projects`                       | 登録              |
+| SCR-005 プロジェクト詳細 | GET `/api/bff/projects/{id}`                 | GET `/api/projects/{id}`                   | 詳細取得            |
+| SCR-005 プロジェクト詳細 | PUT `/api/bff/projects/{id}`                 | PUT `/api/projects/{id}`                   | 更新              |
+| SCR-005 プロジェクト詳細 | DELETE `/api/bff/projects/{id}`              | DELETE `/api/projects/{id}`                | 削除              |
+| SCR-005 プロジェクト詳細 | GET `/api/bff/projects/{projectId}/members`  | GET `/api/projects/{projectId}/members`    | メンバー一覧          |
+| SCR-005 プロジェクト詳細 | POST `/api/bff/projects/{projectId}/members` | POST `/api/projects/{projectId}/members`   | メンバー追加          |
+| SCR-005 プロジェクト詳細 | DELETE `/api/bff/projects/{projectId}/members/{userId}` | DELETE `/api/projects/{projectId}/members/{userId}` | メンバー削除 |
+| SCR-005 プロジェクト詳細 | GET `/api/bff/users`                         | GET `/api/users`                           | 追加するユーザーの選択肢    |
+| SCR-006 タスク一覧    | GET `/api/bff/projects/{projectId}/tasks`    | GET `/api/projects/{projectId}/tasks`      | タスク一覧           |
+| SCR-006 タスク一覧    | POST `/api/bff/projects/{projectId}/tasks`   | POST `/api/projects/{projectId}/tasks`     | タスク登録           |
+| SCR-006 / SCR-007 | GET `/api/bff/projects/{projectId}/members`  | GET `/api/projects/{projectId}/members`    | 担当者の表示・選択       |
+| SCR-007 タスク詳細    | GET `/api/bff/tasks/{id}`                    | GET `/api/tasks/{id}`                      | 詳細取得            |
+| SCR-007 タスク詳細    | PUT `/api/bff/tasks/{id}`                    | PUT `/api/tasks/{id}`                      | 更新              |
+| SCR-007 タスク詳細    | DELETE `/api/bff/tasks/{id}`                 | DELETE `/api/tasks/{id}`                   | 削除              |
+| SCR-007 タスク詳細    | GET `/api/bff/tasks/{taskId}/comments`       | GET `/api/tasks/{taskId}/comments`         | コメント一覧          |
+| SCR-007 タスク詳細    | POST `/api/bff/tasks/{taskId}/comments`      | POST `/api/tasks/{taskId}/comments`        | コメント登録          |
+| SCR-002 ダッシュボード  | －                                            | GET `/api/dashboard`                       | Phase 2（未実装）     |
+| SCR-006 タスク一覧    | －                                            | GET `/api/tasks`                           | Phase 2検索（未実装）   |
+| SCR-007 タスク詳細    | －                                            | GET `/api/tasks/{taskId}/status-histories` | Phase 2（未実装）     |
+
+コメントの削除は、画面・APIともにMVPでは提供しない（将来拡張）。
+
+（実装: `frontend/src/lib/api.ts`、`frontend/src/lib/auth.ts`、`frontend/src/app/api/bff/`、`frontend/src/app/(app)/` 配下の各画面、`frontend/src/components/`）
 
 ---
 

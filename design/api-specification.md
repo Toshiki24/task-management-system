@@ -5,9 +5,9 @@
 | 項目     | 内容                        |
 | ------ | ------------------------- |
 | 文書名    | 案件・タスク管理システム API詳細仕様書     |
-| バージョン  | 1.6                       |
+| バージョン  | 1.7                       |
 | 作成日    | 2026-09-22                |
-| 更新日    | 2026-09-28                |
+| 更新日    | 2026-09-29                |
 | 対象システム | 案件・タスク管理システム              |
 | 上位文書   | 要件定義書 / 基本設計書 / ER図 / DDL |
 | API方式  | REST API                  |
@@ -25,6 +25,7 @@
 | 1.4 | 2026-09-28 | BFFへの移行に伴い、2 API概要の構成図を更新し、6.3 BFF を追加。APIのCORS設定の廃止を追記 |
 | 1.5 | 2026-09-28 | 31 APIセキュリティにセキュリティヘッダーを追記 |
 | 1.6 | 2026-09-28 | 6.1 にアクセストークンの有効期限の許容時間を追記。17 メンバー削除に最後のOWNERの409と担当タスクの扱いを追記。9.1 ユーザー一覧の公開範囲を追記 |
+| 1.7 | 2026-09-29 | 実装に合わせて修正。8章以降がバックエンドAPIの実体エンドポイントであること（ブラウザはBFF経由）を明記し、16章（旧27章）の画面対応をBFFのパスに更新、22章（旧33章）にリフレッシュ・ログアウトを追加。6.1 に認証不要のAPIとして8.2・8.3を追記。プロジェクト・メンバー・タスク・コメントAPIを枝番形式（10.1〜13.2）に統一し、以降の章番号を振り直し（旧25〜35章 → 新14〜24章）。9.2 に認証、10.4・12.4 にValidation、12.2・12.4 に404と担当者が存在しない場合の400を追記 |
 
 ---
 
@@ -57,6 +58,8 @@ PostgreSQL
 # 3. API共通仕様
 
 ## 3.1 ベースURL
+
+以下はバックエンドAPI（ASP.NET Core）のベースURLである。ブラウザ（画面）はこのURLを直接呼び出さず、同一オリジンのBFF（`/api/bff`）を経由する（6.3 参照）。
 
 ローカル環境：
 
@@ -108,7 +111,7 @@ https://{api-domain}/api
 
 ## 6.1 認証が必要なAPI
 
-ログインAPIを除き、原則としてAPIへのアクセスにはJWTによる認証を必要とする。
+認証API（8.1 ログイン、8.2 リフレッシュ、8.3 ログアウト）を除き、APIへのアクセスにはJWTによる認証を必要とする。8.2・8.3 はJWTを必要とせず、リクエストに含めたリフレッシュトークンで対象を特定する（実装: `backend/src/TaskManagementSystem.Api/Controllers/AuthController.cs` の `[AllowAnonymous]`、`Program.cs` の `FallbackPolicy`）。
 
 HTTPヘッダー：
 
@@ -120,7 +123,7 @@ Authorization: Bearer {JWT}
 
 ## 6.2 認可
 
-プロジェクト配下のリソース（プロジェクト、メンバー、タスク、コメント）へのアクセスは、ログインユーザーがそのプロジェクトに所属しているかどうかと、プロジェクト内権限（OWNER / MEMBER）によって判定する。各操作の可否は 28章を参照。
+プロジェクト配下のリソース（プロジェクト、メンバー、タスク、コメント）へのアクセスは、ログインユーザーがそのプロジェクトに所属しているかどうかと、プロジェクト内権限（OWNER / MEMBER）によって判定する。各操作の可否は 17章を参照。
 
 | 状況 | HTTPステータス | レスポンス |
 | --- | --- | --- |
@@ -189,6 +192,8 @@ APIでエラーが発生した場合、以下の形式を基本とする。
 ---
 
 # 8. 認証API
+
+8章以降に記載するエンドポイントは、**バックエンドAPI（ASP.NET Core）の実体エンドポイント**である。ブラウザ（画面）はこれらを直接呼び出さず、Next.js の BFF（`/api/bff/...`）を経由してアクセスする。BFFのパスとの対応は 6.3・16章を参照（実装: `frontend/src/app/api/bff/`）。
 
 ## 8.1 ログイン
 
@@ -429,6 +434,10 @@ users
 GET /api/users/{id}
 ```
 
+### 認証
+
+必要
+
 ### Path Parameter
 
 | 項目 | 型      | 必須 | 説明     |
@@ -502,7 +511,7 @@ projects
 
 ---
 
-# 11. プロジェクト登録
+## 10.2 プロジェクト登録
 
 ### Endpoint
 
@@ -574,7 +583,7 @@ projects
 
 ---
 
-# 12. プロジェクト詳細取得
+## 10.3 プロジェクト詳細取得
 
 ### Endpoint
 
@@ -613,7 +622,7 @@ HTTP 404
 
 ---
 
-# 13. プロジェクト更新
+## 10.4 プロジェクト更新
 
 ### Endpoint
 
@@ -640,6 +649,15 @@ OWNERのみ（6.2 参照）
   "endDate": null
 }
 ```
+
+### Validation
+
+* name必須
+* name最大200文字
+* statusが許可された値であること
+* startDate / endDateの日付形式チェック
+
+（10.2 プロジェクト登録と同じリクエスト形式・検証ルール。実装: `backend/src/TaskManagementSystem.Api/Dtos/Projects/ProjectRequest.cs`）
 
 ### Response
 
@@ -680,7 +698,7 @@ HTTP 403
 
 ---
 
-# 14. プロジェクト削除
+## 10.5 プロジェクト削除
 
 ### Endpoint
 
@@ -741,9 +759,9 @@ task_status_histories
 
 ---
 
-# 15. プロジェクトメンバーAPI
+# 11. プロジェクトメンバーAPI
 
-## 15.1 メンバー一覧取得
+## 11.1 メンバー一覧取得
 
 ### Endpoint
 
@@ -797,7 +815,7 @@ HTTP 404
 
 ---
 
-# 16. プロジェクトメンバー追加
+## 11.2 プロジェクトメンバー追加
 
 ### Endpoint
 
@@ -906,7 +924,7 @@ HTTP 400
 
 ---
 
-# 17. プロジェクトメンバー削除
+## 11.3 プロジェクトメンバー削除
 
 ### Endpoint
 
@@ -978,9 +996,9 @@ HTTP 409
 
 ---
 
-# 18. タスクAPI
+# 12. タスクAPI
 
-## 18.1 プロジェクト内タスク一覧
+## 12.1 プロジェクト内タスク一覧
 
 ### Endpoint
 
@@ -1031,7 +1049,7 @@ HTTP 404
 
 ---
 
-# 19. タスク登録
+## 12.2 タスク登録
 
 ### Endpoint
 
@@ -1111,6 +1129,32 @@ HTTP 201
 
 ### エラー
 
+#### 指定されたプロジェクトが存在しない場合（所属していない場合を含む）
+
+HTTP 404
+
+```json
+{
+  "message": "指定されたプロジェクトが存在しません。"
+}
+```
+
+#### 担当者に存在しないユーザーを指定した場合
+
+HTTP 400
+
+```json
+{
+  "message": "入力内容に誤りがあります。",
+  "errors": [
+    {
+      "field": "assigneeId",
+      "message": "指定されたユーザーが存在しません。"
+    }
+  ]
+}
+```
+
 #### 担当者にプロジェクトのメンバー以外を指定した場合
 
 HTTP 400
@@ -1127,9 +1171,11 @@ HTTP 400
 }
 ```
 
+（実装: `backend/src/TaskManagementSystem.Api/Controllers/ProjectTasksController.cs`）
+
 ---
 
-# 20. タスク詳細取得
+## 12.3 タスク詳細取得
 
 ### Endpoint
 
@@ -1170,7 +1216,7 @@ HTTP 404
 
 ---
 
-# 21. タスク更新
+## 12.4 タスク更新
 
 ### Endpoint
 
@@ -1195,6 +1241,16 @@ PUT /api/tasks/{id}
 }
 ```
 
+### Validation
+
+* title必須
+* title最大200文字
+* assigneeIdを指定した場合、ユーザーが存在し、タスクが属するプロジェクトのメンバーであること
+* statusが許可された値であること
+* priorityが許可された値であること
+
+（12.2 タスク登録と同じリクエスト形式・検証ルール。実装: `backend/src/TaskManagementSystem.Api/Dtos/Tasks/TaskRequest.cs`）
+
 ### Response
 
 HTTP 200
@@ -1214,6 +1270,32 @@ HTTP 200
 
 ### エラー
 
+#### 指定されたタスクが存在しない場合（所属していないプロジェクトのタスクを含む）
+
+HTTP 404
+
+```json
+{
+  "message": "指定されたタスクが存在しません。"
+}
+```
+
+#### 担当者に存在しないユーザーを指定した場合
+
+HTTP 400
+
+```json
+{
+  "message": "入力内容に誤りがあります。",
+  "errors": [
+    {
+      "field": "assigneeId",
+      "message": "指定されたユーザーが存在しません。"
+    }
+  ]
+}
+```
+
 #### 担当者にプロジェクトのメンバー以外を指定した場合
 
 HTTP 400
@@ -1230,9 +1312,11 @@ HTTP 400
 }
 ```
 
+（実装: `backend/src/TaskManagementSystem.Api/Controllers/TasksController.cs`）
+
 ---
 
-# 22. タスク削除
+## 12.5 タスク削除
 
 ### Endpoint
 
@@ -1289,9 +1373,9 @@ task_status_histories
 
 ---
 
-# 23. コメントAPI
+# 13. コメントAPI
 
-## 23.1 コメント一覧取得
+## 13.1 コメント一覧取得
 
 ### Endpoint
 
@@ -1341,7 +1425,7 @@ HTTP 404
 
 ---
 
-# 24. コメント登録
+## 13.2 コメント登録
 
 ### Endpoint
 
@@ -1401,11 +1485,11 @@ HTTP 404
 
 ---
 
-# 25. Phase 2 API
+# 14. Phase 2 API
 
 MVP完成後、以下のAPIを追加する。
 
-## 25.1 タスク検索・絞り込み
+## 14.1 タスク検索・絞り込み
 
 ```http
 GET /api/tasks
@@ -1430,7 +1514,7 @@ GET /api/tasks?projectId=1&status=IN_PROGRESS
 
 ---
 
-## 25.2 タスクステータス履歴
+## 14.2 タスクステータス履歴
 
 ### 履歴取得
 
@@ -1455,7 +1539,7 @@ GET /api/tasks/{taskId}/status-histories
 
 ---
 
-## 25.3 ダッシュボード
+## 14.3 ダッシュボード
 
 ```http
 GET /api/dashboard
@@ -1483,7 +1567,7 @@ users
 
 ---
 
-# 26. APIとDBの対応
+# 15. APIとDBの対応
 
 | API機能    | 主なテーブル                   |
 | -------- | ------------------------ |
@@ -1511,28 +1595,40 @@ users
 
 ---
 
-# 27. APIと画面の対応
+# 16. APIと画面の対応
 
-| 画面       | 主なAPI                                  |
-| -------- | -------------------------------------- |
-| ログイン     | POST `/api/auth/login`                 |
-| プロジェクト一覧 | GET `/api/projects`                    |
-| プロジェクト登録 | POST `/api/projects`                   |
-| プロジェクト詳細 | GET `/api/projects/{id}`               |
-| プロジェクト編集 | PUT `/api/projects/{id}`               |
-| メンバー管理   | `/api/projects/{projectId}/members`    |
-| タスク一覧    | GET `/api/projects/{projectId}/tasks`  |
-| タスク登録    | POST `/api/projects/{projectId}/tasks` |
-| タスク詳細    | GET `/api/tasks/{id}`                  |
-| タスク編集    | PUT `/api/tasks/{id}`                  |
-| タスク削除    | DELETE `/api/tasks/{id}`               |
-| コメント一覧   | GET `/api/tasks/{taskId}/comments`     |
-| コメント登録   | POST `/api/tasks/{taskId}/comments`    |
-| ダッシュボード  | GET `/api/dashboard` ※Phase 2          |
+画面（ブラウザ）は同一オリジンのBFFを呼び出し、BFFがバックエンドAPIへ中継する（6.3 参照）。BFFのパスは、バックエンドAPIのパスの先頭 `/api` を `/api/bff` に置き換えたものである（認証系を除く）。
+
+| 画面                  | ブラウザが呼び出すBFFのパス                                   | BFFが呼び出すバックエンドAPI（実体）                      |
+| ------------------- | ------------------------------------------------- | ------------------------------------------ |
+| ログイン                | POST `/api/bff/auth/login`                        | POST `/api/auth/login`                     |
+| 共通レイアウト（ログイン状態の確認）  | GET `/api/bff/auth/session`                       | アクセストークンの期限が近い場合のみ POST `/api/auth/refresh` |
+| 共通レイアウト（ログアウト）      | POST `/api/bff/auth/logout`                       | POST `/api/auth/logout`                    |
+| プロジェクト一覧            | GET `/api/bff/projects`                           | GET `/api/projects`                        |
+| プロジェクト登録            | POST `/api/bff/projects`                          | POST `/api/projects`                       |
+| プロジェクト詳細            | GET `/api/bff/projects/{id}`                      | GET `/api/projects/{id}`                   |
+| プロジェクト編集            | PUT `/api/bff/projects/{id}`                      | PUT `/api/projects/{id}`                   |
+| プロジェクト削除            | DELETE `/api/bff/projects/{id}`                   | DELETE `/api/projects/{id}`                |
+| メンバー管理（一覧・追加）       | GET / POST `/api/bff/projects/{projectId}/members` | GET / POST `/api/projects/{projectId}/members` |
+| メンバー管理（削除）          | DELETE `/api/bff/projects/{projectId}/members/{userId}` | DELETE `/api/projects/{projectId}/members/{userId}` |
+| メンバー管理（追加するユーザーの選択肢） | GET `/api/bff/users`                              | GET `/api/users`                           |
+| タスク一覧               | GET `/api/bff/projects/{projectId}/tasks`         | GET `/api/projects/{projectId}/tasks`      |
+| タスク登録               | POST `/api/bff/projects/{projectId}/tasks`        | POST `/api/projects/{projectId}/tasks`     |
+| タスク一覧・詳細（担当者の表示・選択）  | GET `/api/bff/projects/{projectId}/members`       | GET `/api/projects/{projectId}/members`    |
+| タスク詳細               | GET `/api/bff/tasks/{id}`                         | GET `/api/tasks/{id}`                      |
+| タスク編集               | PUT `/api/bff/tasks/{id}`                         | PUT `/api/tasks/{id}`                      |
+| タスク削除               | DELETE `/api/bff/tasks/{id}`                      | DELETE `/api/tasks/{id}`                   |
+| コメント一覧              | GET `/api/bff/tasks/{taskId}/comments`            | GET `/api/tasks/{taskId}/comments`         |
+| コメント登録              | POST `/api/bff/tasks/{taskId}/comments`           | POST `/api/tasks/{taskId}/comments`        |
+| ダッシュボード             | GET `/api/bff/dashboard` ※Phase 2（未実装）          | GET `/api/dashboard` ※Phase 2（未実装）          |
+
+`GET /api/users/{id}`（9.2）はバックエンドAPIとして提供しているが、現在の画面からは使用していない。
+
+（実装: `frontend/src/lib/api.ts`、`frontend/src/lib/auth.ts`、`frontend/src/app/api/bff/`、`frontend/src/app/(app)/` 配下の各画面、`frontend/src/components/`）
 
 ---
 
-# 28. 権限チェック
+# 17. 権限チェック
 
 APIでは、認証に加えて、プロジェクトへの所属とプロジェクト内権限による認可チェックを行う（6.2 参照）。
 
@@ -1559,7 +1655,7 @@ APIでは、認証に加えて、プロジェクトへの所属とプロジェ�
 
 ---
 
-# 29. DBアクセス方針
+# 18. DBアクセス方針
 
 バックエンドではEntity Framework Coreを使用する。
 
@@ -1578,7 +1674,7 @@ APIから直接SQLを実行する方式は基本的に採用しない。
 
 ---
 
-# 30. トランザクション
+# 19. トランザクション
 
 複数のDB更新を一連の処理として扱う必要がある場合、トランザクションを使用する。
 
@@ -1602,7 +1698,7 @@ APIから直接SQLを実行する方式は基本的に採用しない。
 
 ---
 
-# 31. APIセキュリティ
+# 20. APIセキュリティ
 
 以下の対策を実施する。
 
@@ -1620,9 +1716,9 @@ APIから直接SQLを実行する方式は基本的に採用しない。
 
 ---
 
-# 32. API設計上の留意事項
+# 21. API設計上の留意事項
 
-## 32.1 REST API
+## 21.1 REST API
 
 リソース単位でURLを設計する。
 
@@ -1636,30 +1732,32 @@ APIから直接SQLを実行する方式は基本的に採用しない。
 /tasks/{taskId}/comments
 ```
 
-## 32.2 JSON
+## 21.2 JSON
 
 リクエストおよびレスポンスはJSONを基本とする。
 
-## 32.3 エラーレスポンス
+## 21.3 エラーレスポンス
 
 利用者が原因を把握できる情報を返す。
 
 ただし、内部システム情報や機密情報は返却しない。
 
-## 32.4 ページング
+## 21.4 ページング
 
 MVPでは必須とせず、Phase 2の検索・絞り込み機能実装時に導入を検討する。
 
 ---
 
-# 33. MVP API一覧
+# 22. MVP API一覧
 
-MVPでは以下のAPIを実装対象とする。
+MVPでは以下のAPIを実装対象とする。以下は**バックエンドAPIの実体エンドポイント**の一覧であり、ブラウザは BFF（`/api/bff/...`）経由でアクセスする（6.3・16章参照）。
 
 ### 認証
 
 ```text
 POST /api/auth/login
+POST /api/auth/refresh
+POST /api/auth/logout
 ```
 
 ### ユーザー
@@ -1704,9 +1802,13 @@ GET  /api/tasks/{taskId}/comments
 POST /api/tasks/{taskId}/comments
 ```
 
+コメントの削除APIは提供していない（将来拡張）。
+
+（実装: `backend/src/TaskManagementSystem.Api/Controllers/` 配下の各Controller）
+
 ---
 
-# 34. API詳細設計完了条件
+# 23. API詳細設計完了条件
 
 以下を満たした時点でAPI詳細設計を完了とする。
 
@@ -1726,7 +1828,7 @@ POST /api/tasks/{taskId}/comments
 
 ---
 
-# 35. 次工程
+# 24. 次工程
 
 API詳細設計完了後、画面詳細設計を行う。
 

@@ -5,9 +5,9 @@
 | 項目     | 内容                 |
 | ------ | ------------------ |
 | 文書名    | 案件・タスク管理システム 基本設計書 |
-| バージョン  | 1.7                |
+| バージョン  | 1.8                |
 | 作成日    | 2026-09-22         |
-| 更新日    | 2026-09-28         |
+| 更新日    | 2026-09-29         |
 | 対象システム | 案件・タスク管理システム       |
 | 前提文書   | 要件定義書              |
 
@@ -23,6 +23,7 @@
 | 1.5   | 2026-09-28 | BFFへの移行完了に伴い、3.2・14 の移行状況の注記を削除し、6.1 フロントエンドの責務にBFFを追加 |
 | 1.6   | 2026-09-28 | 7.2 プロジェクト内権限に、最後のOWNERの保護とメンバー削除時の担当タスクの扱いを追加 |
 | 1.7   | 2026-09-28 | 23.3 CI、25.7 自動テストの実行環境を追加 |
+| 1.8   | 2026-09-29 | 実装に合わせて修正。12 API設計方針に、記載のパスがバックエンドAPIの実体パスであり、ブラウザはBFF経由でアクセスする旨を追記し、不足していたエンドポイント（リフレッシュ、ログアウト、ユーザー、プロジェクトメンバー）を追加。7.1 にMVPではシステムロールを保持しない旨を追記 |
 
 ---
 
@@ -237,6 +238,8 @@ MVPでは基本的にSQLの直接記述やストアドプロシージャを使�
 | プロジェクト管理者 | 担当プロジェクトを管理     |
 | メンバー      | プロジェクトおよびタスクを利用 |
 
+MVPでは、上記のシステム上のユーザー権限をDBに保持しない（`users` テーブルにロールの列を持たない）。操作可否は 7.2 のプロジェクト内権限（OWNER / MEMBER）で判定し、「プロジェクト管理者」は OWNER、「メンバー」は MEMBER が相当する。システム管理者ロールはMVP以降の拡張とする（`security-review.md` 5.1。実装: `backend/src/TaskManagementSystem.Api/Models/User.cs`、`Services/ProjectAccess.cs`）。
+
 ## 7.2 プロジェクト内権限
 
 | 権限     | 内容         |
@@ -343,11 +346,17 @@ MVPでは、ログイン後にプロジェクト一覧へ遷移できる構成�
 
 REST APIとして設計する。
 
+以下に記載するパスは、**バックエンドAPI（ASP.NET Core）の実体パス**である。ブラウザ（画面）はこれらを直接呼び出さず、Next.js の BFF（Route Handler）を経由してアクセスする（3.2・14章）。BFFのパスは、実体パスの先頭 `/api` を `/api/bff` に置き換えたものとし（例：`GET /api/bff/projects` → `GET /api/projects`）、認証系は BFF 専用の `/api/bff/auth/login`・`/api/bff/auth/logout`・`/api/bff/auth/session` を使う。詳細は API詳細仕様書 6.3・16章を参照（実装: `frontend/src/app/api/bff/`）。
+
 ## 12.1 認証
 
 ```text
 POST /api/auth/login
+POST /api/auth/refresh
+POST /api/auth/logout
 ```
+
+`refresh`・`logout` はBFFのみが呼び出し、ブラウザからは中継しない（`/api/bff/auth/refresh` は存在しない）。
 
 ## 12.2 プロジェクト
 
@@ -380,6 +389,25 @@ DELETE /api/tasks/{id}
 GET  /api/tasks/{taskId}/comments
 POST /api/tasks/{taskId}/comments
 ```
+
+コメントの削除APIは提供しない（将来拡張）。
+
+## 12.6 ユーザー
+
+```text
+GET /api/users
+GET /api/users/{id}
+```
+
+## 12.7 プロジェクトメンバー
+
+```text
+GET    /api/projects/{projectId}/members
+POST   /api/projects/{projectId}/members
+DELETE /api/projects/{projectId}/members/{userId}
+```
+
+（12.1〜12.7 の実装: `backend/src/TaskManagementSystem.Api/Controllers/` 配下の各Controller）
 
 ステータス履歴、検索・絞り込み、ダッシュボード用APIについては、該当機能を実装するフェーズで追加する。
 
