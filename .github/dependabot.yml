@@ -20,6 +20,12 @@ updates:
       # Node.js 24 に合わせて固定している(基本設計書 4.1)
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # eslint-config-next 15 が対応しているのは ESLint 9 まで(ESLint 10 では静的解析が失敗する)
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      # TypeScript 7 は Next.js 15 が対応していない(型チェック・ビルドが失敗する)
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /e2e
@@ -36,6 +42,22 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # .NET 8 を対象にしているため、.NET 9 以降向けのメジャーバージョンには更新しない。
+      # .NET のバージョンを上げる際に、まとめて計画して更新する
+      - dependency-name: "Microsoft.AspNetCore.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Npgsql.EntityFrameworkCore.PostgreSQL"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "EFCore.NamingConventions"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "dotnet-ef"
+        update-types: ["version-update:semver-major"]
+      # Swashbuckle 7 以降は内部で使う OpenAPI ライブラリの仕様が変わり、Program.cs の Swagger 設定の修正が必要になる
+      - dependency-name: "Swashbuckle.AspNetCore"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
