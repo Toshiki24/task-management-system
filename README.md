@@ -99,6 +99,7 @@ task-management-system/
 │       └── types/
 ├── database/           ローカルDB用シードデータ
 ├── e2e/                APIテスト・結合テスト・画面テスト・システムテスト（Playwright）
+├── infra/terraform/    AWS環境の構成（Terraform）
 ├── design/             基本設計書・API仕様書・画面設計書・テスト項目書
 ├── docs/               要件定義書・DB設計書（ER図・DDL）
 └── docker-compose.yml  ローカルPostgreSQL
@@ -133,7 +134,7 @@ dotnet run --project src/TaskManagementSystem.Api
 
 JWTの署名鍵（`Jwt:Key`）は、ローカル開発では追加の設定は不要です。`dotnet run` は `Properties/launchSettings.json` により Development 環境で起動し、`appsettings.Development.json` にある開発専用の値が使われます。別の値を使いたい場合は、環境変数 `Jwt__Key` に32バイト以上の文字列を設定してから起動してください（未設定・32バイト未満の場合は起動時にエラーになります）。本番環境では `appsettings.json` に値を持たないため、必ず環境変数等で設定します（[セキュリティ見直し記録 §8](design/security-review.md)）。
 
-AWS Lambda 用のコンテナイメージは `backend` ディレクトリで `docker build -t task-management-api .` でビルドできます（本番では Secrets Manager から秘密の値を読み込みます。詳細は [基本設計書 3.2](design/basic-design.md)）。
+AWS Lambda 用のコンテナイメージは `backend` ディレクトリで `docker build -t task-management-api .` でビルドできます（本番では Secrets Manager から秘密情報を読み込みます。詳細は [基本設計書 3.2](design/basic-design.md)）。
 
 ### 3. （任意）サンプルデータ投入
 
@@ -215,6 +216,7 @@ npm test
 | [画面詳細設計書](design/screen-design.md) | 画面レイアウト・入力項目・バリデーション・コンポーネント方針 |
 | [テスト項目書](design/test-items.md) | 単体/API/結合/画面/システムテストの項目一覧と実施結果 |
 | [セキュリティ見直し記録](design/security-review.md) | デプロイ前のセキュリティ見直しで見つかった課題・対策・設計判断・対応計画 |
+| [AWS構成設計書](design/aws-architecture.md) | 本番環境（AWS）の構成・設定値、セキュリティとコストの設計、デプロイ手順 |
 
 ---
 
