@@ -15,7 +15,7 @@ namespace TaskManagementSystem.Api.Configuration;
 /// <para>
 /// シークレットの値は、設定キーをそのまま使ったフラットなJSONとする(値はすべて文字列)。
 /// 例: <c>{"Jwt:Key": "...", "ConnectionStrings:DefaultConnection": "Host=...;Password=..."}</c>
-/// 秘密の値をリポジトリ・Lambdaの環境変数・Terraformのstateに置かないための仕組み(security-review.md 5.3、8章)。
+/// 秘密情報をリポジトリ・Lambdaの環境変数・Terraformのstateに置かないための仕組み(security-review.md 5.3、8章)。
 /// </para>
 /// </remarks>
 public static class SecretsManagerConfiguration
@@ -47,7 +47,7 @@ public static class SecretsManagerConfiguration
         }
         catch (JsonException)
         {
-            // 例外メッセージに秘密の値の一部が含まれないよう、元の例外は含めない
+            // 例外メッセージに秘密情報の一部が含まれないよう、元の例外は含めない
             throw new InvalidOperationException("シークレットの値がJSONではありません。");
         }
 

@@ -10,7 +10,7 @@ using TaskManagementSystem.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 本番(AWS Lambda)では、署名鍵・接続文字列などの秘密の値を Secrets Manager から読み込む。
+// 本番(AWS Lambda)では、署名鍵・接続文字列などの秘密情報を Secrets Manager から読み込む。
 // 以降の処理(JwtSigningKey.Create 等)で使うため、設定を参照する前に読み込む
 await builder.Configuration.AddSecretsManagerAsync();
 
