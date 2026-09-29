@@ -1,0 +1,6 @@
+# このファイルを terraform.tfvars にコピーして値を設定する(terraform.tfvars は Git 管理対象外)。
+# 秘密情報(パスワード、Jwt:Key 等)はここに書かない。Secrets Manager に手動で登録する。
+
+aws_profile = "tms"
+# aws_region  = "ap-northeast-1"
+# app_domain  = "tms.accent24.jp"

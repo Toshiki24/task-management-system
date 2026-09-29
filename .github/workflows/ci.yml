@@ -161,3 +161,20 @@ jobs:
             echo "::error::脆弱性のあるNuGetパッケージが ${count} 件見つかりました。"
             exit 1
           fi
+
+  terraform:
+    name: Terraform の構文チェック
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v3
+      - name: 書式の確認
+        run: terraform fmt -check -recursive
+      - name: 構成の検証
+        # AWS には接続しない(state・認証情報を使わずに構文と参照の整合性だけを確認する)
+        run: |
+          terraform init -backend=false
+          terraform validate
