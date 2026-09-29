@@ -28,3 +28,13 @@ TestResults/
 # OS
 .DS_Store
 Thumbs.db
+
+# Terraform(state には作成したリソースの情報が含まれるため、公開リポジトリにコミットしない)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+.terraform.tfstate.lock.info
