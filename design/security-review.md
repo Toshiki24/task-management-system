@@ -5,7 +5,7 @@
 | 項目     | 内容                              |
 | ------ | ------------------------------- |
 | 文書名    | 案件・タスク管理システム セキュリティ見直し記録        |
-| バージョン  | 1.1                             |
+| バージョン  | 1.2                             |
 | 作成日    | 2026-09-28                      |
 | 更新日    | 2026-09-29                      |
 | 対象システム | 案件・タスク管理システム                    |
@@ -17,6 +17,7 @@
 | --- | --- | --- |
 | 1.0 | 2026-09-28 | 初版作成。以降、対応計画（7章）の各ステップの完了に合わせて対応状況・設計判断を更新 |
 | 1.1 | 2026-09-29 | 実装に合わせて修正。4章が見直し時点（BFF移行前）の評価であることを明記し、CORSの記述を現在の実装（CORS設定なし）と区別。8章に `Jwt:Key` のローカル開発での扱いを追記。API詳細仕様書の章番号の振り直しに追従 |
+| 1.2 | 2026-09-29 | AWS構成設計書の作成に伴い、5.2 に BFF 構成では API Gateway で利用者の IP 単位の制限ができない旨を追記し、8章の残課題（IP単位のレート制限、秘密情報の設定、APIへの直接アクセスの制限）を AWS構成設計書での決定内容に更新。「秘密の値」等の表記を「秘密情報」に統一 |
 
 ---
 
@@ -137,6 +138,7 @@ MVP における権限は以下とする。
 * **制限の単位はIPアドレスではなくメールアドレス（アカウント）とする。**
   * BFF構成（5.3）では、APIから見た送信元IPがすべて BFF になる。アプリ内でIP単位に制限すると、全ユーザーのログインがまとめて制限されてしまう。
   * メールアドレス単位の制限は、同じアカウントへの総当たりには有効だが、多数のアカウントに同じパスワードを試す攻撃（パスワードスプレー）には効かない。これは **API Gateway のスロットリング**または **AWS WAF のレートベースルール**（IP単位）で防ぐ。
+  * （2026-09-29 追記）BFF 構成では API Gateway から見た送信元がすべて BFF（Amplify）になるため、API Gateway・WAF で利用者の IP 単位に制限することはできない。利用者の IP で制限できるのは Amplify の前段（Amplify への WAF の適用）のみで、費用が月約21ドル以上かかるため導入せず、リスクとして受容した（`aws-architecture.md` 5.2）。
   * 第三者が他人のメールアドレスでわざと失敗を繰り返すと、本人も一時的にログインできなくなる。影響を60秒に限定することで許容する。
 * 失敗回数はアプリのメモリ上に保持するため、再起動で消え、Lambda の複数インスタンス間では共有されない。本番では上記の API Gateway / AWS WAF による制限と組み合わせ、アプリ内の制限は多層防御として位置付ける。
 * 存在しないメールアドレスの場合もダミーのハッシュで BCrypt 照合を行い、応答時間を揃える。ダミーのハッシュは、実際のユーザーと同じコスト（BCrypt.Net の既定値11）で生成する。
@@ -349,11 +351,11 @@ Amplify が Next.js 16 に公式対応した時点で、バージョンアップ
 
 | 項目 | 内容 | 関連 |
 | --- | --- | --- |
-| IP単位のレート制限 | API Gateway のスロットリング、または AWS WAF のレートベースルールを設定する（パスワードスプレー等への対策） | 5.2 |
-| 秘密情報の設定 | `Jwt:Key`（32バイト以上）と `SESSION_SECRET`（32文字以上）を、Lambda・Amplify の環境変数（または Secrets Manager）に設定する。リポジトリの値は使わない。なお、ローカル開発では `appsettings.Development.json` の開発専用の `Jwt:Key` が使われる（`launchSettings.json` で `ASPNETCORE_ENVIRONMENT=Development` になるため、追加の設定なしで起動できる）。`appsettings.json` には値がないため、本番で環境変数 `Jwt__Key` を設定しないと起動時にエラーになる（実装: `backend/src/TaskManagementSystem.Api/appsettings.Development.json`、`Properties/launchSettings.json`、`Services/JwtSigningKey.cs`） | 5.3、SEC-07 |
+| IP単位のレート制限 | **決定済み**：BFF 構成では API Gateway で利用者の IP 単位の制限ができないため、Amplify への WAF の適用（月約21ドル以上）は見送り、API Gateway のスロットリング、Lambda の同時実行数の上限、4xx の急増のアラームで代替し、リスクとして受容する（`aws-architecture.md` 5.2） | 5.2 |
+| 秘密情報の設定 | **決定済み**：`Jwt:Key`（32バイト以上）と `SESSION_SECRET`（32文字以上）は Secrets Manager に保存し、API（Lambda）は `APP_SECRET_ID`、BFF（Amplify）は SSR 実行ロールで実行時に読み込む。Lambda・Amplify の環境変数には秘密情報を置かない（`aws-architecture.md` 4.8）。リポジトリの値は使わない。なお、ローカル開発では `appsettings.Development.json` の開発専用の `Jwt:Key` が使われる（`launchSettings.json` で `ASPNETCORE_ENVIRONMENT=Development` になるため、追加の設定なしで起動できる）。`appsettings.json` には値がないため、本番で環境変数 `Jwt__Key` を設定しないと起動時にエラーになる（実装: `backend/src/TaskManagementSystem.Api/appsettings.Development.json`、`Properties/launchSettings.json`、`Services/JwtSigningKey.cs`） | 5.3、SEC-07 |
 | APIのHSTS | 本番環境で `Strict-Transport-Security` が返ることを確認する（localhost は対象外のため、ローカルでは確認できない） | SEC-08 |
 | CSPのnonce方式 | Amplify Hosting で Next.js の middleware（Node.js ランタイム）が動作するかを確認し、動作すれば `script-src` を nonce 方式に切り替えて `'unsafe-inline'` をなくす | 5.5 |
-| APIへの直接アクセスの制限 | API Gateway を BFF 以外から呼び出せないようにする（リソースポリシー、共有シークレットのヘッダー等）かを検討する | 5.3 |
+| APIへの直接アクセスの制限 | **決定済み（実装は未着手）**：BFF が共有の秘密情報のヘッダー（`X-Origin-Verify`）を付け、API が値を検証して一致しなければ403とする。HTTP API ではリソースポリシーを使えず、Amplify の送信元IPも固定されないため（`aws-architecture.md` 5.3、12章） | 5.3 |
 | Next.js 16 への更新 | Amplify Hosting が Next.js 16 に公式対応した時点で更新を検討し、PostCSS の `overrides` が不要になるか確認する | 6.2 |
 
 ---
