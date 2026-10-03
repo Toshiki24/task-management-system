@@ -29,10 +29,10 @@ public class AuthService : IAuthService
         _refreshTokenService = refreshTokenService;
     }
 
-    public async Task<LoginOutcome> LoginAsync(LoginRequest request)
+    public async Task<LoginOutcome> LoginAsync(LoginRequest request, string? clientIp = null)
     {
         // 制限中は、パスワードが正しいかどうかに関わらず照合しない(総当たりを続けても結果が分からないようにする)
-        var retryAfter = _loginAttemptLimiter.GetRetryAfter(request.Email);
+        var retryAfter = _loginAttemptLimiter.GetRetryAfter(request.Email, clientIp);
         if (retryAfter is not null)
         {
             return new LoginOutcome(LoginResult.TooManyAttempts, RetryAfter: retryAfter);
@@ -46,7 +46,7 @@ public class AuthService : IAuthService
 
         if (user is null || !passwordMatches)
         {
-            _loginAttemptLimiter.RecordFailure(request.Email);
+            _loginAttemptLimiter.RecordFailure(request.Email, clientIp);
             return new LoginOutcome(LoginResult.InvalidCredentials);
         }
 
