@@ -24,3 +24,13 @@ output "rds_master_secret_arn" {
   description = "RDS が管理するマスターユーザーのシークレットARN。マイグレーション用 Lambda が読み取る"
   value       = aws_db_instance.main.master_user_secret[0].secret_arn
 }
+
+output "ecr_repository_url" {
+  description = "API コンテナイメージの ECR リポジトリURL(GitHub Actions のビルド・プッシュ先)"
+  value       = aws_ecr_repository.api.repository_url
+}
+
+output "github_actions_role_arn" {
+  description = "GitHub Actions が OIDC で assume するロールARN(ワークフローの aws-actions/configure-aws-credentials に設定する)"
+  value       = aws_iam_role.github_actions.arn
+}
