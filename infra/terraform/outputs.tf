@@ -44,3 +44,23 @@ output "migration_lambda_name" {
   description = "マイグレーション用 Lambda の名前(aws lambda invoke で手動実行する)"
   value       = aws_lambda_function.migration.function_name
 }
+
+output "amplify_app_id" {
+  description = "Amplify アプリのID(コンソールでの GitHub 連携・初回デプロイに使う)"
+  value       = aws_amplify_app.main.id
+}
+
+output "amplify_default_domain" {
+  description = "Amplify の既定ドメイン(動作確認用)"
+  value       = aws_amplify_app.main.default_domain
+}
+
+output "amplify_cert_verification_dns_record" {
+  description = "カスタムドメインの証明書検証用 DNS レコード。ムームーDNSに追加する(手順16)"
+  value       = aws_amplify_domain_association.main.certificate_verification_dns_record
+}
+
+output "amplify_subdomain_dns_records" {
+  description = "カスタムドメイン(tms.accent24.jp)の CNAME レコード。ムームーDNSに追加する(手順16)"
+  value       = [for s in aws_amplify_domain_association.main.sub_domain : s.dns_record]
+}
