@@ -140,7 +140,7 @@
 | SEC2-06 | スナップショットのクロスアカウント退避/Vault Lock | 2 | apply 時 | 未着手 | － |
 | SEC2-07 | （判断）ルート→IAM Identity Center は任意 | 1 | 任意 | 保留 | ポートフォリオはルート完走も可 |
 | SEC2-08 | レジストラ MFA＋CAA＋削除運用 | 1 | 今（AWS 不要） | 手順を文書化（実施は作業者） | 具体手順は付録A。MFA は今すぐ、CAA は手順16（CNAME 追加）と同時、削除運用はテアダウン手順に組み込む |
-| SEC2-09 | 専用 CloudTrail→S3＋整合性検証 | 2 | Terraform 作成時 | 未着手 | デプロイ直後から証跡を残す |
+| SEC2-09 | 専用 CloudTrail→S3＋整合性検証 | 2 | Terraform 作成時 | 実装（Terraform・apply 待ち） | `infra/terraform/monitoring.tf`：マルチリージョン証跡、ログ整合性検証、S3（公開ブロック・暗号化・保存期間）。元設計の90日イベント履歴の上積み |
 | SEC2-10 | CSP nonce 化 | 1 | 準備は今／切替はデプロイ後 | 未着手 | Amplify の middleware 動作確認が前提 |
 | SEC2-11 | シークレット登録手順の是正 | 1 | 手順9 | 未着手 | 履歴に平文を残さない |
 

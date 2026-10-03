@@ -27,3 +27,14 @@ variable "app_domain" {
   type        = string
   default     = "tms.accent24.jp"
 }
+
+variable "alert_email" {
+  description = "アラーム・予算超過の通知先メールアドレス。秘密ではないが個人情報のため terraform.tfvars で指定する(リポジトリには置かない)"
+  type        = string
+}
+
+variable "cloudtrail_retention_days" {
+  description = "CloudTrail のログ(S3)の保存日数。既定のイベント履歴(90日)より長く保持しつつ、保存容量の課金を抑える(security-review-2.md SEC2-09)"
+  type        = number
+  default     = 365
+}

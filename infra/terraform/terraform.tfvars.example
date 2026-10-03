@@ -4,3 +4,8 @@
 aws_profile = "tms"
 # aws_region  = "ap-northeast-1"
 # app_domain  = "tms.accent24.jp"
+
+# アラーム・予算超過の通知先メールアドレス(必須)。自分のアドレスに変更する。
+# apply 後、AWS から届く購読確認メールのリンクをクリックして有効化する。
+alert_email = "you@example.com"
+# cloudtrail_retention_days = 365
