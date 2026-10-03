@@ -133,7 +133,7 @@
 | ID | 対策 | Tier | 実施時期 | 状況 | 備考・対応 |
 | --- | --- | :-: | --- | --- | --- |
 | SEC2-01 | `X-Origin-Verify` 最前段検証＋auth ルート throttle | 1 | 実装時に盛り込む | 一部完了 | 検証（認証より前に 403）を実装（`Services/OriginVerify.cs`、`Program.cs`、BFF の `callBackend`、E2E 検証テスト）。auth ルートの throttle は Terraform 側で別途対応 |
-| SEC2-02 | `X-Origin-Verify` 強度チェック＋ローテーション対応 | 1 | 実装時に盛り込む | 一部完了 | 起動時の強度チェック（本番で未設定・32バイト未満ならエラー）を実装（`OriginVerify.ResolveSecret`）。ローテーション対応（新旧2値の許可）は未着手 |
+| SEC2-02 | `X-Origin-Verify` 強度チェック＋ローテーション対応 | 1 | 実装時に盛り込む | 完了 | 起動時の強度チェック（本番で未設定・32バイト未満ならエラー）と、無停止ローテーション（現行 `OriginVerify:Secret` ＋旧値 `OriginVerify:PreviousSecret` の新旧2値を受け付け）を実装（`OriginVerify.ResolveSecrets` / `IsValid`）。入れ替え手順は `OriginVerify.cs` のコメント参照 |
 | SEC2-03 | ログイン制限に IP＋全体合算／401 アラーム | 1/2 | 実装時に盛り込む | 一部完了 | IP単位のログイン制限を実装（BFF が実クライアント IP を `X-Client-IP` で転送し、API の `LoginAttemptLimiter` が IP 単位でも失敗を集計）。全体合算の検知／401 アラームは CloudWatch 側のため Terraform で別途対応。※`X-Forwarded-For` の信頼位置はデプロイ時に要確認 |
 | SEC2-04 | （受容）署名鍵分離は Tier 3 | 3 | － | 受容 | 閉域 VPC を緩和策とする |
 | SEC2-05 | OIDC 信頼ポリシー厳格化＋ワークフロー最小権限 | 1 | Terraform 作成時 | 未着手 | `sub` 完全一致・SHA 固定 |
