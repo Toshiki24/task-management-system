@@ -34,6 +34,7 @@ npm run dev
 | --- | --- | --- |
 | `API_BASE_URL` | BFFが呼び出すバックエンドAPIのベースURL | `http://localhost:5000/api` |
 | `SESSION_SECRET` | セッションCookieの暗号化鍵（32文字以上のランダムな文字列）。変更すると全ユーザーがログアウトされる | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` で生成 |
+| `ORIGIN_VERIFY_SECRET` | BFFがAPI呼び出しに付ける共有シークレット（`X-Origin-Verify`）。APIが同じ値を検証する（[セキュリティ見直し記録（第2回）SEC2-01](../design/security-review-2.md)）。ローカル開発では**任意**（APIが未設定時は検証しないため）。本番では必須 | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` で生成 |
 
 ## BFF（`src/app/api/bff`）
 

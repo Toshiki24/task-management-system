@@ -74,6 +74,10 @@ builder.Services.AddScoped<ICommentService, CommentService>();
 var jwtSection = builder.Configuration.GetSection("Jwt");
 // 鍵が未設定・短すぎる場合は、起動時にエラーにして気付けるようにする(security-review.md SEC-07)
 var jwtSigningKey = JwtSigningKey.Create(builder.Configuration);
+
+// BFF からの呼び出しを確認する共有シークレット(X-Origin-Verify)。
+// 本番では未設定・短すぎる場合に起動時エラーにする(フェイルクローズ)。本番以外で未設定なら検証しない(security-review-2.md SEC2-01 / SEC2-02)
+var originVerifySecret = OriginVerify.ResolveSecret(builder.Configuration, builder.Environment.IsProduction());
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -191,6 +195,30 @@ if (!app.Environment.IsDevelopment())
 if (!runningOnLambda)
 {
     app.UseHttpsRedirection();
+}
+
+// BFF からの呼び出しであることを共有シークレットで確認する(security-review-2.md SEC2-01、aws-architecture.md 5.3)。
+// シークレットが設定されている場合のみ有効化する(本番では ResolveSecret が起動時に設定を必須化する)。
+// 認証より前に実行し、BFF を経由しない直接呼び出し(ログインの総当たり等)も 403 で拒否する。
+if (!string.IsNullOrEmpty(originVerifySecret))
+{
+    app.Use(async (context, next) =>
+    {
+        // 開発時の Swagger UI はブラウザから直接読み込むため対象外とする
+        if (!context.Request.Path.StartsWithSegments("/swagger"))
+        {
+            var provided = context.Request.Headers[OriginVerify.HeaderName].ToString();
+            if (!OriginVerify.IsValid(provided, originVerifySecret))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsJsonAsync(new ErrorResponse("アクセスが拒否されました。"));
+                return;
+            }
+        }
+
+        await next();
+    });
 }
 
 app.UseAuthentication();

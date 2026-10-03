@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { test as base, expect, type APIRequestContext, type APIResponse } from "@playwright/test";
 import bcrypt from "bcryptjs";
 import pg from "pg";
-import { API_URL, DB_CONFIG } from "./env";
+import { API_URL, DB_CONFIG, ORIGIN_VERIFY_SECRET } from "./env";
 
 export const PASSWORD = "Password123!";
 
@@ -187,7 +187,11 @@ export const test = base.extend<{ api: APIRequestContext; data: TestDataFactory 
   ],
 
   api: async ({ playwright }, use) => {
-    const context = await playwright.request.newContext({ baseURL: API_URL });
+    // BFFを経由しないAPIテストでも、BFFと同じ共有シークレットを付けてAPIの検証を通す(security-review-2.md SEC2-01)
+    const context = await playwright.request.newContext({
+      baseURL: API_URL,
+      extraHTTPHeaders: { "X-Origin-Verify": ORIGIN_VERIFY_SECRET },
+    });
     await use(context);
     await context.dispose();
   },

@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
-import { API_URL, DB_CONFIG, DB_CONNECTION_STRING, WEB_PORT, WEB_URL } from "./support/env";
+import { API_URL, DB_CONFIG, DB_CONNECTION_STRING, ORIGIN_VERIFY_SECRET, WEB_PORT, WEB_URL } from "./support/env";
 
 export default defineConfig({
   testDir: "./tests",
@@ -32,7 +32,8 @@ export default defineConfig({
   webServer: [
     {
       command: "node scripts/start-backend.mjs",
-      // 認証必須のAPIが401を返せば起動完了とみなす
+      // APIが起動していれば、共有シークレットなしのこの確認リクエストには403(未設定時は401)が返る。
+      // Playwright は 4xx も「起動完了」とみなすため、これで待ち受けできる
       url: `${API_URL}/api/users`,
       // 開発用サーバーを誤って使わないよう、既存プロセスの再利用はしない(ポート使用中ならエラーにする)
       reuseExistingServer: false,
@@ -48,6 +49,8 @@ export default defineConfig({
         E2E_DB_USER: DB_CONFIG.user,
         E2E_DB_PASSWORD: DB_CONFIG.password,
         E2E_DB_NAME: DB_CONFIG.database,
+        // APIが検証する共有シークレット(start-backend.mjs が dotnet に引き継ぐ。設定キー OriginVerify:Secret)
+        OriginVerify__Secret: ORIGIN_VERIFY_SECRET,
       },
     },
     {
@@ -64,6 +67,8 @@ export default defineConfig({
         API_BASE_URL: `${API_URL}/api`,
         // セッションCookieの暗号化鍵。テスト実行ごとに生成する
         SESSION_SECRET: randomBytes(32).toString("hex"),
+        // BFFがAPI呼び出しに付ける共有シークレット(APIの OriginVerify:Secret と一致させる)
+        ORIGIN_VERIFY_SECRET,
         NEXT_DIST_DIR: ".next-e2e",
       },
     },

@@ -132,8 +132,8 @@
 
 | ID | 対策 | Tier | 実施時期 | 状況 | 備考・対応 |
 | --- | --- | :-: | --- | --- | --- |
-| SEC2-01 | `X-Origin-Verify` 最前段検証＋auth ルート throttle | 1 | 実装時に盛り込む | 未着手 | §12 の必須実装と同時に行う |
-| SEC2-02 | `X-Origin-Verify` 強度チェック＋ローテーション対応 | 1 | 実装時に盛り込む | 未着手 | `JwtSigningKey` と同様の起動時検証 |
+| SEC2-01 | `X-Origin-Verify` 最前段検証＋auth ルート throttle | 1 | 実装時に盛り込む | 一部完了 | 検証（認証より前に 403）を実装（`Services/OriginVerify.cs`、`Program.cs`、BFF の `callBackend`、E2E 検証テスト）。auth ルートの throttle は Terraform 側で別途対応 |
+| SEC2-02 | `X-Origin-Verify` 強度チェック＋ローテーション対応 | 1 | 実装時に盛り込む | 一部完了 | 起動時の強度チェック（本番で未設定・32バイト未満ならエラー）を実装（`OriginVerify.ResolveSecret`）。ローテーション対応（新旧2値の許可）は未着手 |
 | SEC2-03 | ログイン制限に IP＋全体合算／401 アラーム | 1/2 | 実装時に盛り込む | 未着手 | BFF が実クライアント IP を転送 |
 | SEC2-04 | （受容）署名鍵分離は Tier 3 | 3 | － | 受容 | 閉域 VPC を緩和策とする |
 | SEC2-05 | OIDC 信頼ポリシー厳格化＋ワークフロー最小権限 | 1 | Terraform 作成時 | 未着手 | `sub` 完全一致・SHA 固定 |
