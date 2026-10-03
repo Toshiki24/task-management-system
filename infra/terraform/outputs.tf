@@ -34,3 +34,13 @@ output "github_actions_role_arn" {
   description = "GitHub Actions が OIDC で assume するロールARN(ワークフローの aws-actions/configure-aws-credentials に設定する)"
   value       = aws_iam_role.github_actions.arn
 }
+
+output "api_base_url" {
+  description = "BFF(Amplify)の API_BASE_URL に設定する値(API Gateway の既定URL + /api)"
+  value       = "${aws_apigatewayv2_api.http.api_endpoint}/api"
+}
+
+output "migration_lambda_name" {
+  description = "マイグレーション用 Lambda の名前(aws lambda invoke で手動実行する)"
+  value       = aws_lambda_function.migration.function_name
+}
