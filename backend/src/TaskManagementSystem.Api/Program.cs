@@ -77,7 +77,7 @@ var jwtSigningKey = JwtSigningKey.Create(builder.Configuration);
 
 // BFF からの呼び出しを確認する共有シークレット(X-Origin-Verify)。
 // 本番では未設定・短すぎる場合に起動時エラーにする(フェイルクローズ)。本番以外で未設定なら検証しない(security-review-2.md SEC2-01 / SEC2-02)
-var originVerifySecret = OriginVerify.ResolveSecret(builder.Configuration, builder.Environment.IsProduction());
+var originVerifySecrets = OriginVerify.ResolveSecrets(builder.Configuration, builder.Environment.IsProduction());
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -197,10 +197,11 @@ if (!runningOnLambda)
     app.UseHttpsRedirection();
 }
 
-// BFF からの呼び出しであることを共有シークレットで確認する(security-review-2.md SEC2-01、aws-architecture.md 5.3)。
-// シークレットが設定されている場合のみ有効化する(本番では ResolveSecret が起動時に設定を必須化する)。
+// BFF からの呼び出しであることを共有シークレットで確認する(security-review-2.md SEC2-01 / SEC2-02、aws-architecture.md 5.3)。
+// シークレットが設定されている場合のみ有効化する(本番では ResolveSecrets が起動時に設定を必須化する)。
+// ローテーション中は新旧2値のいずれかに一致すれば通す。
 // 認証より前に実行し、BFF を経由しない直接呼び出し(ログインの総当たり等)も 403 で拒否する。
-if (!string.IsNullOrEmpty(originVerifySecret))
+if (originVerifySecrets.Count > 0)
 {
     app.Use(async (context, next) =>
     {
@@ -208,7 +209,7 @@ if (!string.IsNullOrEmpty(originVerifySecret))
         if (!context.Request.Path.StartsWithSegments("/swagger"))
         {
             var provided = context.Request.Headers[OriginVerify.HeaderName].ToString();
-            if (!OriginVerify.IsValid(provided, originVerifySecret))
+            if (!OriginVerify.IsValid(provided, originVerifySecrets))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 context.Response.ContentType = "application/json";
