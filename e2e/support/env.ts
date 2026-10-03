@@ -23,3 +23,10 @@ export const DB_CONFIG = {
 export const DB_CONNECTION_STRING =
   `Host=${DB_CONFIG.host};Port=${DB_CONFIG.port};Database=${DB_CONFIG.database};` +
   `Username=${DB_CONFIG.user};Password=${DB_CONFIG.password}`;
+
+/**
+ * BFFからの呼び出しを確認する共有シークレット(X-Origin-Verify、security-review-2.md SEC2-01)。
+ * E2Eでは固定値を使い、APIの検証・BFFの付与・APIテストの送信で同じ値を共有する。
+ */
+export const ORIGIN_VERIFY_SECRET =
+  process.env.E2E_ORIGIN_VERIFY_SECRET ?? "e2e-origin-verify-secret-0123456789abcdef0123456789abcdef";
