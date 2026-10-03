@@ -38,3 +38,9 @@ variable "cloudtrail_retention_days" {
   type        = number
   default     = 365
 }
+
+variable "github_repository" {
+  description = "GitHub Actions の OIDC で信頼を限定するリポジトリ(owner/repo)。main ブランチからの実行のみに限定する(security-review-2.md SEC2-05)"
+  type        = string
+  default     = "Toshiki24/task-management-system"
+}

@@ -136,7 +136,7 @@
 | SEC2-02 | `X-Origin-Verify` 強度チェック＋ローテーション対応 | 1 | 実装時に盛り込む | 完了 | 起動時の強度チェック（本番で未設定・32バイト未満ならエラー）と、無停止ローテーション（現行 `OriginVerify:Secret` ＋旧値 `OriginVerify:PreviousSecret` の新旧2値を受け付け）を実装（`OriginVerify.ResolveSecrets` / `IsValid`）。入れ替え手順は `OriginVerify.cs` のコメント参照 |
 | SEC2-03 | ログイン制限に IP＋全体合算／401 アラーム | 1/2 | 実装時に盛り込む | 一部完了 | IP単位のログイン制限を実装（BFF が実クライアント IP を `X-Client-IP` で転送し、API の `LoginAttemptLimiter` が IP 単位でも失敗を集計）。全体合算の検知／401 アラームは CloudWatch 側のため Terraform で別途対応。※`X-Forwarded-For` の信頼位置はデプロイ時に要確認 |
 | SEC2-04 | （受容）署名鍵分離は Tier 3 | 3 | － | 受容 | 閉域 VPC を緩和策とする |
-| SEC2-05 | OIDC 信頼ポリシー厳格化＋ワークフロー最小権限 | 1 | Terraform 作成時 | 未着手 | `sub` 完全一致・SHA 固定 |
+| SEC2-05 | OIDC 信頼ポリシー厳格化＋ワークフロー最小権限 | 1 | Terraform 作成時 | 実装（Terraform・apply 待ち） | `github_oidc.tf`：`aud`＋`sub` を「本リポジトリの main」に**完全一致**で限定。許可は ECR プッシュ（対象リポジトリのみ）と API/マイグレーション Lambda のイメージ更新のみ。ワークフローの `permissions:` 最小化・Actions の SHA 固定はデプロイ用ワークフロー作成時（§12）に対応 |
 | SEC2-06 | スナップショットのクロスアカウント退避/Vault Lock | 2 | apply 時 | 未着手（要判断） | RDS 本体の基本バックアップ（自動7日・PITR・削除保護・最終スナップショット）は §4.3 として `rds.tf` に実装。イミュータブル化（Vault Lock）/クロスアカウント退避は不可逆・2つ目のアカウントが要るため、モード・保持・アカウントを決めてから別PRで対応 |
 | SEC2-07 | （判断）ルート→IAM Identity Center は任意 | 1 | 任意 | 保留 | ポートフォリオはルート完走も可 |
 | SEC2-08 | レジストラ MFA＋CAA＋削除運用 | 1 | 今（AWS 不要） | 手順を文書化（実施は作業者） | 具体手順は付録A。MFA は今すぐ、CAA は手順16（CNAME 追加）と同時、削除運用はテアダウン手順に組み込む |
