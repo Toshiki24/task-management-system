@@ -7,3 +7,20 @@ output "aws_region" {
   description = "リソースを作成するリージョン"
   value       = var.aws_region
 }
+
+# シークレットの「名前」は秘密情報ではない設定値(aws-architecture.md 2.3)。
+# 作業者が値を登録する際(手順9)や、Lambda の APP_SECRET_ID / Amplify の BFF_SECRET_ID 設定に使う。
+output "api_secret_name" {
+  description = "API(Lambda)用シークレットの名前。値を手動登録する対象"
+  value       = aws_secretsmanager_secret.api.name
+}
+
+output "bff_secret_name" {
+  description = "BFF(Amplify SSR)用シークレットの名前。値を手動登録する対象"
+  value       = aws_secretsmanager_secret.bff.name
+}
+
+output "rds_master_secret_arn" {
+  description = "RDS が管理するマスターユーザーのシークレットARN。マイグレーション用 Lambda が読み取る"
+  value       = aws_db_instance.main.master_user_secret[0].secret_arn
+}
