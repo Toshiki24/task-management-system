@@ -1,0 +1,16 @@
+{
+  // npm audit（high 以上で失敗）を CI で実行するための設定。
+  // 使い方: npx audit-ci --config audit-ci.jsonc
+  "high": true,
+
+  // 上流にまだ修正版が無い脆弱性のみを、個別に許可（例外）する。
+  // 許可した脆弱性は CI を失敗させないが、それ以外（dev 含む）は従来どおり検知する。
+  //
+  // GHSA-vfj7-8cjw-p6xm: braces の stack-exhaustion DoS（深くネストしたパターン）。
+  //   - 経路: eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch → braces（開発専用の lint ツール）
+  //   - advisory は braces 全バージョン対象で、2026-10-03 時点で修正版が無い。
+  //     npm の自動修正は eslint-config-next@14.2.35 への破壊的ダウングレードのみで、Next.js 15 固定（security-review.md 6.2）と矛盾するため採らない。
+  //   - braces に渡る glob パターンは開発者が書く lint 設定であり、利用者入力ではないため、本システムでの実害はほぼない。
+  //   - 【解除条件】上流（braces / eslint-config-next）に修正版が出たら、依存を更新してこの許可を削除する。
+  "allowlist": ["GHSA-vfj7-8cjw-p6xm"]
+}
