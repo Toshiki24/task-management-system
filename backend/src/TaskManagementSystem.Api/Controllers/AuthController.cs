@@ -18,10 +18,15 @@ public class AuthController : ControllerBase
         _authService = authService;
     }
 
+    /// <summary>BFFが実クライアントIPを転送するヘッダー。IP単位のログイン制限に使う(security-review-2.md SEC2-03)</summary>
+    private const string ClientIpHeaderName = "X-Client-IP";
+
     [HttpPost("login")]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request)
     {
-        var outcome = await _authService.LoginAsync(request);
+        // API は X-Origin-Verify で BFF からの呼び出しのみを受け付けるため、BFFが転送したIPを信頼できる
+        var clientIp = Request.Headers[ClientIpHeaderName].ToString();
+        var outcome = await _authService.LoginAsync(request, string.IsNullOrEmpty(clientIp) ? null : clientIp);
 
         switch (outcome.Result)
         {

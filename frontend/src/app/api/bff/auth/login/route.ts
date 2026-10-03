@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { callBackend, type BackendTokenResponse } from "@/lib/server/backend";
+import { clientIp } from "@/lib/server/client-ip";
 import { rejectCrossSiteRequest } from "@/lib/server/csrf";
 import { backendUnavailable, relayBackendResponse } from "@/lib/server/responses";
 import { getSession } from "@/lib/server/session";
@@ -15,11 +16,18 @@ export async function POST(request: NextRequest) {
     return rejected;
   }
 
+  // IP単位のログイン制限(パスワードスプレー対策)のため、実クライアントIPをAPIへ転送する(security-review-2.md SEC2-03)
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const ip = clientIp(request);
+  if (ip) {
+    headers["X-Client-IP"] = ip;
+  }
+
   let response: Response;
   try {
     response = await callBackend("/auth/login", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: await request.text(),
     });
   } catch {

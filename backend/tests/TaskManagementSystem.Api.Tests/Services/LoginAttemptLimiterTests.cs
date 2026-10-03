@@ -7,6 +7,7 @@ namespace TaskManagementSystem.Api.Tests.Services;
 public class LoginAttemptLimiterTests
 {
     private const int MaxFailedAttempts = 5;
+    private const int MaxFailedAttemptsPerIp = 8;
     private static readonly TimeSpan FailureWindow = TimeSpan.FromSeconds(60);
 
     private readonly ManualTimeProvider _time = new();
@@ -16,6 +17,7 @@ public class LoginAttemptLimiterTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["LoginProtection:MaxFailedAttempts"] = MaxFailedAttempts.ToString(),
+                ["LoginProtection:MaxFailedAttemptsPerIp"] = MaxFailedAttemptsPerIp.ToString(),
                 ["LoginProtection:FailureWindowSeconds"] = FailureWindow.TotalSeconds.ToString(),
             })
             .Build();
@@ -101,5 +103,69 @@ public class LoginAttemptLimiterTests
 
         Assert.NotNull(limiter.GetRetryAfter("locked@example.test"));
         Assert.Null(limiter.GetRetryAfter("other@example.test"));
+    }
+
+    // 同じIPから、毎回異なるメールアドレスで失敗させる(アカウント単位の上限には達しない)
+    private static void FailFromIp(LoginAttemptLimiter limiter, string ip, int times)
+    {
+        for (var i = 0; i < times; i++)
+        {
+            limiter.RecordFailure($"spray-{i}@example.test", ip);
+        }
+    }
+
+    [Fact(DisplayName = "UT-807 同一IPから異なるアカウントへの失敗が上限に達すると、IP単位で制限される")]
+    public void GetRetryAfter_LimitsByIp_AcrossDifferentEmails()
+    {
+        using var limiter = CreateLimiter();
+        FailFromIp(limiter, "203.0.113.1", MaxFailedAttemptsPerIp);
+
+        // 一度も失敗していないアカウントでも、同じIPからは制限される(パスワードスプレー対策)
+        Assert.NotNull(limiter.GetRetryAfter("fresh@example.test", "203.0.113.1"));
+    }
+
+    [Fact(DisplayName = "UT-808 IP単位の制限は、他のIPに影響しない")]
+    public void GetRetryAfter_IpLimit_DoesNotAffectOtherIps()
+    {
+        using var limiter = CreateLimiter();
+        FailFromIp(limiter, "203.0.113.1", MaxFailedAttemptsPerIp);
+
+        Assert.Null(limiter.GetRetryAfter("fresh@example.test", "203.0.113.2"));
+    }
+
+    [Fact(DisplayName = "UT-809 IPアドレスが null の場合はIP単位で数えない")]
+    public void RecordFailure_DoesNotCountByIp_WhenIpIsNull()
+    {
+        using var limiter = CreateLimiter();
+        for (var i = 0; i < MaxFailedAttemptsPerIp; i++)
+        {
+            limiter.RecordFailure($"spray-{i}@example.test", ipAddress: null);
+        }
+
+        Assert.Null(limiter.GetRetryAfter("fresh@example.test", "203.0.113.1"));
+    }
+
+    [Fact(DisplayName = "UT-810 IPが上限未満でも、アカウント単位で上限に達すれば制限される")]
+    public void GetRetryAfter_StillLimitsByEmail_WhenIpBelowLimit()
+    {
+        using var limiter = CreateLimiter();
+        for (var i = 0; i < MaxFailedAttempts; i++)
+        {
+            limiter.RecordFailure("victim@example.test", "203.0.113.1");
+        }
+
+        // IP単位(上限8)には達していないが、アカウント単位(上限5)で制限される
+        Assert.NotNull(limiter.GetRetryAfter("victim@example.test", "203.0.113.1"));
+    }
+
+    [Fact(DisplayName = "UT-811 リセットはアカウント単位のみで、IP単位の記録は残る")]
+    public void Reset_DoesNotClearIpFailures()
+    {
+        using var limiter = CreateLimiter();
+        FailFromIp(limiter, "203.0.113.1", MaxFailedAttemptsPerIp);
+
+        limiter.Reset("spray-0@example.test");
+
+        Assert.NotNull(limiter.GetRetryAfter("fresh@example.test", "203.0.113.1"));
     }
 }
