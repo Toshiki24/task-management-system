@@ -144,8 +144,12 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: frontend/.nvmrc
+      - name: フロントエンドの依存関係をインストール
+        run: npm ci
+        working-directory: frontend
       - name: npm audit (frontend)
-        run: npm audit --audit-level=high
+        # audit-ci で high 以上を検知する。上流に修正版が無い脆弱性のみ audit-ci.jsonc で個別に許可する
+        run: npx audit-ci --config audit-ci.jsonc
         working-directory: frontend
       - name: npm audit (e2e)
         run: npm audit --audit-level=high
