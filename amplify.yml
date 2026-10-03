@@ -1,0 +1,25 @@
+# Amplify Hosting のビルド設定(モノレポ)。設計: aws-architecture.md 4.7。
+# frontend をルートに、Node.js 24 でビルドする。
+# 秘密情報ではない設定値(API_BASE_URL / BFF_SECRET_ID)のみを .env.production に書き出し、
+# 秘密情報(SESSION_SECRET / ORIGIN_VERIFY_SECRET)は書き出さず、BFF が実行時に SSR 実行ロールで
+# Secrets Manager から読み込む(秘密情報をビルド成果物に含めないため)。
+version: 1
+applications:
+  - appRoot: frontend
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - nvm use 24
+            - npm ci
+        build:
+          commands:
+            - printf 'API_BASE_URL=%s\nBFF_SECRET_ID=%s\n' "$API_BASE_URL" "$BFF_SECRET_ID" > .env.production
+            - npm run build
+      artifacts:
+        baseDirectory: .next
+        files:
+          - "**/*"
+      cache:
+        paths:
+          - node_modules/**/*

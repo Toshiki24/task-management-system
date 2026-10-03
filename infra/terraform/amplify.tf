@@ -46,29 +46,7 @@ resource "aws_amplify_app" "main" {
     BFF_SECRET_ID = aws_secretsmanager_secret.bff.name
   }
 
-  # モノレポ(frontend)・Node.js 24 のビルド設定。
-  # 注: リポジトリに amplify.yml がある場合はそちらが優先される(aws-architecture.md 12章で整備)
-  build_spec = <<-YAML
-    version: 1
-    applications:
-      - appRoot: frontend
-        frontend:
-          phases:
-            preBuild:
-              commands:
-                - nvm use 24
-                - npm ci
-            build:
-              commands:
-                - npm run build
-          artifacts:
-            baseDirectory: .next
-            files:
-              - '**/*'
-          cache:
-            paths:
-              - node_modules/**/*
-  YAML
+  # ビルド設定はリポジトリルートの amplify.yml を使う(モノレポ・Node.js 24。aws-architecture.md 4.7・12章)
 
   # GitHub App 連携(アクセストークン)はコンソールで行うため、Terraform の差分対象から外す
   lifecycle {
