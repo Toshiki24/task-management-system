@@ -51,6 +51,8 @@ export default defineConfig({
         E2E_DB_NAME: DB_CONFIG.database,
         // APIが検証する共有シークレット(start-backend.mjs が dotnet に引き継ぐ。設定キー OriginVerify:Secret)
         OriginVerify__Secret: ORIGIN_VERIFY_SECRET,
+        // IP単位のログイン制限を短時間で確認できるよう上限を下げる(設定キー LoginProtection:MaxFailedAttemptsPerIp)
+        LoginProtection__MaxFailedAttemptsPerIp: "8",
       },
     },
     {

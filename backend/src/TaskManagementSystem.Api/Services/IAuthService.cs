@@ -13,7 +13,8 @@ public record LoginOutcome(LoginResult Result, LoginResponse? Data = null, TimeS
 
 public interface IAuthService
 {
-    Task<LoginOutcome> LoginAsync(LoginRequest request);
+    /// <param name="clientIp">BFFが転送した実クライアントIP。IP単位のログイン制限に使う。null の場合はIP単位で数えない。</param>
+    Task<LoginOutcome> LoginAsync(LoginRequest request, string? clientIp = null);
 
     /// <summary>リフレッシュトークンでアクセストークンを再発行する。無効なトークンの場合は null を返す。</summary>
     Task<LoginResponse?> RefreshAsync(RefreshTokenRequest request);
