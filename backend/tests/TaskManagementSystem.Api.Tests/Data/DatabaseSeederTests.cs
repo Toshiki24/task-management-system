@@ -4,8 +4,8 @@ using TaskManagementSystem.Api.Data;
 namespace TaskManagementSystem.Api.Tests.Data;
 
 // DatabaseSeeder を実際の PostgreSQL に対して検証する。
-// 初期管理者がアプリ用ユーザー(tms_app・DML権限)で作成されること・パスワードが BCrypt で
-// 保存されること・再実行しても重複しないこと(冪等)を確認する。
+// 複数の初期ユーザーがアプリ用ユーザー(tms_app・DML権限)で作成されること・パスワードが
+// BCrypt で保存されること・再実行しても重複しないこと(冪等)を確認する。
 public class DatabaseSeederTests
 {
     private const string ServerConnectionEnvName = "TEST_DB_CONNECTION";
@@ -15,16 +15,20 @@ public class DatabaseSeederTests
     private static string ServerConnection =>
         Environment.GetEnvironmentVariable(ServerConnectionEnvName) ?? DefaultServerConnection;
 
-    [Fact(DisplayName = "UT-1301 初期管理者の作成・パスワードのハッシュ化・冪等性")]
-    public async Task SeedAdminAsync_CreatesAdminWithHashedPasswordAndIsIdempotent()
+    [Fact(DisplayName = "UT-1301 複数の初期ユーザーの作成・パスワードのハッシュ化・冪等性")]
+    public async Task SeedUsersAsync_CreatesUsersWithHashedPasswordsAndIsIdempotent()
     {
         var suffix = Guid.NewGuid().ToString("N")[..12];
         var database = $"task_management_seed_{suffix}";
         var appUser = $"tms_app_{suffix}";
         const string appPassword = "app-password-1234";
-        const string email = "owner@example.com";
-        const string name = "初期管理者";
-        const string password = "S3ed-Admin-Pass!";
+
+        var users = new List<SeedUser>
+        {
+            new("管理者ユーザー", "admin@example.com", "Password123!"),
+            new("山田太郎", "yamada@example.com", "Password123!"),
+            new("鈴木花子", "suzuki@example.com", "Password123!"),
+        };
 
         var masterConnection = new NpgsqlConnectionStringBuilder(ServerConnection) { Database = database }.ConnectionString;
         var appConnection = new NpgsqlConnectionStringBuilder(ServerConnection)
@@ -40,9 +44,9 @@ public class DatabaseSeederTests
             // スキーマ作成＋アプリ用ユーザー(tms_app)の作成・権限付与
             await DatabaseMigrator.RunAsync(masterConnection, appConnection);
 
-            // 1回目: アプリ用ユーザーで新規作成される(INSERT は DML 権限で足りる)
-            var created = await DatabaseSeeder.SeedAdminAsync(appConnection, name, email, password);
-            Assert.True(created);
+            // 1回目: アプリ用ユーザーで3件作成される(INSERT は DML 権限で足りる)
+            var created = await DatabaseSeeder.SeedUsersAsync(appConnection, users);
+            Assert.Equal(3, created);
 
             // 保存されたハッシュが BCrypt で、元パスワードと一致すること(平文は保存しない)
             await using (var db = new NpgsqlConnection(masterConnection))
@@ -50,25 +54,23 @@ public class DatabaseSeederTests
                 await db.OpenAsync();
                 await using var cmd = new NpgsqlCommand(
                     "SELECT password_hash FROM users WHERE email = @email", db);
-                cmd.Parameters.AddWithValue("email", email);
+                cmd.Parameters.AddWithValue("email", "admin@example.com");
                 var hash = (string)(await cmd.ExecuteScalarAsync())!;
 
                 Assert.StartsWith("$2", hash);
-                Assert.NotEqual(password, hash);
-                Assert.True(BCrypt.Net.BCrypt.Verify(password, hash));
+                Assert.NotEqual("Password123!", hash);
+                Assert.True(BCrypt.Net.BCrypt.Verify("Password123!", hash));
             }
 
-            // 2回目: 既に存在するので作成されない(冪等)。件数も1件のまま
-            var createdAgain = await DatabaseSeeder.SeedAdminAsync(appConnection, name, email, password);
-            Assert.False(createdAgain);
+            // 2回目: 既に存在するので作成されない(冪等)。総数も3件のまま
+            var createdAgain = await DatabaseSeeder.SeedUsersAsync(appConnection, users);
+            Assert.Equal(0, createdAgain);
 
             await using (var db = new NpgsqlConnection(masterConnection))
             {
                 await db.OpenAsync();
-                await using var count = new NpgsqlCommand(
-                    "SELECT count(*) FROM users WHERE email = @email", db);
-                count.Parameters.AddWithValue("email", email);
-                Assert.Equal(1L, (long)(await count.ExecuteScalarAsync())!);
+                await using var count = new NpgsqlCommand("SELECT count(*) FROM users", db);
+                Assert.Equal(3L, (long)(await count.ExecuteScalarAsync())!);
             }
         }
         finally
