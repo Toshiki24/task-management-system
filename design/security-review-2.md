@@ -88,7 +88,7 @@
 | ログイン制限に IP 単位＋全体合算を追加 | SEC2-03 | BFF が実クライアント IP を信頼ヘッダで API に転送し、既存 `LoginAttemptLimiter` に IP 単位とスプレー検知用の全体合算カウントを追加（既存と同じインメモリ方式で追加費用なし） |
 | auth 系ルートのスロットリングを個別に低く設定 | SEC2-01, SEC2-03 | HTTP API のルート単位スロットリングで `/api/auth/*` を全体より低く設定 |
 | OIDC 信頼ポリシーの厳格化 | SEC2-05 | `sub` を完全一致（`repo:toshiki24/task-management-system:ref:refs/heads/main`）、`aud` 条件も付与。ワークフローは `permissions:` 最小化、Actions をコミット SHA 固定 |
-| CSP の nonce 方式への切替（準備） | SEC2-10 | コードは準備し、最終切替は Amplify で middleware 動作確認後（第1回 5.5 / §10 の残課題） |
+| CSP の nonce 方式への切替 | SEC2-10 | `frontend/src/middleware.ts` でリクエストごとに nonce を生成し `script-src 'self' 'nonce-xxx' 'strict-dynamic'`（`'unsafe-inline'` 除去）。`layout.tsx` で動的レンダリング化。本番（Amplify WEB_COMPUTE/SSR）で middleware 動作を確認し実装済み |
 | レジストラ/ムームーDNS の MFA＋CAA レコード | SEC2-08 | MFA を有効化。`CAA 0 issue "amazon.com"` を DNS に追加（Amplify 削除時は CNAME も削除する運用を明記） |
 | シークレットの強度・登録手順 | SEC2-02, SEC2-11 | `openssl rand` で生成し、`--secret-string file://…` → `shred`、または `read -s` 経由で登録しシェル履歴に残さない |
 
@@ -141,7 +141,7 @@
 | SEC2-07 | （判断）ルート→IAM Identity Center は任意 | 1 | 任意 | 受容 | **ルートユーザー運用を継続**（MFA＋`aws login` の一時認証情報、アクセスキー不作成）。1人・一時構築のため IAM Identity Center への移行は見送り（§5.4 受容リスクのとおり）。継続運用・作業者増加時に再検討 |
 | SEC2-08 | レジストラ MFA＋CAA＋削除運用 | 1 | 今（AWS 不要） | 手順を文書化（実施は作業者） | 具体手順は付録A。MFA は今すぐ、CAA は手順16（CNAME 追加）と同時、削除運用はテアダウン手順に組み込む |
 | SEC2-09 | 専用 CloudTrail→S3＋整合性検証 | 2 | Terraform 作成時 | 実装（Terraform・apply 待ち） | `infra/terraform/monitoring.tf`：マルチリージョン証跡、ログ整合性検証、S3（公開ブロック・暗号化・保存期間）。元設計の90日イベント履歴の上積み |
-| SEC2-10 | CSP nonce 化 | 1 | 準備は今／切替はデプロイ後 | 未着手 | Amplify の middleware 動作確認が前提 |
+| SEC2-10 | CSP nonce 化 | 1 | デプロイ後 | 完了 | 本番（Amplify WEB_COMPUTE/SSR）で middleware 動作を確認し実装。`frontend/src/middleware.ts` でリクエストごとに nonce を生成し `script-src 'self' 'nonce-xxx' 'strict-dynamic'`、`'unsafe-inline'` を除去。`layout.tsx` で動的レンダリング化。prod ビルドで CSP ヘッダーと `<script>` の nonce 一致を確認 |
 | SEC2-11 | シークレット登録手順の是正 | 1 | 手順9 | 未着手 | 履歴に平文を残さない |
 
 ---
