@@ -30,11 +30,14 @@ npm run dev
 
 いずれもサーバー側（BFF）でのみ使用し、ブラウザには公開しません。
 
+**秘密情報の読み込み**：本番（Amplify SSR）では、環境変数 `BFF_SECRET_ID` が指すシークレットを SSR 実行ロールで Secrets Manager から実行時に読み込みます（`SESSION_SECRET` / `ORIGIN_VERIFY_SECRET`）。秘密情報は環境変数・ビルド成果物に置きません（`aws-architecture.md` 4.7・4.8、`src/lib/server/secrets.ts`）。ローカル開発・E2E では `BFF_SECRET_ID` を設定せず、下表の環境変数から読み込みます。
+
 | 変数名 | 内容 | 例 |
 | --- | --- | --- |
 | `API_BASE_URL` | BFFが呼び出すバックエンドAPIのベースURL | `http://localhost:5000/api` |
-| `SESSION_SECRET` | セッションCookieの暗号化鍵（32文字以上のランダムな文字列）。変更すると全ユーザーがログアウトされる | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` で生成 |
-| `ORIGIN_VERIFY_SECRET` | BFFがAPI呼び出しに付ける共有シークレット（`X-Origin-Verify`）。APIが同じ値を検証する（[セキュリティ見直し記録（第2回）SEC2-01](../design/security-review-2.md)）。ローカル開発では**任意**（APIが未設定時は検証しないため）。本番では必須 | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` で生成 |
+| `SESSION_SECRET` | セッションCookieの暗号化鍵（32文字以上のランダムな文字列）。変更すると全ユーザーがログアウトされる。本番は `BFF_SECRET_ID` のシークレット内 | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` で生成 |
+| `ORIGIN_VERIFY_SECRET` | BFFがAPI呼び出しに付ける共有シークレット（`X-Origin-Verify`）。APIが同じ値を検証する（[セキュリティ見直し記録（第2回）SEC2-01](../design/security-review-2.md)）。ローカル開発では**任意**（APIが未設定時は検証しないため）。本番は必須で `BFF_SECRET_ID` のシークレット内 | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` で生成 |
+| `BFF_SECRET_ID` | **本番のみ**。`SESSION_SECRET` / `ORIGIN_VERIFY_SECRET` を格納した Secrets Manager シークレットの名前（`terraform output bff_secret_name`）。設定時はこのシークレットから実行時に読み込む | `task-management-system/prod/bff` |
 
 ## BFF（`src/app/api/bff`）
 
