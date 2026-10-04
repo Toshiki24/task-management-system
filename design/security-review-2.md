@@ -87,7 +87,7 @@
 | `X-Origin-Verify` のローテーション対応 | SEC2-02 | API が「旧値＋新値」の2つを一時的に許可する実装にし、無停止ローテーション手順を文書化。生成は `openssl rand -base64 48` |
 | ログイン制限に IP 単位＋全体合算を追加 | SEC2-03 | BFF が実クライアント IP を信頼ヘッダで API に転送し、既存 `LoginAttemptLimiter` に IP 単位とスプレー検知用の全体合算カウントを追加（既存と同じインメモリ方式で追加費用なし） |
 | auth 系ルートのスロットリングを個別に低く設定 | SEC2-01, SEC2-03 | HTTP API のルート単位スロットリングで `/api/auth/*` を全体より低く設定 |
-| OIDC 信頼ポリシーの厳格化 | SEC2-05 | `sub` を完全一致（`repo:toshiki24/task-management-system:ref:refs/heads/main`）、`aud` 条件も付与。ワークフローは `permissions:` 最小化、Actions をコミット SHA 固定 |
+| OIDC 信頼ポリシーの厳格化 | SEC2-05 | `aud` 条件に加え、`sub` を「本リポジトリの main」に限定。本アカウントの OIDC は `sub` に owner/repo の数値IDが埋め込まれる（`repo:OWNER@<id>/REPO@<id>:ref:refs/heads/main`）ため、`StringLike` で ID 部のみ `*` とし owner・repo・ブランチは固定（標準形も許可）。ワークフローは `permissions:` 最小化、Actions をコミット SHA 固定 |
 | CSP の nonce 方式への切替 | SEC2-10 | `frontend/src/middleware.ts` でリクエストごとに nonce を生成し `script-src 'self' 'nonce-xxx' 'strict-dynamic'`（`'unsafe-inline'` 除去）。`layout.tsx` で動的レンダリング化。本番（Amplify WEB_COMPUTE/SSR）で middleware 動作を確認し実装済み |
 | レジストラ/ムームーDNS の MFA＋CAA レコード | SEC2-08 | MFA を有効化。`CAA 0 issue "amazon.com"` を DNS に追加（Amplify 削除時は CNAME も削除する運用を明記） |
 | シークレットの強度・登録手順 | SEC2-02, SEC2-11 | `openssl rand` で生成し、`--secret-string file://…` → `shred`、または `read -s` 経由で登録しシェル履歴に残さない |
@@ -136,7 +136,7 @@
 | SEC2-02 | `X-Origin-Verify` 強度チェック＋ローテーション対応 | 1 | 実装時に盛り込む | 完了 | 起動時の強度チェック（本番で未設定・32バイト未満ならエラー）と、無停止ローテーション（現行 `OriginVerify:Secret` ＋旧値 `OriginVerify:PreviousSecret` の新旧2値を受け付け）を実装（`OriginVerify.ResolveSecrets` / `IsValid`）。入れ替え手順は `OriginVerify.cs` のコメント参照 |
 | SEC2-03 | ログイン制限に IP＋全体合算／401 アラーム | 1/2 | 実装時に盛り込む | 完了 | IP単位のログイン制限（BFF が実IPを `X-Client-IP` で転送→API の `LoginAttemptLimiter` が集計）＋ CloudWatch の 401 メトリクスフィルタ＋アラーム（ログイン401が5分20件以上で通知。`apigateway.tf`）で低速スプレーを検知。※`X-Forwarded-For` の信頼位置はデプロイ時に要確認 |
 | SEC2-04 | （受容）署名鍵分離は Tier 3 | 3 | － | 受容 | 閉域 VPC を緩和策とする |
-| SEC2-05 | OIDC 信頼ポリシー厳格化＋ワークフロー最小権限 | 1 | Terraform 作成時 | 完了（apply 待ち） | `github_oidc.tf`：`aud`＋`sub` を「本リポジトリの main」に**完全一致**で限定。許可は ECR プッシュ（対象リポジトリのみ）と API/マイグレーション Lambda のイメージ更新のみ。デプロイ用ワークフロー（`.github/workflows/deploy.yml`）は `permissions:` 最小化＋**Actions をコミットSHAで固定**（Dependabot(github-actions) が追従） |
+| SEC2-05 | OIDC 信頼ポリシー厳格化＋ワークフロー最小権限 | 1 | Terraform 作成時 | 完了 | `github_oidc.tf`：`aud`＋`sub` を「本リポジトリの main」に限定。**本アカウントの OIDC は `sub` に owner/repo の数値IDが埋め込まれる**（`repo:OWNER@<id>/REPO@<id>:ref:refs/heads/main`。GitHub の subject claim 構成による）ため、`StringLike` で ID 部のみ `*` とし owner・repo・ブランチは固定する（標準形も許可。AWS は `sub`／`job_workflow_ref` での限定を必須とするため `repository`+`ref` 単独は不可）。許可は ECR プッシュ（対象リポジトリのみ）と API/マイグレーション Lambda のイメージ更新のみ。デプロイ用ワークフロー（`.github/workflows/deploy.yml`）は `permissions:` 最小化＋**Actions をコミットSHAで固定**（Dependabot(github-actions) が追従） |
 | SEC2-06 | スナップショットのクロスアカウント退避/Vault Lock | 2 | apply 時 | 実装（Terraform・apply 待ち） | RDS 本体の基本バックアップ（§4.3）に加え、**AWS Backup + Vault Lock（governance モード＝可逆）**を `backup.tf` に実装。毎日バックアップを保管庫に保持（min 7日・max 365日・30日で削除）。compliance（不可逆）は避け、クロスアカウント退避は採らず（ポートフォリオでは過剰） |
 | SEC2-07 | （判断）ルート→IAM Identity Center は任意 | 1 | 任意 | 受容 | **ルートユーザー運用を継続**（MFA＋`aws login` の一時認証情報、アクセスキー不作成）。1人・一時構築のため IAM Identity Center への移行は見送り（§5.4 受容リスクのとおり）。継続運用・作業者増加時に再検討 |
 | SEC2-08 | レジストラ MFA＋CAA＋削除運用 | 1 | 今（AWS 不要） | 手順を文書化（実施は作業者） | 具体手順は付録A。MFA は今すぐ、CAA は手順16（CNAME 追加）と同時、削除運用はテアダウン手順に組み込む |
