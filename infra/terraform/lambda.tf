@@ -80,18 +80,12 @@ resource "aws_lambda_function" "migration" {
     security_group_ids = [aws_security_group.lambda.id]
   }
 
-  # 同じイメージでマイグレーションを実行するコマンド(アプリ側の実装=12章に合わせて指定。null なら未指定)
-  dynamic "image_config" {
-    for_each = var.migration_command == null ? [] : [1]
-    content {
-      command = var.migration_command
-    }
-  }
-
   environment {
     variables = {
       APP_SECRET_ID          = aws_secretsmanager_secret.api.name
       ASPNETCORE_ENVIRONMENT = "Production"
+      # 同じイメージで、APIホストではなくマイグレーション処理を実行する(Program.cs の分岐。aws-architecture.md 4.4)
+      MIGRATION_MODE = "true"
       # RDS マスターユーザーのシークレット名(アプリ用DBユーザー作成に使う)
       RDS_MASTER_SECRET_ID = aws_db_instance.main.master_user_secret[0].secret_arn
     }
