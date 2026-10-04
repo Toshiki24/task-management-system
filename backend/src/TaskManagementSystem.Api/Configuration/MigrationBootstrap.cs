@@ -43,16 +43,12 @@ public static class MigrationBootstrap
             await DatabaseMigrator.RunAsync(masterConnectionString, appConnectionString);
             context.Logger.LogInformation("マイグレーションとアプリ用ユーザーの作成が完了しました。");
 
-            if (request is { AdminEmail: { Length: > 0 }, AdminPassword: { Length: > 0 } })
+            var users = request?.Users;
+            if (users is { Count: > 0 })
             {
-                var name = string.IsNullOrWhiteSpace(request.AdminName) ? "管理者" : request.AdminName;
-                var created = await DatabaseSeeder.SeedAdminAsync(
-                    appConnectionString, name, request.AdminEmail, request.AdminPassword);
-                context.Logger.LogInformation(
-                    created
-                        ? $"初期管理者を作成しました: {request.AdminEmail}"
-                        : $"初期管理者は既に存在します: {request.AdminEmail}");
-                return created ? "migration completed; admin created" : "migration completed; admin already exists";
+                var created = await DatabaseSeeder.SeedUsersAsync(appConnectionString, users);
+                context.Logger.LogInformation($"初期ユーザーを投入しました(新規 {created} / 指定 {users.Count})。");
+                return $"migration completed; users created: {created}/{users.Count}";
             }
 
             return "migration completed";
@@ -81,7 +77,7 @@ public static class MigrationBootstrap
 }
 
 /// <summary>
-/// マイグレーション用 Lambda の入力。任意で初期管理者の情報を受け取る。
-/// 全て未指定(空オブジェクト {})ならマイグレーションのみ実行する。
+/// マイグレーション用 Lambda の入力。任意で初期ユーザーの一覧を受け取る。
+/// 未指定(空オブジェクト {})ならマイグレーションのみ実行する。
 /// </summary>
-public sealed record MigrationRequest(string? AdminName, string? AdminEmail, string? AdminPassword);
+public sealed record MigrationRequest(IReadOnlyList<SeedUser>? Users);
