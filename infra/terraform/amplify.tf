@@ -77,13 +77,17 @@ resource "aws_amplify_app" "main" {
   environment_variables = {
     API_BASE_URL  = "${aws_apigatewayv2_api.http.api_endpoint}/api"
     BFF_SECRET_ID = aws_secretsmanager_secret.bff.name
+    # モノレポのアプリルート。GitHub App 連携時に Amplify が設定する値を Terraform でも明示し、
+    # apply で消えて frontend 配下がビルドされなくなるのを防ぐ。
+    AMPLIFY_MONOREPO_APP_ROOT = "frontend"
   }
 
   # ビルド設定はリポジトリルートの amplify.yml を使う(モノレポ・Node.js 24。aws-architecture.md 4.7・12章)
 
-  # GitHub App 連携(コンソール)で後から設定される repository・トークンを Terraform の差分対象から外す
+  # GitHub App 連携(コンソール)で後から設定される repository・トークンを Terraform の差分対象から外す。
+  # custom_rule は Amplify がフレームワーク検出で自動追加するため、Terraform で上書きしない。
   lifecycle {
-    ignore_changes = [repository, access_token, oauth_token]
+    ignore_changes = [repository, access_token, oauth_token, custom_rule]
   }
 
   tags = { Name = local.name_prefix }
