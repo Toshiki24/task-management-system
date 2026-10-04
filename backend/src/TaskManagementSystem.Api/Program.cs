@@ -14,6 +14,14 @@ var builder = WebApplication.CreateBuilder(args);
 // 以降の処理(JwtSigningKey.Create 等)で使うため、設定を参照する前に読み込む
 await builder.Configuration.AddSecretsManagerAsync();
 
+// マイグレーション用 Lambda(MIGRATION_MODE=true)では、APIホストの代わりにマイグレーション処理を実行して終了する
+// (同じコンテナイメージを使う。aws-architecture.md 4.4)
+if (MigrationBootstrap.IsMigrationMode)
+{
+    await MigrationBootstrap.RunAsync(builder.Configuration);
+    return;
+}
+
 // AWS Lambda の実行環境(環境変数 AWS_LAMBDA_FUNCTION_NAME がある場合)で動いているか
 var runningOnLambda = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME"));
 

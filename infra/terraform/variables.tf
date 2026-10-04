@@ -49,9 +49,3 @@ variable "api_image_tag" {
   description = "Lambda が使う ECR イメージのタグ(初回デプロイ時の Git コミットハッシュ。以後は GitHub Actions が更新)。apply 時に指定する"
   type        = string
 }
-
-variable "migration_command" {
-  description = "マイグレーション用 Lambda のコンテナコマンド(同じイメージでマイグレーションを実行する。アプリ側の実装=aws-architecture.md 12章に合わせて指定)。null の場合はイメージ既定のまま"
-  type        = list(string)
-  default     = null
-}
