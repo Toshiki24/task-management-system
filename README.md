@@ -8,12 +8,41 @@
 
 > **現在の状況**: MVP機能の実装、設計書との照合・不具合修正、テストまで完了しています。テストは[テスト項目書](design/test-items.md)の全159項目を自動テスト化して実施し、1回目でNGとなった13項目を修正した上で、2回目の再テストで全項目OKとなりました。
 >
-> AWSデプロイの前にセキュリティ面を見直し、認可チェックの未実装などの課題を洗い出して、[セキュリティ見直し記録](design/security-review.md)の対応計画に沿ってすべて対応しました（認可チェック、ログイン試行回数の制限、BFF構成とリフレッシュトークンへの移行、CSRF対策、CSP・セキュリティヘッダー等）。テストは全253項目がOKで、GitHub Actions のCIでプルリクエストごとに自動実行しています。次の工程はAWS環境構築・本番デプロイです。
+> AWSデプロイの前にセキュリティ面を見直し、認可チェックの未実装などの課題を洗い出して、[セキュリティ見直し記録](design/security-review.md)の対応計画に沿ってすべて対応しました（認可チェック、ログイン試行回数の制限、BFF構成とリフレッシュトークンへの移行、CSRF対策、CSP・セキュリティヘッダー等）。テストは全253項目がOKで、GitHub Actions のCIでプルリクエストごとに自動実行しています。その後、AWS環境を Terraform で構築して本番デプロイまで完了し、**[https://tms.accent24.jp](https://tms.accent24.jp)** で公開しています（デモアカウントは [本番環境（デモ）](#本番環境デモ) を参照）。
+
+---
+
+## 本番環境（デモ）
+
+AWS 上に本番環境を構築し、公開しています。構成・設定値・デプロイ手順は [AWS構成設計書](design/aws-architecture.md)、デプロイ時に新たに洗い出したリスクと対策は [セキュリティ見直し記録2](design/security-review-2.md) を参照してください。
+
+- **URL**: <https://tms.accent24.jp>
+- **デモアカウント**（ポートフォリオ公開用。いずれもパスワードは同じ）:
+
+  | 名前 | メールアドレス | パスワード |
+  | --- | --- | --- |
+  | 管理者ユーザー | `admin@example.com` | `Password123!` |
+  | 山田太郎 | `yamada@example.com` | `Password123!` |
+  | 鈴木花子 | `suzuki@example.com` | `Password123!` |
+
+このシステムは登録APIを持たないため、初期ユーザーは RDS（プライベートサブネット）に到達できるマイグレーション用 Lambda 経由でDBに投入しています。パスワードは BCrypt でハッシュ化して保存し、平文は保存していません。
+
+### 本番構成の概要
+
+| 層 | 構成 |
+| --- | --- |
+| フロント／BFF | AWS Amplify Hosting（Next.js SSR・WEB_COMPUTE）、独自ドメイン＋HTTPS（ACM） |
+| API | AWS Lambda（コンテナイメージ）＋ API Gateway（HTTP API・スロットリング） |
+| DB | RDS PostgreSQL（プライベートサブネット・パブリックアクセス無効・TLS必須・最小権限の `tms_app` ユーザー） |
+| 秘密情報 | AWS Secrets Manager（git・Terraform state・ビルド成果物には一切含めない） |
+| CI/CD | フロント＝Amplify 自動ビルド／バックエンド＝GitHub Actions（OIDC・アクセスキー非保存） |
+| 監視・保全 | CloudTrail＋S3、CloudWatch アラーム、SNS 通知、AWS Budgets、AWS Backup（Vault Lock） |
 
 ---
 
 ## 目次
 
+- [本番環境（デモ）](#本番環境デモ)
 - [できること（MVP機能）](#できることmvp機能)
 - [技術スタック](#技術スタック)
 - [アーキテクチャ](#アーキテクチャ)
@@ -50,7 +79,7 @@
 | データベース | PostgreSQL |
 | 認証 | JWT＋リフレッシュトークン（BCryptによるパスワードハッシュ化）。BFF（Next.js Route Handler）がトークンを暗号化Cookieで管理 |
 | ローカルDB環境 | Docker / Docker Compose |
-| クラウド（予定） | AWS（Amplify / API Gateway / Lambda / RDS） |
+| クラウド | AWS（Amplify / API Gateway / Lambda / RDS / Secrets Manager / CloudTrail / CloudWatch / Backup）。構成は Terraform で管理（`infra/terraform`） |
 | ソース管理 | Git / GitHub（Pull Requestベースの開発） |
 
 ---
@@ -228,8 +257,8 @@ npm test
 要件定義 → 基本設計 → DB設計・ER図 → API詳細設計 → 画面詳細設計
    → 開発環境構築 → バックエンド実装 → フロントエンド実装
    → 設計書との照合・不具合修正 → テスト実施
-   → セキュリティ見直し・対応 ← ここまで完了
-   → AWS環境構築 → 本番デプロイ → README整備
+   → セキュリティ見直し・対応
+   → AWS環境構築（Terraform） → 本番デプロイ → README整備 ← ここまで完了
 ```
 
 機能単位でブランチを作成し、Pull Requestでのレビュー・マージを経てmainに統合しています。実装後に設計書と実装内容を突き合わせて照合し、見つかった差異（バグ・仕様漏れ）を修正する工程も行いました。
@@ -243,5 +272,7 @@ npm test
 - [x] セキュリティ見直し（課題の洗い出し・対策方針・対応計画の策定。[セキュリティ見直し記録](design/security-review.md)）
 - [x] セキュリティ対応（認可チェック、ログイン保護、BFF構成への移行、CSP等。[セキュリティ見直し記録 §7](design/security-review.md)）
 - [x] CI（GitHub Actions）によるテスト・依存ライブラリの脆弱性確認の自動化
-- [ ] AWS環境構築・本番デプロイ（Amplify / API Gateway / Lambda / RDS）。デプロイ時の確認事項は[セキュリティ見直し記録 §8](design/security-review.md)を参照
+- [x] AWS環境構築（Terraform）・本番デプロイ（Amplify / API Gateway / Lambda / RDS）。デプロイ時に新たに洗い出したリスクと対策は[セキュリティ見直し記録2](design/security-review-2.md)を参照
+- [x] 本番公開（<https://tms.accent24.jp>）・README整備
+- [ ] SEC2-10（CSP の nonce 化によるインラインスクリプト制限の強化）
 - [ ] Phase 2機能（タスク検索・絞り込み、ダッシュボード、タスクステータス履歴、詳細な権限管理）
