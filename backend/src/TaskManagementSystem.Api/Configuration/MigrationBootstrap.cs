@@ -35,11 +35,26 @@ public static class MigrationBootstrap
 
         var masterConnectionString = await BuildMasterConnectionStringAsync(appConnectionString, masterSecretId);
 
-        // Lambda から呼ばれるたびにマイグレーションを実行する(EF のマイグレーションは再実行しても安全)
-        var handler = async (string _, ILambdaContext context) =>
+        // Lambda から呼ばれるたびにマイグレーションを実行する(EF のマイグレーションは再実行しても安全)。
+        // 入力(任意)に管理者情報が含まれていれば、初期管理者を冪等に作成する(登録APIが無いため)。
+        // マイグレーションのみ実行する場合は空オブジェクト {} を渡す。
+        var handler = async (MigrationRequest? request, ILambdaContext context) =>
         {
             await DatabaseMigrator.RunAsync(masterConnectionString, appConnectionString);
             context.Logger.LogInformation("マイグレーションとアプリ用ユーザーの作成が完了しました。");
+
+            if (request is { AdminEmail: { Length: > 0 }, AdminPassword: { Length: > 0 } })
+            {
+                var name = string.IsNullOrWhiteSpace(request.AdminName) ? "管理者" : request.AdminName;
+                var created = await DatabaseSeeder.SeedAdminAsync(
+                    appConnectionString, name, request.AdminEmail, request.AdminPassword);
+                context.Logger.LogInformation(
+                    created
+                        ? $"初期管理者を作成しました: {request.AdminEmail}"
+                        : $"初期管理者は既に存在します: {request.AdminEmail}");
+                return created ? "migration completed; admin created" : "migration completed; admin already exists";
+            }
+
             return "migration completed";
         };
 
@@ -64,3 +79,9 @@ public static class MigrationBootstrap
         return builder.ConnectionString;
     }
 }
+
+/// <summary>
+/// マイグレーション用 Lambda の入力。任意で初期管理者の情報を受け取る。
+/// 全て未指定(空オブジェクト {})ならマイグレーションのみ実行する。
+/// </summary>
+public sealed record MigrationRequest(string? AdminName, string? AdminEmail, string? AdminPassword);
