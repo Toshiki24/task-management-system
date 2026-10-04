@@ -35,17 +35,6 @@ jobs:
       # Actions はコミットSHAで固定する(SEC2-05)。更新は Dependabot(github-actions)が追従する。
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # 一時デバッグ: OIDC トークンの claim(sub/aud 等)だけを出力して、信頼ポリシーの sub と突き合わせる。
-      # トークン全体は出力しない。原因特定後にこのステップは削除する。
-      - name: Debug OIDC claims (temporary)
-        run: |
-          IDT=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
-          PAYLOAD=$(echo "$IDT" | cut -d'.' -f2)
-          case $((${#PAYLOAD} % 4)) in 2) PAYLOAD="$PAYLOAD==" ;; 3) PAYLOAD="$PAYLOAD=" ;; esac
-          echo "$PAYLOAD" | tr '_-' '/+' | base64 -d 2>/dev/null \
-            | jq '{sub, aud, repository, repository_owner, ref, workflow_ref}'
-
       - name: AWS 認証(OIDC)
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
