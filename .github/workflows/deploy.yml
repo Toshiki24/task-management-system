@@ -1,0 +1,72 @@
+# バックエンドAPI(Lambda)のデプロイ。設計: aws-architecture.md 8章・4.9、security-review-2.md SEC2-05。
+# main への push(backend 変更時)で、イメージをビルドして ECR にプッシュし、Lambda のイメージを更新する。
+# AWS 認証は GitHub OIDC(一時的な認証情報)。アクセスキーは保存しない。
+#
+# 必要な GitHub Variables(Settings > Secrets and variables > Actions > Variables):
+#   AWS_ROLE_ARN         … terraform output github_actions_role_arn
+#   AWS_REGION           … ap-northeast-1
+#   ECR_REPOSITORY       … task-management-system-api(terraform output ecr_repository_url の末尾のリポジトリ名)
+#   API_LAMBDA_NAME      … task-management-system-prod-api
+#   MIGRATION_LAMBDA_NAME… task-management-system-prod-migration
+
+name: Deploy API (Lambda)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy.yml"
+
+# 最小権限: OIDC トークンの発行と、チェックアウトの読み取りのみ(SEC2-05)
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ビルド・ECRプッシュ・Lambda更新
+    runs-on: ubuntu-latest
+    steps:
+      # 注(SEC2-05): Actions はコミットSHAで固定するのが望ましい。
+      # Dependabot(github-actions)で更新を管理する。SHA固定へ切り替える場合は各タグを対応するSHAに置換する。
+      - uses: actions/checkout@v7
+
+      - name: AWS 認証(OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: ECR にログイン
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: イメージのビルドとプッシュ
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE_URI="$REGISTRY/$REPOSITORY:$IMAGE_TAG"
+          docker build -t "$IMAGE_URI" backend
+          docker push "$IMAGE_URI"
+          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+
+      - name: API用 Lambda の更新
+        run: |
+          aws lambda update-function-code \
+            --function-name "${{ vars.API_LAMBDA_NAME }}" \
+            --image-uri "$IMAGE_URI" \
+            --publish
+
+      - name: マイグレーション用 Lambda の更新(同じイメージ)
+        run: |
+          aws lambda update-function-code \
+            --function-name "${{ vars.MIGRATION_LAMBDA_NAME }}" \
+            --image-uri "$IMAGE_URI" \
+            --publish
