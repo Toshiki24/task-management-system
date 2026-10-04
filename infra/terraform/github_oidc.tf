@@ -6,6 +6,10 @@
 locals {
   api_lambda_arn       = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${local.name_prefix}-api"
   migration_lambda_arn = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${local.name_prefix}-migration"
+
+  # OIDC の sub 組み立て用に owner と repo に分解する
+  github_owner = split("/", var.github_repository)[0]
+  github_repo  = split("/", var.github_repository)[1]
 }
 
 resource "aws_iam_openid_connect_provider" "github" {
@@ -32,19 +36,17 @@ data "aws_iam_policy_document" "github_actions_assume" {
     }
 
     # 本リポジトリの main ブランチからの実行のみに限定する(SEC2-05)。fork や他ブランチからは assume できない。
-    # このアカウントの OIDC は subject(sub)に owner/repo の数値IDが埋め込まれる構成のため、
-    # sub ではなく安定した repository と ref のクレームで完全一致を取る。
-    # (repository と ref の両方を満たす場合のみ許可＝このリポジトリかつ main ブランチ)
+    # AWS は GitHub OIDC の信頼に sub または job_workflow_ref での限定を必須とするため sub を使う。
+    # このアカウントの OIDC は sub に owner/repo の数値IDが埋め込まれる構成(例: repo:OWNER@<id>/REPO@<id>:ref:...)
+    # のため、ID部分のみ *(StringLike)で許容し、owner・repo・ブランチは固定する。
+    # 標準形(ID無し)のトークンにも対応できるよう両パターンを許可する(いずれもこのリポジトリの main に限定)。
     condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:repository"
-      values   = [var.github_repository]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:ref"
-      values   = ["refs/heads/main"]
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values = [
+        "repo:${local.github_owner}/${local.github_repo}:ref:refs/heads/main",
+        "repo:${local.github_owner}@*/${local.github_repo}@*:ref:refs/heads/main",
+      ]
     }
   }
 }
