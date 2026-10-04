@@ -18,6 +18,9 @@ resource "aws_db_parameter_group" "postgres16" {
   parameter {
     name  = "rds.force_ssl"
     value = "1"
+    # rds.force_ssl は再起動が必要な static パラメータ。AWS 側も pending-reboot で保持するため
+    # 明示して apply のたびに差分(immediate への変更)が出ないようにする。
+    apply_method = "pending-reboot"
   }
 
   tags = { Name = "${local.name_prefix}-postgres16" }
