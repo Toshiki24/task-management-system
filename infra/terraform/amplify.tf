@@ -31,6 +31,35 @@ resource "aws_iam_role_policy" "amplify_compute" {
   policy = data.aws_iam_policy_document.amplify_compute.json
 }
 
+# --- Amplify のサービスロール: ビルド・デプロイと CloudWatch Logs への出力(4.9) ---
+resource "aws_iam_role" "amplify_service" {
+  name               = "${local.name_prefix}-amplify-service"
+  assume_role_policy = data.aws_iam_policy_document.amplify_assume.json
+  tags               = { Name = "${local.name_prefix}-amplify-service" }
+}
+
+# Amplify のログ出力に必要な CloudWatch Logs 権限(Amplify のロググループに限定)
+data "aws_iam_policy_document" "amplify_service" {
+  statement {
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+      "logs:DescribeLogGroups",
+      "logs:DescribeLogStreams",
+    ]
+    resources = [
+      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/amplify/*",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "amplify_service" {
+  name   = "amplify-logs"
+  role   = aws_iam_role.amplify_service.id
+  policy = data.aws_iam_policy_document.amplify_service.json
+}
+
 # --- Amplify アプリ ---
 resource "aws_amplify_app" "main" {
   name       = local.name_prefix
@@ -39,6 +68,8 @@ resource "aws_amplify_app" "main" {
 
   # SSR 実行ロール(BFF が実行時に Secrets Manager を読むため)
   compute_role_arn = aws_iam_role.amplify_compute.arn
+  # サービスロール(ビルド・デプロイ、CloudWatch Logs への出力。4.9)
+  iam_service_role_arn = aws_iam_role.amplify_service.arn
 
   # 秘密情報そのものは置かない(名前・URLのみ)。SESSION_SECRET 等は実行時にロールで読む
   environment_variables = {
