@@ -137,7 +137,7 @@
 | SEC2-03 | ログイン制限に IP＋全体合算／401 アラーム | 1/2 | 実装時に盛り込む | 完了 | IP単位のログイン制限（BFF が実IPを `X-Client-IP` で転送→API の `LoginAttemptLimiter` が集計）＋ CloudWatch の 401 メトリクスフィルタ＋アラーム（ログイン401が5分20件以上で通知。`apigateway.tf`）で低速スプレーを検知。※`X-Forwarded-For` の信頼位置はデプロイ時に要確認 |
 | SEC2-04 | （受容）署名鍵分離は Tier 3 | 3 | － | 受容 | 閉域 VPC を緩和策とする |
 | SEC2-05 | OIDC 信頼ポリシー厳格化＋ワークフロー最小権限 | 1 | Terraform 作成時 | 実装（apply 待ち。SHA固定は残） | `github_oidc.tf`：`aud`＋`sub` を「本リポジトリの main」に**完全一致**で限定。許可は ECR プッシュ（対象リポジトリのみ）と API/マイグレーション Lambda のイメージ更新のみ。デプロイ用ワークフロー（`.github/workflows/deploy.yml`）は `permissions:` を最小化（`id-token: write` / `contents: read`）。**Actions の SHA 固定は未**（この環境で SHA 解決不可のためタグ固定。Dependabot(github-actions) で管理。作業者が SHA に置換可能） |
-| SEC2-06 | スナップショットのクロスアカウント退避/Vault Lock | 2 | apply 時 | 未着手（要判断） | RDS 本体の基本バックアップ（自動7日・PITR・削除保護・最終スナップショット）は §4.3 として `rds.tf` に実装。イミュータブル化（Vault Lock）/クロスアカウント退避は不可逆・2つ目のアカウントが要るため、モード・保持・アカウントを決めてから別PRで対応 |
+| SEC2-06 | スナップショットのクロスアカウント退避/Vault Lock | 2 | apply 時 | 実装（Terraform・apply 待ち） | RDS 本体の基本バックアップ（§4.3）に加え、**AWS Backup + Vault Lock（governance モード＝可逆）**を `backup.tf` に実装。毎日バックアップを保管庫に保持（min 7日・max 365日・30日で削除）。compliance（不可逆）は避け、クロスアカウント退避は採らず（ポートフォリオでは過剰） |
 | SEC2-07 | （判断）ルート→IAM Identity Center は任意 | 1 | 任意 | 保留 | ポートフォリオはルート完走も可 |
 | SEC2-08 | レジストラ MFA＋CAA＋削除運用 | 1 | 今（AWS 不要） | 手順を文書化（実施は作業者） | 具体手順は付録A。MFA は今すぐ、CAA は手順16（CNAME 追加）と同時、削除運用はテアダウン手順に組み込む |
 | SEC2-09 | 専用 CloudTrail→S3＋整合性検証 | 2 | Terraform 作成時 | 実装（Terraform・apply 待ち） | `infra/terraform/monitoring.tf`：マルチリージョン証跡、ログ整合性検証、S3（公開ブロック・暗号化・保存期間）。元設計の90日イベント履歴の上積み |
