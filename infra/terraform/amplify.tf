@@ -62,9 +62,11 @@ resource "aws_iam_role_policy" "amplify_service" {
 
 # --- Amplify アプリ ---
 resource "aws_amplify_app" "main" {
-  name       = local.name_prefix
-  repository = "https://github.com/${var.github_repository}"
-  platform   = "WEB_COMPUTE"
+  name     = local.name_prefix
+  platform = "WEB_COMPUTE"
+  # repository(GitHubリポジトリ)は Terraform では指定しない。
+  # 指定するとアクセストークンが必須になり、トークンを保存しない GitHub App 連携と両立しないため。
+  # repository と main ブランチはコンソールの GitHub App 連携で設定する(手順15)。
 
   # SSR 実行ロール(BFF が実行時に Secrets Manager を読むため)
   compute_role_arn = aws_iam_role.amplify_compute.arn
@@ -79,36 +81,29 @@ resource "aws_amplify_app" "main" {
 
   # ビルド設定はリポジトリルートの amplify.yml を使う(モノレポ・Node.js 24。aws-architecture.md 4.7・12章)
 
-  # GitHub App 連携(アクセストークン)はコンソールで行うため、Terraform の差分対象から外す
+  # GitHub App 連携(コンソール)で後から設定される repository・トークンを Terraform の差分対象から外す
   lifecycle {
-    ignore_changes = [access_token, oauth_token]
+    ignore_changes = [repository, access_token, oauth_token]
   }
 
   tags = { Name = local.name_prefix }
 }
 
-# --- main ブランチ(自動ビルド・デプロイ) ---
-resource "aws_amplify_branch" "main" {
-  app_id      = aws_amplify_app.main.id
-  branch_name = "main"
-  framework   = "Next.js - SSR"
-  stage       = "PRODUCTION"
-
-  enable_auto_build = true
-
-  tags = { Name = "${local.name_prefix}-main" }
-}
+# --- main ブランチ ---
+# main ブランチはコンソールの GitHub App 連携時に作成される(手順15)。
+# 連携前に Terraform でブランチだけ作ることはできないため、ここでは管理しない。
 
 # --- カスタムドメイン(tms.accent24.jp)。証明書は Amplify(ACM)が管理 ---
 # DNS はムームーDNSで手動設定するため、検証完了を待たない(wait_for_verification=false)。
-# apply 後に出力される CNAME をムームーDNSに追加する(手順16)。
+# GitHub App 連携(手順15)で main ブランチが作成された後に apply し、出力された CNAME をムームーDNSに追加する(手順16)。
 resource "aws_amplify_domain_association" "main" {
   app_id                = aws_amplify_app.main.id
   domain_name           = var.app_domain
   wait_for_verification = false
 
   sub_domain {
-    branch_name = aws_amplify_branch.main.branch_name
+    # GitHub App 連携で作成される main ブランチを指す
+    branch_name = "main"
     prefix      = ""
   }
 }
