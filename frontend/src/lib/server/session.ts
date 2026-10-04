@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { getIronSession, type IronSession, type SessionOptions } from "iron-session";
+import { getSessionSecret } from "@/lib/server/secrets";
 import type { CurrentUser } from "@/types/auth";
 
 /**
@@ -24,20 +25,11 @@ export const SESSION_COOKIE_NAME = "tms_session";
 /** リフレッシュトークンの有効期限(API側の RefreshToken:ExpiresDays と揃える) */
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
-function sessionSecret(): string {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new Error(
-      "環境変数 SESSION_SECRET に、Cookieの暗号化に使う32文字以上のランダムな文字列を設定してください。",
-    );
-  }
-  return secret;
-}
-
-function sessionOptions(): SessionOptions {
+async function sessionOptions(): Promise<SessionOptions> {
   return {
     cookieName: SESSION_COOKIE_NAME,
-    password: sessionSecret(),
+    // 本番は Secrets Manager、ローカル/E2E は環境変数から読み込む(secrets.ts)
+    password: await getSessionSecret(),
     ttl: SESSION_TTL_SECONDS,
     cookieOptions: {
       // JavaScriptから読み取れないようにする(XSSでトークンを盗まれないため)
@@ -52,7 +44,7 @@ function sessionOptions(): SessionOptions {
 }
 
 export async function getSession(): Promise<IronSession<SessionData>> {
-  return getIronSession<SessionData>(await cookies(), sessionOptions());
+  return getIronSession<SessionData>(await cookies(), await sessionOptions());
 }
 
 export function isLoggedIn(session: IronSession<SessionData>): session is IronSession<SessionData> & SessionData {

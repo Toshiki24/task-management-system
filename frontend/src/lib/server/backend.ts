@@ -1,3 +1,4 @@
+import { getOriginVerifySecret } from "@/lib/server/secrets";
 import type { CurrentUser } from "@/types/auth";
 
 /**
@@ -12,12 +13,12 @@ function apiBaseUrl(): string {
   return url.replace(/\/+$/, "");
 }
 
-export function callBackend(path: string, init?: RequestInit): Promise<Response> {
+export async function callBackend(path: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers);
 
   // BFFからの呼び出しであることを示す共有シークレットを付ける(security-review-2.md SEC2-01、aws-architecture.md 5.3)。
-  // 本番は Secrets Manager 由来の環境変数、ローカル/E2E も環境変数から読み込む。未設定なら付けない(ローカル開発を妨げない)。
-  const originVerifySecret = process.env.ORIGIN_VERIFY_SECRET;
+  // 本番は Secrets Manager、ローカル/E2E は環境変数から読み込む(secrets.ts)。未設定なら付けない(ローカル開発を妨げない)。
+  const originVerifySecret = await getOriginVerifySecret();
   if (originVerifySecret) {
     headers.set("X-Origin-Verify", originVerifySecret);
   }
