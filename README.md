@@ -274,5 +274,5 @@ npm test
 - [x] CI（GitHub Actions）によるテスト・依存ライブラリの脆弱性確認の自動化
 - [x] AWS環境構築（Terraform）・本番デプロイ（Amplify / API Gateway / Lambda / RDS）。デプロイ時に新たに洗い出したリスクと対策は[セキュリティ見直し記録2](design/security-review-2.md)を参照
 - [x] 本番公開（<https://tms.accent24.jp>）・README整備
-- [ ] SEC2-10（CSP の nonce 化によるインラインスクリプト制限の強化）
+- [x] SEC2-10（CSP の nonce 化によるインラインスクリプト制限の強化）。本番（Amplify SSR）の middleware で実装・動作確認済み（[セキュリティ見直し記録2](design/security-review-2.md)）
 - [ ] Phase 2機能（タスク検索・絞り込み、ダッシュボード、タスクステータス履歴、詳細な権限管理）
