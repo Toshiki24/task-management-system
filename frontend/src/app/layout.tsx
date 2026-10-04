@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,7 +18,11 @@ export const metadata: Metadata = {
   description: "案件・タスク管理システム",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // リクエストヘッダーを参照して動的レンダリングにする。これにより middleware が
+  // リクエストごとに設定した CSP の nonce が Next.js のスクリプトに付与される(SEC2-10)。
+  await headers();
+
   return (
     <html
       lang="ja"
