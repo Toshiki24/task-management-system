@@ -31,11 +31,16 @@ data "aws_iam_policy_document" "github_actions_assume" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # ワイルドカードではなく完全一致にする(SEC2-05)。fork や他ブランチからは assume できない
+    # ワイルドカードではなく完全一致にする(SEC2-05)。fork や他ブランチからは assume できない。
+    # GitHub の OIDC は owner 名を小文字で発行する場合があるため、元の表記と小文字表記の両方を
+    # 許可する(いずれも「このリポジトリの main ブランチ」に限定。完全一致の方針は維持)。
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:ref:refs/heads/main"]
+      values = distinct([
+        "repo:${var.github_repository}:ref:refs/heads/main",
+        "repo:${lower(var.github_repository)}:ref:refs/heads/main",
+      ])
     }
   }
 }
