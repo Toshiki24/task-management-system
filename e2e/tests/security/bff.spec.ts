@@ -57,9 +57,15 @@ test.describe("9.8 SEC-04 トークンの保管（BFF）", () => {
     await loginViaUi(page, user);
 
     const cookie = await sessionCookie(page);
+    const value = decodeURIComponent(cookie!.value);
 
-    expect(cookie!.value).not.toContain("eyJ");
-    expect(decodeURIComponent(cookie!.value)).not.toContain(user.email);
+    // iron-session の封緘形式(Fe26.2*...)であること = 暗号化されている
+    expect(value).toMatch(/^Fe26\.2\*/);
+    // JWT(ヘッダ "eyJ" で始まる3セグメント)が平文で含まれないこと。
+    // (封緘トークン自体は base64url のため "eyJ" が偶然現れうる。JWT 本体のパターンで判定する)
+    expect(value).not.toMatch(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/);
+    // ユーザー情報(メールアドレス)が平文で含まれないこと
+    expect(value).not.toContain(user.email);
   });
 
   test("SEC-04-04 画面操作中、ブラウザからAPIサーバーへ直接通信しない", async ({ page, data }) => {
