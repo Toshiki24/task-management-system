@@ -30,7 +30,13 @@ builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 
 // Add services to the container.
 
-builder.Services.AddControllers();
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // DateTime は常に UTC(末尾 Z)で返す。フロントでローカル時刻として誤解釈されるのを防ぐ
+        options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter());
+    });
 
 // API Gateway(HTTP API)経由の Lambda で動かす。Lambda 以外(ローカル・テスト)では何もせず、通常どおり Kestrel で動く
 builder.Services.AddAWSLambdaHosting(LambdaEventSource.HttpApi);
