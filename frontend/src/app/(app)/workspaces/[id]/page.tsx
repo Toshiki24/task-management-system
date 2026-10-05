@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
+import { WorkspaceInvite } from "@/components/workspace/WorkspaceInvite";
 import { WorkspaceMembers } from "@/components/workspace/WorkspaceMembers";
 import { apiFetch } from "@/lib/api";
 import type { Workspace } from "@/types/workspace";
@@ -54,6 +55,16 @@ export default function WorkspaceSettingsPage({
         )}
         <WorkspaceMembers workspaceId={workspaceId} canManage={canManage} />
       </section>
+
+      {canManage && (
+        <section className="mt-6 rounded-lg bg-white p-6 shadow-sm">
+          <h2 className="mb-1 text-base font-semibold text-gray-900">メンバーを招待</h2>
+          <p className="mb-4 text-sm text-gray-500">
+            メールアドレスとロールを指定して招待します。受け取った人はリンクから参加できます。
+          </p>
+          <WorkspaceInvite workspaceId={workspaceId} />
+        </section>
+      )}
     </div>
   );
 }
