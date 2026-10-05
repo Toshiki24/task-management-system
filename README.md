@@ -80,7 +80,7 @@ Phase 2 は、それぞれ**単体で完成・デモ可能**なマイルスト�
 
 到達目標は **M1〜M4** で開発チームが実用的に使える一通りを揃えること（M5 は余力に応じて）。マイルストーンの定義は [Phase 2 要件定義 §10](docs/phase2/requirements.md) を参照。
 
-> Phase 2 は Pull Request（#80〜）として `main` に統合しながら進めています。本番（<https://tms.accent24.jp>）は引き続き Phase 1 の機能で公開しており、Phase 2 の反映は M1 の仕上げ後にまとめて行う予定です。
+> Phase 2 は PR 単位で `main` に統合しながら進めています。`main` へのマージ時に本番（<https://tms.accent24.jp>）へ自動デプロイされます（バックエンド＝GitHub Actions、フロント／BFF＝Amplify）。スキーマ変更を伴う場合は、マイグレーション用 Lambda を実行してから有効化します。
 
 ---
 
