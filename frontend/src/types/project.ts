@@ -2,6 +2,7 @@ export type ProjectStatus = "ACTIVE" | "COMPLETED" | "ARCHIVED";
 
 export interface Project {
   id: number;
+  workspaceId: number;
   name: string;
   description: string | null;
   status: ProjectStatus;

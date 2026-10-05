@@ -59,10 +59,10 @@ test.describe("7.7 共通レイアウト・認証状態", () => {
   test("SCR-COM-05 ローディング表示", async ({ page, data }) => {
     const user = await data.createUser();
     await signIn(page, user);
-    // 回線が遅い状況を再現するため、一覧APIの応答を遅らせる
+    // 回線が遅い状況を再現するため、ワークスペース一覧APIの応答を遅らせる(画面はまずこれを取得する)
     let release!: () => void;
     const released = new Promise<void>((resolve) => (release = resolve));
-    await page.route(bffUrl("/projects"), async (route) => {
+    await page.route(bffUrl("/me/workspaces"), async (route) => {
       await released;
       await route.continue();
     });

@@ -1,7 +1,8 @@
 import { expect, test } from "../../support/fixtures";
-import { alertMessage, bffUrl, signIn, tableRow } from "../../support/ui";
+import { alertMessage, signIn, tableRow } from "../../support/ui";
 
-const PROJECTS_API = bffUrl("/projects");
+// 一覧はワークスペース配下(/api/workspaces/{wsId}/projects)から取得する
+const WORKSPACE_PROJECTS_API = /\/api\/bff\/workspaces\/\d+\/projects/;
 
 test.describe("7.2 SCR-003 プロジェクト一覧画面", () => {
   test("SCR-003-01 一覧表示", async ({ page, data }) => {
@@ -27,24 +28,29 @@ test.describe("7.2 SCR-003 プロジェクト一覧画面", () => {
   });
 
   test("SCR-003-02 プロジェクトが0件の場合", async ({ page, data }) => {
-    // プロジェクト一覧は所属プロジェクトのみを返すため、プロジェクトに所属していない新規ユーザーでは0件になる
+    // ワークスペースには所属しているが、プロジェクトが無いユーザーでは0件表示になる
     const user = await data.createUser();
+    await data.createWorkspace(user);
     await signIn(page, user);
 
     await page.goto("/projects");
 
     await expect(page.getByText("プロジェクトがありません。")).toBeVisible();
-    await expect(page.getByRole("link", { name: "プロジェクトを作成" })).toHaveAttribute("href", "/projects/new");
+    await expect(page.getByRole("link", { name: "プロジェクトを作成" })).toHaveAttribute(
+      "href",
+      /\/projects\/new\?workspaceId=\d+/,
+    );
   });
 
   test("SCR-003-03 新規作成画面への遷移", async ({ page, data }) => {
     const user = await data.createUser();
+    await data.createWorkspace(user);
     await signIn(page, user);
     await page.goto("/projects");
 
     await page.getByRole("link", { name: "＋ 新規作成" }).click();
 
-    await expect(page).toHaveURL("/projects/new");
+    await expect(page).toHaveURL(/\/projects\/new\?workspaceId=\d+/);
     await expect(page.getByRole("heading", { name: "プロジェクト登録" })).toBeVisible();
   });
 
@@ -61,9 +67,10 @@ test.describe("7.2 SCR-003 プロジェクト一覧画面", () => {
   });
 
   test("SCR-003-05 API取得失敗時の表示", async ({ page, data }) => {
-    // バックエンドを停止すると他のテストに影響するため、この画面の通信だけを遮断する
-    await page.route(PROJECTS_API, (route) => route.abort("connectionrefused"));
+    // ワークスペース一覧は成功させ、プロジェクト一覧の取得だけを遮断する
     const user = await data.createUser();
+    await data.createWorkspace(user);
+    await page.route(WORKSPACE_PROJECTS_API, (route) => route.abort("connectionrefused"));
     await signIn(page, user);
 
     await page.goto("/projects");
