@@ -75,12 +75,20 @@ export default function ProjectsPage() {
           )}
         </div>
         {workspaceId !== null && (
-          <Link
-            href={`/projects/new?workspaceId=${workspaceId}`}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            ＋ 新規作成
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/workspaces/${workspaceId}`}
+              className="text-sm font-semibold text-blue-600 hover:underline"
+            >
+              ワークスペース設定
+            </Link>
+            <Link
+              href={`/projects/new?workspaceId=${workspaceId}`}
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              ＋ 新規作成
+            </Link>
+          </div>
         )}
       </div>
 

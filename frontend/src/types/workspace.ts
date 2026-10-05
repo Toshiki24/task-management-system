@@ -9,3 +9,19 @@ export interface Workspace {
   myRole: WorkspaceRole | null;
   createdAt: string;
 }
+
+export interface WorkspaceMember {
+  userId: number;
+  name: string;
+  email: string;
+  role: WorkspaceRole;
+}
+
+export interface AddWorkspaceMemberBody {
+  userId: number;
+  role: WorkspaceRole;
+}
+
+export interface UpdateWorkspaceMemberRoleBody {
+  role: WorkspaceRole;
+}
