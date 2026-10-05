@@ -34,12 +34,16 @@ public class TaskCommentsController : ControllerBase
     {
         var userId = this.GetCurrentUserId();
 
-        var created = await _commentService.CreateAsync(taskId, userId, request);
-        if (created is null)
-        {
-            return NotFound(new ErrorResponse("指定されたタスクが存在しません。"));
-        }
+        var outcome = await _commentService.CreateAsync(taskId, userId, request);
 
-        return CreatedAtAction(nameof(GetAll), new { taskId }, created);
+        return outcome.Result switch
+        {
+            CreateCommentResult.TaskNotFound =>
+                NotFound(new ErrorResponse("指定されたタスクが存在しません。")),
+
+            CreateCommentResult.Forbidden => this.ForbiddenError(),
+
+            _ => CreatedAtAction(nameof(GetAll), new { taskId }, outcome.Data),
+        };
     }
 }

@@ -17,12 +17,6 @@ public class ProjectsController : ControllerBase
         _projectService = projectService;
     }
 
-    [HttpGet]
-    public async Task<ActionResult<List<ProjectDto>>> GetAll()
-    {
-        return Ok(await _projectService.GetAllAsync(this.GetCurrentUserId()));
-    }
-
     [HttpGet("{id}")]
     public async Task<ActionResult<ProjectDto>> GetById(long id)
     {
@@ -33,13 +27,6 @@ public class ProjectsController : ControllerBase
         }
 
         return Ok(project);
-    }
-
-    [HttpPost]
-    public async Task<ActionResult<ProjectDto>> Create(ProjectRequest request)
-    {
-        var created = await _projectService.CreateAsync(request, this.GetCurrentUserId());
-        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
     [HttpPut("{id}")]

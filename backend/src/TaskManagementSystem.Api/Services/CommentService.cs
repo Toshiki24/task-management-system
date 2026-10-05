@@ -16,7 +16,8 @@ public class CommentService : ICommentService
 
     public async Task<List<CommentDto>?> GetByTaskAsync(long taskId, long currentUserId)
     {
-        if (await _dbContext.GetTaskProjectRoleAsync(taskId, currentUserId) is null)
+        var access = await _dbContext.ResolveTaskAccessAsync(taskId, currentUserId);
+        if (access is null || !access.Value.CanView)
         {
             return null;
         }
@@ -28,12 +29,18 @@ public class CommentService : ICommentService
             .ToListAsync();
     }
 
-    public async Task<CommentCreatedDto?> CreateAsync(long taskId, long userId, CommentRequest request)
+    public async Task<CreateCommentOutcome> CreateAsync(long taskId, long userId, CommentRequest request)
     {
-        // 投稿者(=ログイン中のユーザー)がタスクのプロジェクトに所属している場合のみ投稿できる
-        if (await _dbContext.GetTaskProjectRoleAsync(taskId, userId) is null)
+        var access = await _dbContext.ResolveTaskAccessAsync(taskId, userId);
+        if (access is null || !access.Value.CanView)
         {
-            return null;
+            return new CreateCommentOutcome(CreateCommentResult.TaskNotFound);
+        }
+
+        // Viewer はコメントを投稿できない
+        if (!access.Value.CanWrite)
+        {
+            return new CreateCommentOutcome(CreateCommentResult.Forbidden);
         }
 
         var comment = new TaskComment
@@ -46,6 +53,8 @@ public class CommentService : ICommentService
         _dbContext.TaskComments.Add(comment);
         await _dbContext.SaveChangesAsync();
 
-        return new CommentCreatedDto(comment.Id, comment.TaskId, comment.UserId, comment.Comment, comment.CreatedAt);
+        return new CreateCommentOutcome(
+            CreateCommentResult.Success,
+            new CommentCreatedDto(comment.Id, comment.TaskId, comment.UserId, comment.Comment, comment.CreatedAt));
     }
 }

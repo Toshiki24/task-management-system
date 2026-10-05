@@ -23,6 +23,12 @@ public readonly record struct ProjectAccessResult(bool IsSystemAdmin, string? Wo
         IsSystemAdmin
         || WorkspaceRole == WorkspaceMemberRole.Admin
         || WorkspaceRole == WorkspaceMemberRole.Member;
+
+    /// <summary>プロジェクトの管理(編集・削除・メンバー管理)が可能か。プロジェクト OWNER または WS Admin。</summary>
+    public bool CanManageProject =>
+        IsSystemAdmin
+        || WorkspaceRole == WorkspaceMemberRole.Admin
+        || ProjectRole == ProjectMemberRole.Owner;
 }
 
 /// <summary>
@@ -65,7 +71,7 @@ internal static class ProjectAccess
                     .Select(u => u.IsSystemAdmin)
                     .FirstOrDefault(),
                 // workspace_id は M1 step1 では NULL 許可だが、EF が SQL へ変換するため null 安全(未設定なら所属なし扱い)
-                WorkspaceRole = p.Workspace!.Members
+                WorkspaceRole = p.Workspace.Members
                     .Where(m => m.UserId == userId)
                     .Select(m => m.Role)
                     .FirstOrDefault(),
@@ -93,7 +99,7 @@ internal static class ProjectAccess
                     .Where(u => u.Id == userId)
                     .Select(u => u.IsSystemAdmin)
                     .FirstOrDefault(),
-                WorkspaceRole = t.Project.Workspace!.Members
+                WorkspaceRole = t.Project.Workspace.Members
                     .Where(m => m.UserId == userId)
                     .Select(m => m.Role)
                     .FirstOrDefault(),
@@ -116,7 +122,7 @@ internal static class ProjectAccess
     public static IQueryable<Project> WhereVisibleTo(
         this IQueryable<Project> projects, AppDbContext dbContext, long userId) =>
         projects.Where(p =>
-            p.Workspace!.Members.Any(m => m.UserId == userId)
+            p.Workspace.Members.Any(m => m.UserId == userId)
             || dbContext.Users.Any(u => u.Id == userId && u.IsSystemAdmin));
 
     /// <summary>ユーザーが所属する(=見える)ワークスペースだけに絞る。System Admin は全件。</summary>

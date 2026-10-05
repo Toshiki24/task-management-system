@@ -6,6 +6,7 @@ public enum CreateTaskResult
 {
     Success,
     ProjectNotFound,
+    Forbidden,
     AssigneeNotFound,
     AssigneeNotMember,
 }
@@ -14,6 +15,7 @@ public enum UpdateTaskResult
 {
     Success,
     TaskNotFound,
+    Forbidden,
     AssigneeNotFound,
     AssigneeNotMember,
 }
