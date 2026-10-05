@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TaskManagementSystem.Api.Dtos.Comments;
+using TaskManagementSystem.Api.Models;
 using TaskManagementSystem.Api.Services;
 using TaskManagementSystem.Api.Tests.Infrastructure;
 
@@ -59,9 +60,10 @@ public class CommentServiceTests : IClassFixture<TestDatabaseFixture>
 
         // コントローラーはJWTのsubクレームから取得したユーザーIDをそのまま渡す
         await using var context = _db.CreateContext();
-        var created = await new CommentService(context).CreateAsync(task.Id, user.Id, request);
+        var outcome = await new CommentService(context).CreateAsync(task.Id, user.Id, request);
 
-        Assert.NotNull(created);
+        Assert.Equal(CreateCommentResult.Success, outcome.Result);
+        var created = outcome.Data!;
         Assert.Equal(task.Id, created.TaskId);
         Assert.Equal(user.Id, created.UserId);
         Assert.Equal(request.Comment, created.Comment);
@@ -72,20 +74,20 @@ public class CommentServiceTests : IClassFixture<TestDatabaseFixture>
     }
 
     [Fact(DisplayName = "UT-604 存在しないタスクへのコメント登録")]
-    public async Task CreateAsync_ReturnsNull_WhenTaskNotExists()
+    public async Task CreateAsync_ReturnsTaskNotFound_WhenTaskNotExists()
     {
         await using var arrange = _db.CreateContext();
         var user = await TestData.CreateUserAsync(arrange);
 
         await using var context = _db.CreateContext();
-        var created = await new CommentService(context)
+        var outcome = await new CommentService(context)
             .CreateAsync(TestData.NonExistentId, user.Id, new CommentRequest("コメント"));
 
-        Assert.Null(created);
+        Assert.Equal(CreateCommentResult.TaskNotFound, outcome.Result);
     }
 
     [Fact(DisplayName = "UT-605 所属していないプロジェクトのコメント一覧取得・登録")]
-    public async Task CommentOperations_ReturnNull_WhenUserIsNotMember()
+    public async Task CommentOperations_ReturnNotFound_WhenUserIsNotMember()
     {
         await using var arrange = _db.CreateContext();
         var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
@@ -96,11 +98,29 @@ public class CommentServiceTests : IClassFixture<TestDatabaseFixture>
         await using var context = _db.CreateContext();
         var service = new CommentService(context);
         var list = await service.GetByTaskAsync(task.Id, outsider.Id);
-        var created = await service.CreateAsync(task.Id, outsider.Id, new CommentRequest("コメント"));
+        var outcome = await service.CreateAsync(task.Id, outsider.Id, new CommentRequest("コメント"));
 
         Assert.Null(list);
-        Assert.Null(created);
+        Assert.Equal(CreateCommentResult.TaskNotFound, outcome.Result);
         await using var assert = _db.CreateContext();
         Assert.False(await assert.TaskComments.AnyAsync(c => c.TaskId == task.Id && c.UserId == outsider.Id));
+    }
+
+    [Fact(DisplayName = "UT-606 Viewer はコメントを投稿できない(403)")]
+    public async Task CreateAsync_ForbiddenForViewer()
+    {
+        await using var arrange = _db.CreateContext();
+        var (project, _) = await TestData.CreateProjectWithOwnerAsync(arrange);
+        var task = await TestData.CreateTaskAsync(arrange, project.Id);
+        var workspaceId = await arrange.Projects.Where(p => p.Id == project.Id)
+            .Select(p => p.WorkspaceId).SingleAsync();
+        var viewer = await TestData.CreateUserAsync(arrange);
+        await TestData.AddWorkspaceMemberAsync(arrange, workspaceId, viewer.Id, WorkspaceMemberRole.Viewer);
+
+        await using var context = _db.CreateContext();
+        var outcome = await new CommentService(context)
+            .CreateAsync(task.Id, viewer.Id, new CommentRequest("コメント"));
+
+        Assert.Equal(CreateCommentResult.Forbidden, outcome.Result);
     }
 }

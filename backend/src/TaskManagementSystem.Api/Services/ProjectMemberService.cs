@@ -16,7 +16,8 @@ public class ProjectMemberService : IProjectMemberService
 
     public async Task<List<MemberDto>?> GetMembersAsync(long projectId, long currentUserId)
     {
-        if (await _dbContext.GetProjectRoleAsync(projectId, currentUserId) is null)
+        var access = await _dbContext.ResolveAccessAsync(projectId, currentUserId);
+        if (access is null || !access.Value.CanView)
         {
             return null;
         }
@@ -30,13 +31,14 @@ public class ProjectMemberService : IProjectMemberService
 
     public async Task<AddMemberOutcome> AddMemberAsync(long projectId, AddMemberRequest request, long currentUserId)
     {
-        var role = await _dbContext.GetProjectRoleAsync(projectId, currentUserId);
-        if (role is null)
+        var access = await _dbContext.ResolveAccessAsync(projectId, currentUserId);
+        if (access is null || !access.Value.CanView)
         {
             return new AddMemberOutcome(AddMemberResult.ProjectNotFound);
         }
 
-        if (role != ProjectMemberRole.Owner)
+        // メンバー管理はプロジェクト OWNER または WS Admin(または System Admin)
+        if (!access.Value.CanManageProject)
         {
             return new AddMemberOutcome(AddMemberResult.Forbidden);
         }
@@ -71,13 +73,13 @@ public class ProjectMemberService : IProjectMemberService
 
     public async Task<RemoveMemberResult> RemoveMemberAsync(long projectId, long userId, long currentUserId)
     {
-        var role = await _dbContext.GetProjectRoleAsync(projectId, currentUserId);
-        if (role is null)
+        var access = await _dbContext.ResolveAccessAsync(projectId, currentUserId);
+        if (access is null || !access.Value.CanView)
         {
             return RemoveMemberResult.ProjectNotFound;
         }
 
-        if (role != ProjectMemberRole.Owner)
+        if (!access.Value.CanManageProject)
         {
             return RemoveMemberResult.Forbidden;
         }

@@ -236,8 +236,8 @@ public class TaskServiceTests : IClassFixture<TestDatabaseFixture>
         Assert.Equal(UpdateTaskResult.Success, updateOutcome.Result);
     }
 
-    [Fact(DisplayName = "UT-514 MEMBERによるタスク削除")]
-    public async Task DeleteAsync_ReturnsForbidden_WhenUserIsMember()
+    [Fact(DisplayName = "UT-514 WS Member はタスクを削除できる")]
+    public async Task DeleteAsync_ReturnsSuccess_WhenUserIsWorkspaceMember()
     {
         await using var arrange = _db.CreateContext();
         var (project, _) = await TestData.CreateProjectWithOwnerAsync(arrange);
@@ -247,6 +247,25 @@ public class TaskServiceTests : IClassFixture<TestDatabaseFixture>
 
         await using var context = _db.CreateContext();
         var result = await new TaskService(context).DeleteAsync(task.Id, member.Id);
+
+        Assert.Equal(DeleteTaskResult.Success, result);
+        await using var assert = _db.CreateContext();
+        Assert.False(await assert.Tasks.AnyAsync(t => t.Id == task.Id));
+    }
+
+    [Fact(DisplayName = "UT-514b Viewer はタスクを削除できない(403)")]
+    public async Task DeleteAsync_ReturnsForbidden_WhenUserIsViewer()
+    {
+        await using var arrange = _db.CreateContext();
+        var (project, _) = await TestData.CreateProjectWithOwnerAsync(arrange);
+        var task = await TestData.CreateTaskAsync(arrange, project.Id);
+        var workspaceId = await arrange.Projects.Where(p => p.Id == project.Id)
+            .Select(p => p.WorkspaceId).SingleAsync();
+        var viewer = await TestData.CreateUserAsync(arrange);
+        await TestData.AddWorkspaceMemberAsync(arrange, workspaceId, viewer.Id, WorkspaceMemberRole.Viewer);
+
+        await using var context = _db.CreateContext();
+        var result = await new TaskService(context).DeleteAsync(task.Id, viewer.Id);
 
         Assert.Equal(DeleteTaskResult.Forbidden, result);
         await using var assert = _db.CreateContext();

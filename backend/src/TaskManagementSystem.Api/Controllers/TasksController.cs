@@ -39,6 +39,8 @@ public class TasksController : ControllerBase
             UpdateTaskResult.TaskNotFound =>
                 NotFound(new ErrorResponse("指定されたタスクが存在しません。")),
 
+            UpdateTaskResult.Forbidden => this.ForbiddenError(),
+
             UpdateTaskResult.AssigneeNotFound =>
                 BadRequest(new ValidationErrorResponse(
                     "入力内容に誤りがあります。",

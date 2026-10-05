@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using TaskManagementSystem.Api.Data;
 using TaskManagementSystem.Api.Models;
 
@@ -32,6 +33,9 @@ public static class TestData
     public static async Task<Project> CreateProjectAsync(
         AppDbContext context, string status = ProjectStatus.Active, long? workspaceId = null)
     {
+        // projects.workspace_id は NOT NULL。未指定ならワークスペースを自動作成する
+        workspaceId ??= (await CreateWorkspaceAsync(context)).Id;
+
         var project = new Project
         {
             Name = Unique("ut-project"),
@@ -39,7 +43,7 @@ public static class TestData
             Status = status,
             StartDate = new DateOnly(2026, 10, 1),
             EndDate = new DateOnly(2026, 12, 31),
-            WorkspaceId = workspaceId,
+            WorkspaceId = workspaceId.Value,
         };
 
         context.Projects.Add(project);
@@ -74,9 +78,28 @@ public static class TestData
         return (project, owner);
     }
 
+    /// <summary>
+    /// プロジェクトメンバーを登録する。可視性はワークスペース所属で決まるため、
+    /// プロジェクトの所属ワークスペースのメンバーにも登録する(OWNER→WS Admin / MEMBER→WS Member)。
+    /// </summary>
     public static async Task<ProjectMember> AddMemberAsync(
         AppDbContext context, long projectId, long userId, string role = ProjectMemberRole.Member)
     {
+        var workspaceId = await context.Projects
+            .Where(p => p.Id == projectId)
+            .Select(p => p.WorkspaceId)
+            .SingleAsync();
+
+        var alreadyWorkspaceMember = await context.WorkspaceMembers
+            .AnyAsync(wm => wm.WorkspaceId == workspaceId && wm.UserId == userId);
+        if (!alreadyWorkspaceMember)
+        {
+            var workspaceRole = role == ProjectMemberRole.Owner
+                ? WorkspaceMemberRole.Admin
+                : WorkspaceMemberRole.Member;
+            await AddWorkspaceMemberAsync(context, workspaceId, userId, workspaceRole);
+        }
+
         var member = new ProjectMember { ProjectId = projectId, UserId = userId, Role = role };
         context.ProjectMembers.Add(member);
         await context.SaveChangesAsync();

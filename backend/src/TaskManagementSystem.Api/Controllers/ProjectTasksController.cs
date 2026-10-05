@@ -39,6 +39,8 @@ public class ProjectTasksController : ControllerBase
             CreateTaskResult.ProjectNotFound =>
                 NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。")),
 
+            CreateTaskResult.Forbidden => this.ForbiddenError(),
+
             CreateTaskResult.AssigneeNotFound =>
                 BadRequest(new ValidationErrorResponse(
                     "入力内容に誤りがあります。",

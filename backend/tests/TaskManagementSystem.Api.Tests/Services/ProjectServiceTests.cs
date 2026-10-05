@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TaskManagementSystem.Api.Data;
 using TaskManagementSystem.Api.Dtos.Projects;
 using TaskManagementSystem.Api.Models;
 using TaskManagementSystem.Api.Services;
@@ -22,32 +23,44 @@ public class ProjectServiceTests : IClassFixture<TestDatabaseFixture>
         new DateOnly(2026, 10, 1),
         new DateOnly(2026, 12, 31));
 
+    // 作成者を WS メンバー(書き込み可)にして返す
+    private async Task<(long WorkspaceId, User Creator)> WorkspaceWithWriterAsync(
+        AppDbContext ctx, string role = WorkspaceMemberRole.Member)
+    {
+        var creator = await TestData.CreateUserAsync(ctx);
+        var workspace = await TestData.CreateWorkspaceAsync(ctx);
+        await TestData.AddWorkspaceMemberAsync(ctx, workspace.Id, creator.Id, role);
+        return (workspace.Id, creator);
+    }
+
     [Fact(DisplayName = "UT-301 プロジェクト作成で作成者がOWNER登録される")]
     public async Task CreateAsync_RegistersCreatorAsOwner()
     {
         await using var arrange = _db.CreateContext();
-        var creator = await TestData.CreateUserAsync(arrange);
+        var (workspaceId, creator) = await WorkspaceWithWriterAsync(arrange);
 
         await using var context = _db.CreateContext();
-        var created = await new ProjectService(context).CreateAsync(NewRequest(), creator.Id);
+        var outcome = await new ProjectService(context).CreateAsync(workspaceId, NewRequest(), creator.Id);
 
+        Assert.Equal(CreateProjectResult.Success, outcome.Result);
         await using var assert = _db.CreateContext();
-        var members = await assert.ProjectMembers.Where(pm => pm.ProjectId == created.Id).ToListAsync();
+        var members = await assert.ProjectMembers.Where(pm => pm.ProjectId == outcome.Data!.Id).ToListAsync();
         var member = Assert.Single(members);
         Assert.Equal(creator.Id, member.UserId);
         Assert.Equal(ProjectMemberRole.Owner, member.Role);
     }
 
-    [Fact(DisplayName = "UT-302 プロジェクト作成とメンバー登録がトランザクションになっている")]
-    public async Task CreateAsync_RollsBackProject_WhenMemberRegistrationFails()
+    [Fact(DisplayName = "UT-302 Viewer はプロジェクトを作成できない(403)")]
+    public async Task CreateAsync_ForbiddenForViewer()
     {
-        // 存在しないユーザーを作成者として渡し、メンバー登録(2回目のSaveChanges)だけを外部キー違反で失敗させる
+        await using var arrange = _db.CreateContext();
+        var (workspaceId, viewer) = await WorkspaceWithWriterAsync(arrange, WorkspaceMemberRole.Viewer);
         var request = NewRequest();
 
         await using var context = _db.CreateContext();
-        await Assert.ThrowsAsync<DbUpdateException>(
-            () => new ProjectService(context).CreateAsync(request, TestData.NonExistentId));
+        var outcome = await new ProjectService(context).CreateAsync(workspaceId, request, viewer.Id);
 
+        Assert.Equal(CreateProjectResult.Forbidden, outcome.Result);
         await using var assert = _db.CreateContext();
         Assert.False(await assert.Projects.AnyAsync(p => p.Name == request.Name));
     }
@@ -56,14 +69,14 @@ public class ProjectServiceTests : IClassFixture<TestDatabaseFixture>
     public async Task CreateAsync_DefaultsStatusToActive_WhenStatusIsNull()
     {
         await using var arrange = _db.CreateContext();
-        var creator = await TestData.CreateUserAsync(arrange);
+        var (workspaceId, creator) = await WorkspaceWithWriterAsync(arrange);
 
         await using var context = _db.CreateContext();
-        var created = await new ProjectService(context).CreateAsync(NewRequest(status: null), creator.Id);
+        var outcome = await new ProjectService(context).CreateAsync(workspaceId, NewRequest(status: null), creator.Id);
 
-        Assert.Equal(ProjectStatus.Active, created.Status);
+        Assert.Equal(ProjectStatus.Active, outcome.Data!.Status);
         await using var assert = _db.CreateContext();
-        Assert.Equal(ProjectStatus.Active, (await assert.Projects.SingleAsync(p => p.Id == created.Id)).Status);
+        Assert.Equal(ProjectStatus.Active, (await assert.Projects.SingleAsync(p => p.Id == outcome.Data!.Id)).Status);
     }
 
     [Fact(DisplayName = "UT-304 更新時、name/description/startDate/endDateが上書きされる")]
@@ -148,22 +161,39 @@ public class ProjectServiceTests : IClassFixture<TestDatabaseFixture>
         Assert.InRange(saved.UpdatedAt, executedAt.AddSeconds(-5), DateTime.UtcNow.AddSeconds(5));
     }
 
-    [Fact(DisplayName = "UT-309 一覧は自分が所属しているプロジェクトのみ返す")]
-    public async Task GetAllAsync_ReturnsOnlyProjectsTheUserBelongsTo()
+    [Fact(DisplayName = "UT-309 一覧は所属ワークスペース内の全プロジェクトを返す")]
+    public async Task GetByWorkspaceAsync_ReturnsAllProjectsInWorkspace()
     {
         await using var arrange = _db.CreateContext();
         var user = await TestData.CreateUserAsync(arrange);
-        var owned = await TestData.CreateProjectAsync(arrange);
-        await TestData.AddMemberAsync(arrange, owned.Id, user.Id, ProjectMemberRole.Owner);
-        var joined = await TestData.CreateProjectAsync(arrange);
-        await TestData.AddMemberAsync(arrange, joined.Id, user.Id, ProjectMemberRole.Member);
-        var (others, _) = await TestData.CreateProjectWithOwnerAsync(arrange);
+        var workspace = await TestData.CreateWorkspaceAsync(arrange);
+        await TestData.AddWorkspaceMemberAsync(arrange, workspace.Id, user.Id, WorkspaceMemberRole.Member);
+
+        // 同じワークスペース内なら、プロジェクトメンバーでなくても見える(可視性はWS所属で決まる)
+        var inWorkspaceA = await TestData.CreateProjectAsync(arrange, workspaceId: workspace.Id);
+        var inWorkspaceB = await TestData.CreateProjectAsync(arrange, workspaceId: workspace.Id);
+        // 別ワークスペースのプロジェクトは見えない
+        var (otherWorkspaceProject, _) = await TestData.CreateProjectWithOwnerAsync(arrange);
 
         await using var context = _db.CreateContext();
-        var result = await new ProjectService(context).GetAllAsync(user.Id);
+        var result = await new ProjectService(context).GetByWorkspaceAsync(workspace.Id, user.Id);
 
-        Assert.Equal(new[] { owned.Id, joined.Id }, result.Select(p => p.Id).ToArray());
-        Assert.DoesNotContain(result, p => p.Id == others.Id);
+        Assert.NotNull(result);
+        Assert.Equal(new[] { inWorkspaceA.Id, inWorkspaceB.Id }, result!.Select(p => p.Id).ToArray());
+        Assert.DoesNotContain(result, p => p.Id == otherWorkspaceProject.Id);
+    }
+
+    [Fact(DisplayName = "UT-309b 非所属ワークスペースの一覧は null(404)")]
+    public async Task GetByWorkspaceAsync_NullForNonMember()
+    {
+        await using var arrange = _db.CreateContext();
+        var outsider = await TestData.CreateUserAsync(arrange);
+        var workspace = await TestData.CreateWorkspaceAsync(arrange);
+
+        await using var context = _db.CreateContext();
+        var result = await new ProjectService(context).GetByWorkspaceAsync(workspace.Id, outsider.Id);
+
+        Assert.Null(result);
     }
 
     [Fact(DisplayName = "UT-310 所属していないプロジェクトの詳細取得")]

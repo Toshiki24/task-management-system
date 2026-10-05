@@ -14,11 +14,18 @@ public class ProjectService : IProjectService
         _dbContext = dbContext;
     }
 
-    public async Task<List<ProjectDto>> GetAllAsync(long currentUserId)
+    public async Task<List<ProjectDto>?> GetByWorkspaceAsync(long workspaceId, long currentUserId)
     {
-        // 自分が所属しているプロジェクトのみ返す
+        var access = await _dbContext.ResolveWorkspaceAccessAsync(workspaceId, currentUserId);
+        if (access is null || !access.Value.CanView)
+        {
+            // 所属していないワークスペース(または存在しない)は 404 相当(存在を開示しない)
+            return null;
+        }
+
+        // 可視性はワークスペース所属で決まる。所属していれば WS 内の全プロジェクトが見える
         var projects = await _dbContext.Projects
-            .Where(p => p.ProjectMembers.Any(pm => pm.UserId == currentUserId))
+            .Where(p => p.WorkspaceId == workspaceId)
             .OrderBy(p => p.Id)
             .ToListAsync();
 
@@ -27,7 +34,8 @@ public class ProjectService : IProjectService
 
     public async Task<ProjectDto?> GetByIdAsync(long id, long currentUserId)
     {
-        if (await _dbContext.GetProjectRoleAsync(id, currentUserId) is null)
+        var access = await _dbContext.ResolveAccessAsync(id, currentUserId);
+        if (access is null || !access.Value.CanView)
         {
             return null;
         }
@@ -36,10 +44,23 @@ public class ProjectService : IProjectService
         return project is null ? null : ToDto(project);
     }
 
-    public async Task<ProjectDto> CreateAsync(ProjectRequest request, long creatorUserId)
+    public async Task<CreateProjectOutcome> CreateAsync(long workspaceId, ProjectRequest request, long creatorUserId)
     {
+        var access = await _dbContext.ResolveWorkspaceAccessAsync(workspaceId, creatorUserId);
+        if (access is null || !access.Value.CanView)
+        {
+            return new CreateProjectOutcome(CreateProjectResult.WorkspaceNotFound);
+        }
+
+        // Viewer はプロジェクトを作成できない(WS Admin / Member のみ)
+        if (!access.Value.CanWrite)
+        {
+            return new CreateProjectOutcome(CreateProjectResult.Forbidden);
+        }
+
         var project = new Project
         {
+            WorkspaceId = workspaceId,
             Name = request.Name,
             Description = request.Description,
             StartDate = request.StartDate,
@@ -68,18 +89,19 @@ public class ProjectService : IProjectService
 
         await transaction.CommitAsync();
 
-        return ToDto(project);
+        return new CreateProjectOutcome(CreateProjectResult.Success, ToDto(project));
     }
 
     public async Task<UpdateProjectOutcome> UpdateAsync(long id, ProjectRequest request, long currentUserId)
     {
-        var role = await _dbContext.GetProjectRoleAsync(id, currentUserId);
-        if (role is null)
+        var access = await _dbContext.ResolveAccessAsync(id, currentUserId);
+        if (access is null || !access.Value.CanView)
         {
             return new UpdateProjectOutcome(UpdateProjectResult.ProjectNotFound);
         }
 
-        if (role != ProjectMemberRole.Owner)
+        // プロジェクトの編集はプロジェクト OWNER または WS Admin(または System Admin)
+        if (!access.Value.CanManageProject)
         {
             return new UpdateProjectOutcome(UpdateProjectResult.Forbidden);
         }
@@ -95,9 +117,8 @@ public class ProjectService : IProjectService
         project.StartDate = request.StartDate;
         project.EndDate = request.EndDate;
 
-        // status/priorityのようなNOT NULL制約付きのenum列は、
-        // 未指定(null)の場合に空にできないため既存値を維持する。
-        // 一方description/日付列はNULL許容なので、未指定はnullとして上書きする(PUTの完全上書きセマンティクス)。
+        // status は NOT NULL 制約付きのため、未指定(null)の場合は既存値を維持する。
+        // 一方 description/日付列は NULL 許容なので、未指定は null として上書きする(PUT の完全上書きセマンティクス)。
         if (request.Status is not null)
         {
             project.Status = request.Status;
@@ -110,13 +131,13 @@ public class ProjectService : IProjectService
 
     public async Task<DeleteProjectResult> DeleteAsync(long id, long currentUserId)
     {
-        var role = await _dbContext.GetProjectRoleAsync(id, currentUserId);
-        if (role is null)
+        var access = await _dbContext.ResolveAccessAsync(id, currentUserId);
+        if (access is null || !access.Value.CanView)
         {
             return DeleteProjectResult.ProjectNotFound;
         }
 
-        if (role != ProjectMemberRole.Owner)
+        if (!access.Value.CanManageProject)
         {
             return DeleteProjectResult.Forbidden;
         }

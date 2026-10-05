@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ProjectForm } from "@/components/project/ProjectForm";
 import { apiFetch } from "@/lib/api";
 import type { Project, ProjectRequestBody } from "@/types/project";
@@ -13,11 +14,18 @@ const INITIAL_VALUE: ProjectRequestBody = {
   endDate: "",
 };
 
-export default function NewProjectPage() {
+function NewProjectForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const workspaceId = searchParams.get("workspaceId");
 
   async function handleCreate(value: ProjectRequestBody) {
-    const created = await apiFetch<Project>("/projects", {
+    if (!workspaceId) {
+      // ワークスペースが特定できない場合は一覧へ戻す(一覧からワークスペースを選んで作成する)
+      router.push("/projects");
+      return;
+    }
+    const created = await apiFetch<Project>(`/workspaces/${workspaceId}/projects`, {
       method: "POST",
       body: JSON.stringify(value),
     });
@@ -37,5 +45,13 @@ export default function NewProjectPage() {
         />
       </div>
     </div>
+  );
+}
+
+export default function NewProjectPage() {
+  return (
+    <Suspense fallback={null}>
+      <NewProjectForm />
+    </Suspense>
   );
 }

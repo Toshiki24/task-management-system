@@ -16,7 +16,8 @@ public class TaskService : ITaskService
 
     public async Task<List<TaskDto>?> GetByProjectAsync(long projectId, long currentUserId)
     {
-        if (await _dbContext.GetProjectRoleAsync(projectId, currentUserId) is null)
+        var access = await _dbContext.ResolveAccessAsync(projectId, currentUserId);
+        if (access is null || !access.Value.CanView)
         {
             return null;
         }
@@ -31,7 +32,8 @@ public class TaskService : ITaskService
 
     public async Task<TaskDto?> GetByIdAsync(long id, long currentUserId)
     {
-        if (await _dbContext.GetTaskProjectRoleAsync(id, currentUserId) is null)
+        var access = await _dbContext.ResolveTaskAccessAsync(id, currentUserId);
+        if (access is null || !access.Value.CanView)
         {
             return null;
         }
@@ -42,9 +44,16 @@ public class TaskService : ITaskService
 
     public async Task<CreateTaskOutcome> CreateAsync(long projectId, TaskRequest request, long currentUserId)
     {
-        if (await _dbContext.GetProjectRoleAsync(projectId, currentUserId) is null)
+        var access = await _dbContext.ResolveAccessAsync(projectId, currentUserId);
+        if (access is null || !access.Value.CanView)
         {
             return new CreateTaskOutcome(CreateTaskResult.ProjectNotFound);
+        }
+
+        // Viewer はタスクを作成できない
+        if (!access.Value.CanWrite)
+        {
+            return new CreateTaskOutcome(CreateTaskResult.Forbidden);
         }
 
         switch (await CheckAssigneeAsync(projectId, request.AssigneeId))
@@ -82,9 +91,16 @@ public class TaskService : ITaskService
 
     public async Task<UpdateTaskOutcome> UpdateAsync(long id, TaskRequest request, long currentUserId)
     {
-        if (await _dbContext.GetTaskProjectRoleAsync(id, currentUserId) is null)
+        var access = await _dbContext.ResolveTaskAccessAsync(id, currentUserId);
+        if (access is null || !access.Value.CanView)
         {
             return new UpdateTaskOutcome(UpdateTaskResult.TaskNotFound);
+        }
+
+        // Viewer はタスクを編集できない
+        if (!access.Value.CanWrite)
+        {
+            return new UpdateTaskOutcome(UpdateTaskResult.Forbidden);
         }
 
         var task = await _dbContext.Tasks.FindAsync(id);
@@ -126,14 +142,14 @@ public class TaskService : ITaskService
 
     public async Task<DeleteTaskResult> DeleteAsync(long id, long currentUserId)
     {
-        var role = await _dbContext.GetTaskProjectRoleAsync(id, currentUserId);
-        if (role is null)
+        var access = await _dbContext.ResolveTaskAccessAsync(id, currentUserId);
+        if (access is null || !access.Value.CanView)
         {
             return DeleteTaskResult.TaskNotFound;
         }
 
-        // タスクに作成者の情報がなく「本人が作成したタスクのみ」を判定できないため、OWNERのみ許可する(security-review.md 5.1)
-        if (role != ProjectMemberRole.Owner)
+        // タスクの削除は WS Admin / Member が可能(Viewer は不可。M1 §3.3)
+        if (!access.Value.CanWrite)
         {
             return DeleteTaskResult.Forbidden;
         }

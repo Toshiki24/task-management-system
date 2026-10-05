@@ -7,17 +7,20 @@ import type { Project } from "@/types/project";
 
 interface ProjectListProps {
   projects: Project[];
+  workspaceId?: number | null;
 }
 
-export function ProjectList({ projects }: ProjectListProps) {
+export function ProjectList({ projects, workspaceId }: ProjectListProps) {
   const router = useRouter();
+  const newProjectHref =
+    workspaceId != null ? `/projects/new?workspaceId=${workspaceId}` : "/projects/new";
 
   if (projects.length === 0) {
     return (
       <div className="text-sm text-gray-500">
         <p className="mb-2">プロジェクトがありません。</p>
         <Link
-          href="/projects/new"
+          href={newProjectHref}
           className="font-semibold text-blue-600 hover:underline"
         >
           プロジェクトを作成
