@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { test as base, expect, type APIRequestContext, type APIResponse } from "@playwright/test";
 import bcrypt from "bcryptjs";
 import pg from "pg";
@@ -101,6 +101,26 @@ export class TestDataFactory {
     this.workspaceIds.push(id);
     await this.addWorkspaceMember(id, owner, role);
     return id;
+  }
+
+  /**
+   * ワークスペースへの招待を DB に直接作成し、受諾用の平文トークンを返す。
+   * (トークンはメールでのみ配布され API レスポンスには含まれないため、画面テストでは DB 直挿しで用意する)
+   */
+  async createInvitation(
+    workspaceId: number,
+    email: string,
+    invitedBy: TestUser,
+    role = "MEMBER",
+  ): Promise<string> {
+    const token = randomUUID();
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    await this.db.query(
+      "INSERT INTO invitations (workspace_id, email, role, token_hash, expires_at, invited_by) "
+        + "VALUES ($1, $2, $3, $4, now() + interval '7 days', $5)",
+      [workspaceId, email, role, tokenHash, invitedBy.id],
+    );
+    return token;
   }
 
   /** 既存ユーザーをワークスペースのメンバーにする(DB 直挿し。重複は無視) */
