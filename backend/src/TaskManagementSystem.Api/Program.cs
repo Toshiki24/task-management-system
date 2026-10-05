@@ -84,6 +84,9 @@ builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IProjectMemberService, ProjectMemberService>();
 builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
 builder.Services.AddScoped<IWorkspaceMemberService, WorkspaceMemberService>();
+builder.Services.AddScoped<IInvitationService, InvitationService>();
+// メール送信は M1 ではプレースホルダ(ログ出力)。SES/SMTP 実装への差し替えを想定
+builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 
