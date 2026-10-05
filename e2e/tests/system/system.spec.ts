@@ -44,6 +44,8 @@ test.describe("8. システムテスト", () => {
   test("ST-001 一連のメインフロー", async ({ page, data }) => {
     const user = await data.createUser("担当者A");
     const member = await data.createUser("メンバーB");
+    // プロジェクト作成にはワークスペースが必要(作成UIはワークスペース配下で動く)
+    await data.createWorkspace(user, "ADMIN");
     const pageErrors: Error[] = [];
     page.on("pageerror", (error) => pageErrors.push(error));
 
@@ -112,6 +114,10 @@ test.describe("8. システムテスト", () => {
   test("ST-003 複数ユーザーでの共同作業", async ({ browser, data, api }) => {
     const userA = await data.createUser("ユーザーA");
     const userB = await data.createUser("ユーザーB");
+    // 共同作業にはワークスペース所属が必要。userA を Admin、userB を同ワークスペースの Member にする
+    // (ワークスペースのメンバー管理UIは後続ステップのため、ここではデータで用意する)
+    const workspaceId = await data.createWorkspace(userA, "ADMIN");
+    await data.addWorkspaceMember(workspaceId, userB, "MEMBER");
     const contextA = await browser.newContext();
     const contextB = await browser.newContext();
     try {

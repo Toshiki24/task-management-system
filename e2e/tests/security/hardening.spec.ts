@@ -43,7 +43,7 @@ test.describe("9.11 SEC-07 JWTの有効期限の許容時間", () => {
   test("SEC-07-01 有効期限を60秒過ぎたアクセストークンは拒否される", async ({ api, data }) => {
     const user = await data.createUser();
 
-    const response = await api.get("/api/projects", { headers: bearer({ ...user, token: createJwt(user, -60) }) });
+    const response = await api.get("/api/me/workspaces", { headers: bearer({ ...user, token: createJwt(user, -60) }) });
 
     expect(response.status()).toBe(401);
   });
@@ -53,7 +53,7 @@ test.describe("9.11 SEC-07 JWTの有効期限の許容時間", () => {
     // 同じ方法で作った有効期限内のトークンは受け付けられることを確認する
     const user = await data.createUser();
 
-    const response = await api.get("/api/projects", { headers: bearer({ ...user, token: createJwt(user, 60) }) });
+    const response = await api.get("/api/me/workspaces", { headers: bearer({ ...user, token: createJwt(user, 60) }) });
 
     expect(response.status()).toBe(200);
   });

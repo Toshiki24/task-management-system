@@ -13,8 +13,9 @@ async function expectNavigatedToCreatedProject(page: Page, data: TestDataFactory
 test.describe("7.3 SCR-004 プロジェクト登録画面", () => {
   test("SCR-004-01 登録成功（全項目入力）", async ({ page, data, api }) => {
     const user = await data.createUser();
+    const workspaceId = await data.createWorkspace(user);
     await signIn(page, user);
-    await page.goto("/projects/new");
+    await page.goto(`/projects/new?workspaceId=${workspaceId}`);
     const name = unique("E2E画面登録");
 
     await page.getByLabel("プロジェクト名 *").fill(name);
@@ -28,6 +29,7 @@ test.describe("7.3 SCR-004 プロジェクト登録画面", () => {
     const saved = await (await api.get(`/api/projects/${id}`, { headers: bearer(user) })).json();
     expect(saved).toEqual({
       id,
+      workspaceId,
       name,
       description: "画面から登録した説明",
       status: "COMPLETED",
@@ -38,8 +40,9 @@ test.describe("7.3 SCR-004 プロジェクト登録画面", () => {
 
   test("SCR-004-02 登録成功（日付未入力）", async ({ page, data }) => {
     const user = await data.createUser();
+    const workspaceId = await data.createWorkspace(user);
     await signIn(page, user);
-    await page.goto("/projects/new");
+    await page.goto(`/projects/new?workspaceId=${workspaceId}`);
     const name = unique("E2E名前のみ");
 
     await page.getByLabel("プロジェクト名 *").fill(name);
@@ -53,7 +56,7 @@ test.describe("7.3 SCR-004 プロジェクト登録画面", () => {
     const user = await data.createUser();
     await signIn(page, user);
     await page.goto("/projects/new");
-    const createRequests = recordApiRequests(page, "POST", /^\/api\/projects$/);
+    const createRequests = recordApiRequests(page, "POST", /^\/api\/workspaces\/\d+\/projects$/);
 
     await page.getByRole("button", { name: "登録" }).click();
 
@@ -66,7 +69,7 @@ test.describe("7.3 SCR-004 プロジェクト登録画面", () => {
     const user = await data.createUser();
     await signIn(page, user);
     await page.goto("/projects/new");
-    const createRequests = recordApiRequests(page, "POST", /^\/api\/projects$/);
+    const createRequests = recordApiRequests(page, "POST", /^\/api\/workspaces\/\d+\/projects$/);
 
     await page.getByLabel("プロジェクト名 *").fill(unique("E2E日付逆転"));
     await page.getByLabel("開始日").fill("2026-12-31");
@@ -82,7 +85,7 @@ test.describe("7.3 SCR-004 プロジェクト登録画面", () => {
     const user = await data.createUser();
     await signIn(page, user);
     await page.goto("/projects/new");
-    const createRequests = recordApiRequests(page, "POST", /^\/api\/projects$/);
+    const createRequests = recordApiRequests(page, "POST", /^\/api\/workspaces\/\d+\/projects$/);
 
     await page.getByLabel("プロジェクト名 *").fill(unique("E2Eキャンセル"));
     await page.getByRole("button", { name: "キャンセル" }).click();
@@ -93,8 +96,9 @@ test.describe("7.3 SCR-004 プロジェクト登録画面", () => {
 
   test("SCR-004-06 作成者がメンバーに自動登録される", async ({ page, data }) => {
     const user = await data.createUser();
+    const workspaceId = await data.createWorkspace(user);
     await signIn(page, user);
-    await page.goto("/projects/new");
+    await page.goto(`/projects/new?workspaceId=${workspaceId}`);
 
     await page.getByLabel("プロジェクト名 *").fill(unique("E2Eメンバー確認"));
     await page.getByRole("button", { name: "登録" }).click();

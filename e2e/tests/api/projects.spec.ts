@@ -7,7 +7,7 @@ test.describe("5.3 プロジェクトAPI", () => {
     const user = await data.createUser();
     const project = await data.createProject(user);
 
-    const response = await api.get("/api/projects", { headers: bearer(user) });
+    const response = await api.get(`/api/workspaces/${project.workspaceId}/projects`, { headers: bearer(user) });
 
     expect(response.status()).toBe(200);
     expect(await response.json()).toEqual(expect.arrayContaining([project]));
@@ -15,6 +15,7 @@ test.describe("5.3 プロジェクトAPI", () => {
 
   test("API-1101 プロジェクト作成成功（全項目指定）", async ({ api, data }) => {
     const user = await data.createUser();
+    const workspaceId = await data.createWorkspace(user);
     const request = {
       name: unique("E2Eプロジェクト"),
       description: "全項目指定",
@@ -23,18 +24,19 @@ test.describe("5.3 プロジェクトAPI", () => {
       endDate: "2026-12-31",
     };
 
-    const response = await api.post("/api/projects", { headers: bearer(user), data: request });
+    const response = await api.post(`/api/workspaces/${workspaceId}/projects`, { headers: bearer(user), data: request });
 
     expect(response.status()).toBe(201);
     const body = await response.json();
     data.trackProject(body.id);
-    expect(body).toEqual({ id: expect.any(Number), ...request });
+    expect(body).toEqual({ id: expect.any(Number), workspaceId, ...request });
   });
 
   test("API-1102 プロジェクト作成成功（日付未指定）", async ({ api, data }) => {
     const user = await data.createUser();
+    const workspaceId = await data.createWorkspace(user);
 
-    const response = await api.post("/api/projects", {
+    const response = await api.post(`/api/workspaces/${workspaceId}/projects`, {
       headers: bearer(user),
       data: { name: unique("E2Eプロジェクト") },
     });
@@ -60,24 +62,27 @@ test.describe("5.3 プロジェクトAPI", () => {
 
   test("API-1104 name未指定", async ({ api, data }) => {
     const user = await data.createUser();
+    const workspaceId = await data.createWorkspace(user);
 
-    const response = await api.post("/api/projects", { headers: bearer(user), data: { description: "名前なし" } });
+    const response = await api.post(`/api/workspaces/${workspaceId}/projects`, { headers: bearer(user), data: { description: "名前なし" } });
 
     await expectValidationError(response, "name", "プロジェクト名は必須です。");
   });
 
   test("API-1105 name最大文字数超過", async ({ api, data }) => {
     const user = await data.createUser();
+    const workspaceId = await data.createWorkspace(user);
 
-    const response = await api.post("/api/projects", { headers: bearer(user), data: { name: "あ".repeat(201) } });
+    const response = await api.post(`/api/workspaces/${workspaceId}/projects`, { headers: bearer(user), data: { name: "あ".repeat(201) } });
 
     await expectValidationError(response, "name", "プロジェクト名は200文字以内で入力してください。");
   });
 
   test("API-1106 status不正値", async ({ api, data }) => {
     const user = await data.createUser();
+    const workspaceId = await data.createWorkspace(user);
 
-    const response = await api.post("/api/projects", {
+    const response = await api.post(`/api/workspaces/${workspaceId}/projects`, {
       headers: bearer(user),
       data: { name: unique("E2Eプロジェクト"), status: "INVALID" },
     });
@@ -87,8 +92,9 @@ test.describe("5.3 プロジェクトAPI", () => {
 
   test("API-1107 status省略時ACTIVEになる", async ({ api, data }) => {
     const user = await data.createUser();
+    const workspaceId = await data.createWorkspace(user);
 
-    const response = await api.post("/api/projects", {
+    const response = await api.post(`/api/workspaces/${workspaceId}/projects`, {
       headers: bearer(user),
       data: { name: unique("E2Eプロジェクト") },
     });
@@ -101,8 +107,9 @@ test.describe("5.3 プロジェクトAPI", () => {
 
   test("API-1108 日付形式不正", async ({ api, data }) => {
     const user = await data.createUser();
+    const workspaceId = await data.createWorkspace(user);
 
-    const response = await api.post("/api/projects", {
+    const response = await api.post(`/api/workspaces/${workspaceId}/projects`, {
       headers: bearer(user),
       data: { name: unique("E2Eプロジェクト"), startDate: "invalid-date" },
     });
@@ -114,8 +121,9 @@ test.describe("5.3 プロジェクトAPI", () => {
 
   test("API-1109 不正なJSON構文", async ({ api, data }) => {
     const user = await data.createUser();
+    const workspaceId = await data.createWorkspace(user);
 
-    const response = await api.post("/api/projects", {
+    const response = await api.post(`/api/workspaces/${workspaceId}/projects`, {
       headers: { ...bearer(user), "Content-Type": "application/json" },
       data: '{"name": "壊れたJSON",',
     });
@@ -157,7 +165,7 @@ test.describe("5.3 プロジェクトAPI", () => {
     const response = await api.put(`/api/projects/${project.id}`, { headers: bearer(user), data: request });
 
     expect(response.status()).toBe(200);
-    expect(await response.json()).toEqual({ id: project.id, ...request });
+    expect(await response.json()).toEqual({ id: project.id, workspaceId: project.workspaceId, ...request });
   });
 
   test("API-1302 存在しないプロジェクトの更新", async ({ api, data }) => {
