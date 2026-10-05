@@ -88,6 +88,10 @@ public class WorkspaceService : IWorkspaceService
         _dbContext.Workspaces.Add(workspace);
         await _dbContext.SaveChangesAsync();
 
+        await _dbContext.RecordAuditAsync(
+            currentUserId, AuditActions.WorkspaceCreated, AuditTargets.Workspace, workspace.Id, workspace.Id,
+            new { workspace.Name });
+
         return new CreateWorkspaceOutcome(
             CreateWorkspaceResult.Success,
             ToDto(workspace, myRole: null));
@@ -112,6 +116,9 @@ public class WorkspaceService : IWorkspaceService
         workspace.Description = request.Description;
         await _dbContext.SaveChangesAsync();
 
+        await _dbContext.RecordAuditAsync(
+            currentUserId, AuditActions.WorkspaceUpdated, AuditTargets.Workspace, workspace.Id, workspace.Id);
+
         return new UpdateWorkspaceOutcome(
             UpdateWorkspaceResult.Success,
             ToDto(workspace, access.Value.Role));
@@ -134,6 +141,9 @@ public class WorkspaceService : IWorkspaceService
         // 冪等: 既にアーカイブ済みなら時刻は変えない
         workspace.ArchivedAt ??= DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified);
         await _dbContext.SaveChangesAsync();
+
+        await _dbContext.RecordAuditAsync(
+            currentUserId, AuditActions.WorkspaceArchived, AuditTargets.Workspace, workspace.Id, workspace.Id);
 
         return ArchiveWorkspaceResult.Success;
     }

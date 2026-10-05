@@ -148,8 +148,13 @@ public class ProjectService : IProjectService
             return DeleteProjectResult.ProjectNotFound;
         }
 
+        var workspaceId = project.WorkspaceId;
         _dbContext.Projects.Remove(project);
         await _dbContext.SaveChangesAsync();
+
+        await _dbContext.RecordAuditAsync(
+            currentUserId, AuditActions.ProjectDeleted, AuditTargets.Project, id, workspaceId,
+            new { project.Name });
 
         return DeleteProjectResult.Success;
     }
