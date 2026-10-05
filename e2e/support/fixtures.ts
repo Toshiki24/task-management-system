@@ -209,6 +209,11 @@ export class TestDataFactory {
   }
 
   async cleanup(): Promise<void> {
+    // 監査ログは actor_user_id を RESTRICT で参照するため、ユーザー削除前に消す(実行者/WS で絞る)
+    await this.db.query(
+      "DELETE FROM audit_logs WHERE actor_user_id = ANY($1::bigint[]) OR workspace_id = ANY($2::bigint[])",
+      [this.userIds, this.workspaceIds],
+    );
     // プロジェクトはワークスペースを RESTRICT で参照するため、ワークスペースより先に削除する
     await this.db.query(
       `DELETE FROM projects

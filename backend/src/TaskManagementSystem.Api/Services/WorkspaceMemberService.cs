@@ -66,6 +66,10 @@ public class WorkspaceMemberService : IWorkspaceMemberService
         _dbContext.WorkspaceMembers.Add(member);
         await _dbContext.SaveChangesAsync();
 
+        await _dbContext.RecordAuditAsync(
+            currentUserId, AuditActions.MemberAdded, AuditTargets.User, member.UserId, workspaceId,
+            new { member.Role });
+
         return new AddWorkspaceMemberOutcome(
             AddWorkspaceMemberResult.Success,
             new WorkspaceMemberAddedDto(workspaceId, member.UserId, member.Role));
@@ -99,8 +103,13 @@ public class WorkspaceMemberService : IWorkspaceMemberService
             return UpdateWorkspaceMemberResult.LastAdmin;
         }
 
+        var previousRole = member.Role;
         member.Role = request.Role!;
         await _dbContext.SaveChangesAsync();
+
+        await _dbContext.RecordAuditAsync(
+            currentUserId, AuditActions.MemberRoleChanged, AuditTargets.User, userId, workspaceId,
+            new { from = previousRole, to = member.Role });
 
         return UpdateWorkspaceMemberResult.Success;
     }
@@ -133,6 +142,9 @@ public class WorkspaceMemberService : IWorkspaceMemberService
 
         _dbContext.WorkspaceMembers.Remove(member);
         await _dbContext.SaveChangesAsync();
+
+        await _dbContext.RecordAuditAsync(
+            currentUserId, AuditActions.MemberRemoved, AuditTargets.User, userId, workspaceId);
 
         return RemoveWorkspaceMemberResult.Success;
     }

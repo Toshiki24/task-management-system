@@ -75,6 +75,10 @@ public class InvitationService : IInvitationService
         _dbContext.Invitations.Add(invitation);
         await _dbContext.SaveChangesAsync();
 
+        await _dbContext.RecordAuditAsync(
+            currentUserId, AuditActions.InvitationCreated, AuditTargets.Invitation, invitation.Id, workspaceId,
+            new { invitation.Role });
+
         await SendInvitationEmailAsync(workspaceId, email, token);
 
         return new CreateInvitationOutcome(
@@ -151,6 +155,10 @@ public class InvitationService : IInvitationService
         invitation.AcceptedAt = Now();
         await _dbContext.SaveChangesAsync();
         await transaction.CommitAsync();
+
+        await _dbContext.RecordAuditAsync(
+            user.Id, AuditActions.InvitationAccepted, AuditTargets.Invitation, invitation.Id, invitation.WorkspaceId,
+            new { accountCreated });
 
         return new AcceptInvitationOutcome(
             AcceptInvitationResult.Success,

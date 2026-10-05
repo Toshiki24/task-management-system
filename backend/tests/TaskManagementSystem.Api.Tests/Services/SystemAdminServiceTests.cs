@@ -1,0 +1,118 @@
+using Microsoft.EntityFrameworkCore;
+using TaskManagementSystem.Api.Data;
+using TaskManagementSystem.Api.Dtos.Workspaces;
+using TaskManagementSystem.Api.Models;
+using TaskManagementSystem.Api.Services;
+using TaskManagementSystem.Api.Tests.Infrastructure;
+
+namespace TaskManagementSystem.Api.Tests.Services;
+
+public class SystemAdminServiceTests : IClassFixture<TestDatabaseFixture>
+{
+    private readonly TestDatabaseFixture _db;
+
+    public SystemAdminServiceTests(TestDatabaseFixture db)
+    {
+        _db = db;
+    }
+
+    private async Task<User> CreateSystemAdminAsync(AppDbContext ctx)
+    {
+        var user = await TestData.CreateUserAsync(ctx);
+        user.IsSystemAdmin = true;
+        await ctx.SaveChangesAsync();
+        return user;
+    }
+
+    [Fact(DisplayName = "一覧・付与・剥奪は System Admin 以外は Forbidden/null")]
+    public async Task Operations_ForbiddenForNonAdmin()
+    {
+        await using var ctx = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(ctx);
+        var target = await TestData.CreateUserAsync(ctx);
+        var service = new SystemAdminService(ctx);
+
+        Assert.Null(await service.GetAdminsAsync(user.Id));
+        Assert.Null(await service.GetAuditLogsAsync(user.Id, 100));
+        Assert.Equal(GrantSystemAdminResult.Forbidden, await service.GrantAsync(target.Id, user.Id));
+        Assert.Equal(RevokeSystemAdminResult.Forbidden, await service.RevokeAsync(target.Id, user.Id));
+    }
+
+    [Fact(DisplayName = "System Admin の付与と監査記録")]
+    public async Task GrantAsync_SetsFlagAndRecordsAudit()
+    {
+        await using var ctx = _db.CreateContext();
+        var admin = await CreateSystemAdminAsync(ctx);
+        var target = await TestData.CreateUserAsync(ctx);
+        var service = new SystemAdminService(ctx);
+
+        Assert.Equal(GrantSystemAdminResult.Success, await service.GrantAsync(target.Id, admin.Id));
+
+        await using var assert = _db.CreateContext();
+        Assert.True((await assert.Users.SingleAsync(u => u.Id == target.Id)).IsSystemAdmin);
+        Assert.True(await assert.AuditLogs.AnyAsync(a =>
+            a.Action == AuditActions.SystemAdminGranted && a.TargetId == target.Id && a.ActorUserId == admin.Id));
+    }
+
+    [Fact(DisplayName = "既に System Admin への付与は AlreadyAdmin")]
+    public async Task GrantAsync_AlreadyAdmin()
+    {
+        await using var ctx = _db.CreateContext();
+        var admin = await CreateSystemAdminAsync(ctx);
+        var service = new SystemAdminService(ctx);
+
+        Assert.Equal(GrantSystemAdminResult.AlreadyAdmin, await service.GrantAsync(admin.Id, admin.Id));
+        Assert.Equal(GrantSystemAdminResult.UserNotFound,
+            await service.GrantAsync(TestData.NonExistentId, admin.Id));
+    }
+
+    [Fact(DisplayName = "最後の System Admin は剥奪できない")]
+    public async Task RevokeAsync_LastAdminGuard()
+    {
+        await using var ctx = _db.CreateContext();
+        // 「最後の1人」判定はインスタンス全体の件数で決まるため、他テストが残した System Admin を一旦リセットする
+        await ctx.Users.Where(u => u.IsSystemAdmin)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.IsSystemAdmin, false));
+        var admin = await CreateSystemAdminAsync(ctx);
+        var service = new SystemAdminService(ctx);
+
+        // 唯一の System Admin を剥奪 → ブロック
+        Assert.Equal(RevokeSystemAdminResult.LastAdmin, await service.RevokeAsync(admin.Id, admin.Id));
+
+        // 2人目を付与してからなら剥奪できる
+        var second = await TestData.CreateUserAsync(ctx);
+        await service.GrantAsync(second.Id, admin.Id);
+        Assert.Equal(RevokeSystemAdminResult.Success, await service.RevokeAsync(second.Id, admin.Id));
+
+        await using var assert = _db.CreateContext();
+        Assert.False((await assert.Users.SingleAsync(u => u.Id == second.Id)).IsSystemAdmin);
+    }
+
+    [Fact(DisplayName = "System Admin でないユーザーの剥奪は NotAdmin")]
+    public async Task RevokeAsync_NotAdmin()
+    {
+        await using var ctx = _db.CreateContext();
+        var admin = await CreateSystemAdminAsync(ctx);
+        var plain = await TestData.CreateUserAsync(ctx);
+        var service = new SystemAdminService(ctx);
+
+        Assert.Equal(RevokeSystemAdminResult.NotAdmin, await service.RevokeAsync(plain.Id, admin.Id));
+    }
+
+    [Fact(DisplayName = "重要操作が監査ログに記録され、System Admin が参照できる")]
+    public async Task GetAuditLogsAsync_ReturnsRecordedOperations()
+    {
+        await using var ctx = _db.CreateContext();
+        var admin = await CreateSystemAdminAsync(ctx);
+
+        // System Admin によるワークスペース作成で監査ログが1件記録される
+        var created = await new WorkspaceService(ctx).CreateAsync(new WorkspaceRequest("監査用WS", null), admin.Id);
+        Assert.Equal(CreateWorkspaceResult.Success, created.Result);
+
+        var logs = await new SystemAdminService(ctx).GetAuditLogsAsync(admin.Id, 100);
+
+        Assert.NotNull(logs);
+        Assert.Contains(logs!, a =>
+            a.Action == AuditActions.WorkspaceCreated && a.ActorUserId == admin.Id && a.ActorName == admin.Name);
+    }
+}
