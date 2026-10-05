@@ -10,6 +10,10 @@ public class AppDbContext : DbContext
     }
 
     public DbSet<User> Users => Set<User>();
+    public DbSet<Workspace> Workspaces => Set<Workspace>();
+    public DbSet<WorkspaceMember> WorkspaceMembers => Set<WorkspaceMember>();
+    public DbSet<Invitation> Invitations => Set<Invitation>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
     public DbSet<TaskItem> Tasks => Set<TaskItem>();
@@ -27,6 +31,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
             entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
             entity.Property(e => e.PasswordHash).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.IsSystemAdmin).HasDefaultValue(false);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
@@ -43,6 +48,14 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Status).HasMaxLength(30).IsRequired().HasDefaultValue(ProjectStatus.Active);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            // 所属ワークスペース(可視性の境界)。既定WSへバックフィル後に NOT NULL 化する(マイグレーション参照)
+            entity.HasIndex(e => e.WorkspaceId).HasDatabaseName("idx_projects_workspace_id");
+            entity.HasOne(e => e.Workspace)
+                .WithMany(w => w.Projects)
+                .HasForeignKey(e => e.WorkspaceId)
+                .HasConstraintName("fk_projects_workspace")
+                .OnDelete(DeleteBehavior.Restrict);
 
             entity.ToTable(tb => tb.HasCheckConstraint(
                 "chk_projects_status",
@@ -200,6 +213,103 @@ public class AppDbContext : DbContext
                     "chk_refresh_tokens_revoked_reason",
                     "revoked_reason IS NULL OR revoked_reason IN ('ROTATED', 'LOGOUT', 'REUSE_DETECTED')");
             });
+        });
+
+        // ============================================================
+        // Workspaces (Phase 2 M1)
+        // ============================================================
+        modelBuilder.Entity<Workspace>(entity =>
+        {
+            entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
+
+        // ============================================================
+        // WorkspaceMembers (Phase 2 M1)
+        // ============================================================
+        modelBuilder.Entity<WorkspaceMember>(entity =>
+        {
+            entity.Property(e => e.Role).HasMaxLength(20).IsRequired().HasDefaultValue(WorkspaceMemberRole.Member);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            // 複数ワークスペース所属は許す(user_id 単独は一意にしない)が、同一WSへの二重所属は禁止する
+            entity.HasIndex(e => new { e.WorkspaceId, e.UserId })
+                .IsUnique()
+                .HasDatabaseName("uq_workspace_members_workspace_user");
+            entity.HasIndex(e => e.WorkspaceId).HasDatabaseName("idx_workspace_members_workspace_id");
+            entity.HasIndex(e => e.UserId).HasDatabaseName("idx_workspace_members_user_id");
+
+            entity.HasOne(e => e.Workspace)
+                .WithMany(w => w.Members)
+                .HasForeignKey(e => e.WorkspaceId)
+                .HasConstraintName("fk_workspace_members_workspace")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.WorkspaceMemberships)
+                .HasForeignKey(e => e.UserId)
+                .HasConstraintName("fk_workspace_members_user")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(tb => tb.HasCheckConstraint(
+                "chk_workspace_members_role",
+                "role IN ('ADMIN', 'MEMBER', 'VIEWER')"));
+        });
+
+        // ============================================================
+        // Invitations (Phase 2 M1)
+        // ============================================================
+        modelBuilder.Entity<Invitation>(entity =>
+        {
+            entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.Role).HasMaxLength(20).IsRequired().HasDefaultValue(WorkspaceMemberRole.Member);
+            // SHA-256 のハッシュ値(16進数64文字)。平文トークンは保存しない
+            entity.Property(e => e.TokenHash).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.TokenHash).IsUnique().HasDatabaseName("invitations_token_hash_key");
+            entity.HasIndex(e => new { e.WorkspaceId, e.Email }).HasDatabaseName("idx_invitations_workspace_email");
+
+            entity.HasOne(e => e.Workspace)
+                .WithMany(w => w.Invitations)
+                .HasForeignKey(e => e.WorkspaceId)
+                .HasConstraintName("fk_invitations_workspace")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // 招待者が削除されても招待履歴は残す(SetNull はできないため Restrict)
+            entity.HasOne(e => e.InvitedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.InvitedBy)
+                .HasConstraintName("fk_invitations_invited_by")
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.ToTable(tb => tb.HasCheckConstraint(
+                "chk_invitations_role",
+                "role IN ('ADMIN', 'MEMBER', 'VIEWER')"));
+        });
+
+        // ============================================================
+        // AuditLogs (Phase 2 M1)
+        // ============================================================
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.Property(e => e.Action).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.TargetType).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Metadata).HasColumnType("jsonb");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.CreatedAt).HasDatabaseName("idx_audit_logs_created_at");
+            entity.HasIndex(e => e.WorkspaceId).HasDatabaseName("idx_audit_logs_workspace_id");
+            entity.HasIndex(e => e.ActorUserId).HasDatabaseName("idx_audit_logs_actor_user_id");
+
+            // 監査ログは実行者が削除されても残す
+            entity.HasOne(e => e.ActorUser)
+                .WithMany()
+                .HasForeignKey(e => e.ActorUserId)
+                .HasConstraintName("fk_audit_logs_actor_user")
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // FK結合用に自動生成される索引に、DDLの命名規則に沿った名前を明示的に付与する

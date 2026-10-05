@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- 認可の集約(ProjectAccess 等)は internal のまま、単体テストから検証できるようにする -->
+    <InternalsVisibleTo Include="TaskManagementSystem.Api.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Amazon.Lambda.AspNetCoreServer.Hosting" Version="2.2.1" />
     <PackageReference Include="Amazon.Lambda.Core" Version="3.3.0" />
     <PackageReference Include="Amazon.Lambda.RuntimeSupport" Version="2.2.3" />
