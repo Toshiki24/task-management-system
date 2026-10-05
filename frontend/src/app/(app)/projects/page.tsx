@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
+import { Select } from "@/components/common/Select";
 import { ProjectList } from "@/components/project/ProjectList";
 import { apiFetch } from "@/lib/api";
 import { fetchCurrentUser } from "@/lib/auth";
@@ -74,18 +75,15 @@ export default function ProjectsPage() {
         <div className="flex items-center gap-3">
           <h1 className="text-lg font-bold text-gray-900">プロジェクト一覧</h1>
           {workspaces.length > 1 && (
-            <select
+            <Select
               aria-label="ワークスペース"
-              value={workspaceId ?? ""}
+              value={workspaceId !== null ? String(workspaceId) : ""}
               onChange={(event) => setWorkspaceId(Number(event.target.value))}
-              className="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              {workspaces.map((workspace) => (
-                <option key={workspace.id} value={workspace.id}>
-                  {workspace.name}
-                </option>
-              ))}
-            </select>
+              options={workspaces.map((workspace) => ({
+                value: String(workspace.id),
+                label: workspace.name,
+              }))}
+            />
           )}
         </div>
         {workspaceId !== null && (
