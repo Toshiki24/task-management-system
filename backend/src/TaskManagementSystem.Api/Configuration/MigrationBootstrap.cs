@@ -48,7 +48,14 @@ public static class MigrationBootstrap
             {
                 var created = await DatabaseSeeder.SeedUsersAsync(appConnectionString, users);
                 context.Logger.LogInformation($"初期ユーザーを投入しました(新規 {created} / 指定 {users.Count})。");
-                return $"migration completed; users created: {created}/{users.Count}";
+
+                // 既定ワークスペースの用意と、System Admin / 所属の設定(冪等。Phase 2 M1 §8)
+                var workspaceId = await DatabaseSeeder.SetupInitialOrganizationAsync(appConnectionString, users);
+                var admins = users.Count(u => u.IsSystemAdmin);
+                context.Logger.LogInformation(
+                    $"初期セットアップ完了(既定ワークスペース {workspaceId} / System Admin {admins} 名)。");
+                return $"migration completed; users created: {created}/{users.Count}; "
+                    + $"workspace: {workspaceId}; system admins: {admins}";
             }
 
             return "migration completed";

@@ -80,6 +80,89 @@ public class DatabaseSeederTests
         }
     }
 
+    [Fact(DisplayName = "UT-1302 初期セットアップ: 既定ワークスペース作成・System Admin 付与・冪等")]
+    public async Task SetupInitialOrganizationAsync_CreatesWorkspaceAndSystemAdmin()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        var database = $"task_management_setup_{suffix}";
+        var appUser = $"tms_app_{suffix}";
+        const string appPassword = "app-password-1234";
+
+        var users = new List<SeedUser>
+        {
+            new("管理者", "admin@example.com", "Password123!", IsSystemAdmin: true),
+            new("一般ユーザー", "member@example.com", "Password123!"),
+        };
+
+        var masterConnection = new NpgsqlConnectionStringBuilder(ServerConnection) { Database = database }.ConnectionString;
+        var appConnection = new NpgsqlConnectionStringBuilder(ServerConnection)
+        {
+            Database = database,
+            Username = appUser,
+            Password = appPassword,
+        }.ConnectionString;
+
+        await CreateDatabaseAsync(database);
+        try
+        {
+            await DatabaseMigrator.RunAsync(masterConnection, appConnection);
+            await DatabaseSeeder.SeedUsersAsync(appConnection, users);
+
+            var workspaceId = await DatabaseSeeder.SetupInitialOrganizationAsync(appConnection, users);
+
+            await using var db = new NpgsqlConnection(masterConnection);
+            await db.OpenAsync();
+
+            // 既定ワークスペースが1つだけ作られる
+            await using (var count = new NpgsqlCommand("SELECT count(*) FROM workspaces", db))
+            {
+                Assert.Equal(1L, (long)(await count.ExecuteScalarAsync())!);
+            }
+
+            // 管理者は System Admin かつ ADMIN、一般ユーザーは MEMBER
+            Assert.True(await IsSystemAdminAsync(db, "admin@example.com"));
+            Assert.False(await IsSystemAdminAsync(db, "member@example.com"));
+            Assert.Equal("ADMIN", await MemberRoleAsync(db, workspaceId, "admin@example.com"));
+            Assert.Equal("MEMBER", await MemberRoleAsync(db, workspaceId, "member@example.com"));
+
+            // 再実行しても冪等(ワークスペースは増えず、ロールも変わらない)
+            var secondWorkspaceId = await DatabaseSeeder.SetupInitialOrganizationAsync(appConnection, users);
+            Assert.Equal(workspaceId, secondWorkspaceId);
+            await using (var count = new NpgsqlCommand("SELECT count(*) FROM workspaces", db))
+            {
+                Assert.Equal(1L, (long)(await count.ExecuteScalarAsync())!);
+            }
+            await using (var members = new NpgsqlCommand(
+                "SELECT count(*) FROM workspace_members WHERE workspace_id = @ws", db))
+            {
+                members.Parameters.AddWithValue("ws", workspaceId);
+                Assert.Equal(2L, (long)(await members.ExecuteScalarAsync())!);
+            }
+        }
+        finally
+        {
+            await DropDatabaseAsync(database);
+            await DropRoleAsync(appUser);
+        }
+    }
+
+    private static async Task<bool> IsSystemAdminAsync(NpgsqlConnection db, string email)
+    {
+        await using var cmd = new NpgsqlCommand("SELECT is_system_admin FROM users WHERE email = @email", db);
+        cmd.Parameters.AddWithValue("email", email);
+        return (bool)(await cmd.ExecuteScalarAsync())!;
+    }
+
+    private static async Task<string> MemberRoleAsync(NpgsqlConnection db, long workspaceId, string email)
+    {
+        await using var cmd = new NpgsqlCommand(
+            "SELECT wm.role FROM workspace_members wm JOIN users u ON u.id = wm.user_id "
+                + "WHERE wm.workspace_id = @ws AND u.email = @email", db);
+        cmd.Parameters.AddWithValue("ws", workspaceId);
+        cmd.Parameters.AddWithValue("email", email);
+        return (string)(await cmd.ExecuteScalarAsync())!;
+    }
+
     private static async Task CreateDatabaseAsync(string database)
     {
         await using var admin = new NpgsqlConnection(AdminConnection());
