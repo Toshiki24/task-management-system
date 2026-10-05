@@ -2,8 +2,11 @@ using Npgsql;
 
 namespace TaskManagementSystem.Api.Data;
 
-/// <summary>投入するユーザー1件分の情報。</summary>
-public sealed record SeedUser(string Name, string Email, string Password);
+/// <summary>
+/// 投入するユーザー1件分の情報。<paramref name="IsSystemAdmin"/>=true のユーザーは
+/// 初期セットアップで System Admin かつ既定ワークスペースの Admin になる(Phase 2 M1 §8)。
+/// </summary>
+public sealed record SeedUser(string Name, string Email, string Password, bool IsSystemAdmin = false);
 
 /// <summary>
 /// 初期ユーザーの投入。登録APIが無いため、本番の初回ログイン用ユーザーを
@@ -42,5 +45,62 @@ public static class DatabaseSeeder
         }
 
         return created;
+    }
+
+    /// <summary>
+    /// 初期セットアップ(Phase 2 M1 §8)。既定ワークスペースを用意し、指定ユーザーを所属させる。
+    /// <see cref="SeedUser.IsSystemAdmin"/>=true のユーザーは System Admin かつ既定ワークスペースの Admin にする。
+    /// 新規インストールでも既存環境でも安全に再実行できる(冪等)。
+    /// </summary>
+    /// <returns>既定ワークスペースの ID。</returns>
+    public static async Task<long> SetupInitialOrganizationAsync(
+        string appConnectionString,
+        IReadOnlyList<SeedUser> users,
+        string defaultWorkspaceName = "Default Workspace")
+    {
+        await using var connection = new NpgsqlConnection(appConnectionString);
+        await connection.OpenAsync();
+
+        // 1. 既定ワークスペースを get-or-create(名前で同定。既に存在すればそれを使う)
+        long workspaceId;
+        await using (var command = new NpgsqlCommand(
+            "WITH existing AS (SELECT id FROM workspaces WHERE name = @name ORDER BY id LIMIT 1), "
+                + "inserted AS ("
+                + "  INSERT INTO workspaces (name, description) "
+                + "  SELECT @name, @desc WHERE NOT EXISTS (SELECT 1 FROM existing) RETURNING id) "
+                + "SELECT id FROM existing UNION ALL SELECT id FROM inserted LIMIT 1",
+            connection))
+        {
+            command.Parameters.AddWithValue("name", defaultWorkspaceName);
+            command.Parameters.AddWithValue("desc", "初期セットアップで作成された既定のワークスペース");
+            workspaceId = (long)(await command.ExecuteScalarAsync())!;
+        }
+
+        // 2. ユーザーごとに System Admin フラグとワークスペース所属を設定する
+        foreach (var user in users)
+        {
+            if (user.IsSystemAdmin)
+            {
+                await using var flag = new NpgsqlCommand(
+                    "UPDATE users SET is_system_admin = true WHERE email = @email", connection);
+                flag.Parameters.AddWithValue("email", user.Email);
+                await flag.ExecuteNonQueryAsync();
+            }
+
+            // System Admin は WS Admin に(既に MEMBER でも昇格)、それ以外は MEMBER として追加(既存は維持)
+            var role = user.IsSystemAdmin ? "ADMIN" : "MEMBER";
+            var conflictAction = user.IsSystemAdmin ? "DO UPDATE SET role = @role" : "DO NOTHING";
+            await using var member = new NpgsqlCommand(
+                "INSERT INTO workspace_members (workspace_id, user_id, role) "
+                    + "SELECT @ws, id, @role FROM users WHERE email = @email "
+                    + $"ON CONFLICT (workspace_id, user_id) {conflictAction}",
+                connection);
+            member.Parameters.AddWithValue("ws", workspaceId);
+            member.Parameters.AddWithValue("role", role);
+            member.Parameters.AddWithValue("email", user.Email);
+            await member.ExecuteNonQueryAsync();
+        }
+
+        return workspaceId;
     }
 }
