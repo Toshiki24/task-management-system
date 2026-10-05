@@ -48,7 +48,7 @@ test.describe("9.7 SEC-05 リフレッシュトークン（API）", () => {
     expect(body.refreshToken).not.toBe(logged.refreshToken);
     expect(body.user).toEqual({ id: user.id, name: user.name, email: user.email });
     // 再発行したアクセストークンでAPIを呼び出せる
-    const projects = await api.get("/api/projects", { headers: { Authorization: `Bearer ${body.accessToken}` } });
+    const projects = await api.get("/api/me/workspaces", { headers: { Authorization: `Bearer ${body.accessToken}` } });
     expect(projects.status()).toBe(200);
   });
 
@@ -111,7 +111,7 @@ test.describe("9.7 SEC-05 リフレッシュトークン（API）", () => {
     const user = await data.createUser();
     const logged = await login(api, user);
 
-    const response = await api.get("/api/projects", { headers: bearer({ ...user, token: logged.refreshToken }) });
+    const response = await api.get("/api/me/workspaces", { headers: bearer({ ...user, token: logged.refreshToken }) });
 
     expect(response.status()).toBe(401);
   });

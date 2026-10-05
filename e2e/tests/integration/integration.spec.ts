@@ -67,17 +67,17 @@ test.describe("6. 結合テスト", () => {
     expect(rows[0].assignee_id).toBeNull();
   });
 
-  test("IT-004 プロジェクト作成のトランザクション性", async ({ api, data, db }) => {
+  test("IT-004 作成者が無効ならプロジェクトは作られない", async ({ api, data, db }) => {
     // JWTを発行した後にユーザーをDBから削除すると、トークンは有効なまま作成者IDだけが存在しない状態になる。
-    // この状態でプロジェクトを作成すると、projectsへの登録は成功し、
-    // 続くproject_membersへの登録だけが外部キー違反で失敗する。
+    // ワークスペース所属も連動削除されるため、作成は認可で弾かれ(404)、プロジェクトは一切作られない。
     const user = await data.createUser();
+    const workspaceId = await data.createWorkspace(user);
     await db.query("DELETE FROM users WHERE id = $1", [user.id]);
     const name = unique("E2Eロールバック確認");
 
-    const response = await api.post("/api/projects", { headers: bearer(user), data: { name } });
+    const response = await api.post(`/api/workspaces/${workspaceId}/projects`, { headers: bearer(user), data: { name } });
 
-    expect(response.status()).toBe(500);
+    expect(response.status()).toBe(404);
     const { rows } = await db.query(
       `SELECT (SELECT count(*) FROM projects WHERE name = $1)::int AS projects,
               (SELECT count(*) FROM project_members WHERE user_id = $2)::int AS members`,
@@ -144,10 +144,12 @@ test.describe("6. 結合テスト", () => {
 
   test("IT-008 CORS設定（ブラウザからAPIを直接呼び出させない）", async ({ api, data, page }) => {
     const user = await data.createUser();
+    // ログイン後の一覧画面(プロジェクト一覧の見出し)を表示するにはワークスペース所属が必要
+    await data.createWorkspace(user);
 
     // プリフライト: 画面(フロントエンド)のオリジンからのAPI呼び出しは許可されない
     // (ブラウザはBFFとのみ通信するため、APIはCORSを許可しない。security-review.md 5.3)
-    const preflight = await api.fetch("/api/projects", {
+    const preflight = await api.fetch("/api/me/workspaces", {
       method: "OPTIONS",
       headers: {
         Origin: WEB_URL,

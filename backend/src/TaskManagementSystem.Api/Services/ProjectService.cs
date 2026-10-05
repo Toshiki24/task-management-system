@@ -156,6 +156,7 @@ public class ProjectService : IProjectService
 
     private static ProjectDto ToDto(Project project) => new(
         project.Id,
+        project.WorkspaceId,
         project.Name,
         project.Description,
         project.Status,

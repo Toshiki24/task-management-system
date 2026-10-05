@@ -22,18 +22,22 @@ const TASK_BODY = {
 };
 
 test.describe("9.1 SEC-01 認可チェック（プロジェクトに所属していないユーザー）", () => {
-  test("SEC-01-01 プロジェクト一覧に所属していないプロジェクトが含まれない", async ({ api, data }) => {
+  test("SEC-01-01 所属していないワークスペースのプロジェクトは一覧・取得できない", async ({ api, data }) => {
     const owner = await data.createUser("オーナー");
     const outsider = await data.createUser("非メンバー");
     const othersProject = await data.createProject(owner);
     const ownProject = await data.createProject(outsider);
 
-    const response = await api.get("/api/projects", { headers: bearer(outsider) });
-
-    expect(response.status()).toBe(200);
-    const ids = (await response.json()).map((p: { id: number }) => p.id);
+    // 自分の所属ワークスペースの一覧には自分のプロジェクトだけが含まれる
+    const ownList = await api.get(`/api/workspaces/${ownProject.workspaceId}/projects`, { headers: bearer(outsider) });
+    expect(ownList.status()).toBe(200);
+    const ids = (await ownList.json()).map((p: { id: number }) => p.id);
     expect(ids).toContain(ownProject.id);
     expect(ids).not.toContain(othersProject.id);
+
+    // 所属していないワークスペースの一覧は404(存在を開示しない)
+    const othersList = await api.get(`/api/workspaces/${othersProject.workspaceId}/projects`, { headers: bearer(outsider) });
+    expect(othersList.status()).toBe(404);
   });
 
   test("SEC-01-02 所属していないプロジェクトの詳細取得", async ({ api, data }) => {
@@ -267,11 +271,15 @@ test.describe("9.2 SEC-01 認可チェック（プロジェクト内権限）", 
     expect(rowCount).toBe(1);
   });
 
-  test("SEC-01-17 MEMBERによるタスク削除", async ({ api, data, db }) => {
-    const { owner, member, project } = await setUpMember(data);
+  test("SEC-01-17 VIEWERによるタスク削除は拒否される", async ({ api, data, db }) => {
+    const owner = await data.createUser("オーナー");
+    const viewer = await data.createUser("閲覧者");
+    const project = await data.createProject(owner);
+    // Viewer はワークスペースの閲覧専用ロール(プロジェクトは見えるが書き込み不可)
+    await data.addWorkspaceMember(project.workspaceId, viewer, "VIEWER");
     const task = await data.createTask(project.id, owner);
 
-    const response = await api.delete(`/api/tasks/${task.id}`, { headers: bearer(member) });
+    const response = await api.delete(`/api/tasks/${task.id}`, { headers: bearer(viewer) });
 
     expect(response.status()).toBe(403);
     expect(await response.json()).toEqual(FORBIDDEN);
@@ -285,14 +293,14 @@ test.describe("9.2 SEC-01 認可チェック（プロジェクト内権限）", 
     const headers = bearer(member);
 
     // 参照系
-    expect((await api.get("/api/projects", { headers })).status()).toBe(200);
+    expect((await api.get(`/api/workspaces/${project.workspaceId}/projects`, { headers })).status()).toBe(200);
     expect((await api.get(`/api/projects/${project.id}`, { headers })).status()).toBe(200);
     expect((await api.get(`/api/projects/${project.id}/members`, { headers })).status()).toBe(200);
     expect((await api.get(`/api/projects/${project.id}/tasks`, { headers })).status()).toBe(200);
     expect((await api.get(`/api/tasks/${task.id}`, { headers })).status()).toBe(200);
     expect((await api.get(`/api/tasks/${task.id}/comments`, { headers })).status()).toBe(200);
 
-    // 更新系(タスク登録・更新、コメント登録)
+    // 更新系(タスク登録・更新・削除、コメント登録)。WS Member は書き込み可(設計 §3.3)
     const created = await api.post(`/api/projects/${project.id}/tasks`, {
       headers,
       data: { ...TASK_BODY, title: unique("E2Eタスク"), assigneeId: member.id },
@@ -305,6 +313,10 @@ test.describe("9.2 SEC-01 認可チェック（プロジェクト内権限）", 
       data: { comment: unique("E2Eコメント") },
     });
     expect(commented.status()).toBe(201);
+    // Member はタスクを削除できる(作成した別タスクで確認)
+    const deletable = await data.createTask(project.id, owner);
+    const deleted = await api.delete(`/api/tasks/${deletable.id}`, { headers });
+    expect(deleted.status()).toBe(204);
   });
 
   test("SEC-01-19 作成者以外のOWNERがOWNER権限の操作を行える", async ({ api, data }) => {

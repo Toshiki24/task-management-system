@@ -19,6 +19,7 @@ export interface TestUser {
 
 export interface Project {
   id: number;
+  workspaceId: number;
   name: string;
   description: string | null;
   status: string;
@@ -80,11 +81,36 @@ export async function expectValidationError(
 export class TestDataFactory {
   private readonly userIds: number[] = [];
   private readonly projectIds: number[] = [];
+  private readonly workspaceIds: number[] = [];
 
   constructor(
     private readonly api: APIRequestContext,
     private readonly db: pg.Pool,
   ) {}
+
+  /**
+   * ワークスペースを DB に直接作成し、指定ユーザーをメンバーとして登録する。
+   * (ワークスペース作成 API は System Admin 専用のため、テストでは DB 直挿しで用意する)
+   */
+  async createWorkspace(owner: TestUser, role = "ADMIN"): Promise<number> {
+    const { rows } = await this.db.query<{ id: string }>(
+      "INSERT INTO workspaces (name) VALUES ($1) RETURNING id",
+      [unique("E2Eワークスペース")],
+    );
+    const id = Number(rows[0].id);
+    this.workspaceIds.push(id);
+    await this.addWorkspaceMember(id, owner, role);
+    return id;
+  }
+
+  /** 既存ユーザーをワークスペースのメンバーにする(DB 直挿し。重複は無視) */
+  async addWorkspaceMember(workspaceId: number, member: TestUser, role = "MEMBER"): Promise<void> {
+    await this.db.query(
+      `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3)
+       ON CONFLICT (workspace_id, user_id) DO NOTHING`,
+      [workspaceId, member.id, role],
+    );
+  }
 
   async createUser(label = "ユーザー"): Promise<TestUser> {
     const suffix = randomUUID().slice(0, 12);
@@ -109,8 +135,15 @@ export class TestDataFactory {
     return (await response.json()).accessToken;
   }
 
-  async createProject(owner: TestUser, body: Partial<Omit<Project, "id">> = {}): Promise<Project> {
-    const response = await this.api.post("/api/projects", {
+  async createProject(
+    owner: TestUser,
+    body: Partial<Omit<Project, "id" | "workspaceId">> & { workspaceId?: number } = {},
+  ): Promise<Project> {
+    // プロジェクトは必ずワークスペースに属する。未指定なら owner を Admin とする WS を用意する
+    const { workspaceId: givenWorkspaceId, ...projectBody } = body;
+    const workspaceId = givenWorkspaceId ?? (await this.createWorkspace(owner, "ADMIN"));
+
+    const response = await this.api.post(`/api/workspaces/${workspaceId}/projects`, {
       headers: bearer(owner),
       data: {
         name: unique("E2Eプロジェクト"),
@@ -118,7 +151,7 @@ export class TestDataFactory {
         status: "ACTIVE",
         startDate: "2026-10-01",
         endDate: "2026-12-31",
-        ...body,
+        ...projectBody,
       },
     });
     expect(response.status(), "テスト用プロジェクトを作成できること").toBe(201);
@@ -133,6 +166,16 @@ export class TestDataFactory {
   }
 
   async addMember(projectId: number, actor: TestUser, member: TestUser, role = "MEMBER"): Promise<void> {
+    // 可視性はワークスペース所属で決まるため、プロジェクトの所属 WS のメンバーにもしておく
+    const { rows } = await this.db.query<{ workspace_id: string }>(
+      "SELECT workspace_id FROM projects WHERE id = $1",
+      [projectId],
+    );
+    if (rows.length > 0) {
+      const workspaceRole = role === "OWNER" ? "ADMIN" : "MEMBER";
+      await this.addWorkspaceMember(Number(rows[0].workspace_id), member, workspaceRole);
+    }
+
     const response = await this.api.post(`/api/projects/${projectId}/members`, {
       headers: bearer(actor),
       data: { userId: member.id, role },
@@ -166,12 +209,16 @@ export class TestDataFactory {
   }
 
   async cleanup(): Promise<void> {
+    // プロジェクトはワークスペースを RESTRICT で参照するため、ワークスペースより先に削除する
     await this.db.query(
       `DELETE FROM projects
         WHERE id = ANY($1::bigint[])
-           OR id IN (SELECT project_id FROM project_members WHERE user_id = ANY($2::bigint[]))`,
-      [this.projectIds, this.userIds],
+           OR id IN (SELECT project_id FROM project_members WHERE user_id = ANY($2::bigint[]))
+           OR workspace_id = ANY($3::bigint[])`,
+      [this.projectIds, this.userIds, this.workspaceIds],
     );
+    // workspace_members / invitations は ON DELETE CASCADE で連動削除される
+    await this.db.query("DELETE FROM workspaces WHERE id = ANY($1::bigint[])", [this.workspaceIds]);
     await this.db.query("DELETE FROM users WHERE id = ANY($1::bigint[])", [this.userIds]);
   }
 }
