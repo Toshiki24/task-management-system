@@ -103,6 +103,11 @@ export class TestDataFactory {
     return id;
   }
 
+  /** ユーザーを System Admin にする(DB 直挿し)。 */
+  async makeSystemAdmin(user: TestUser): Promise<void> {
+    await this.db.query("UPDATE users SET is_system_admin = true WHERE id = $1", [user.id]);
+  }
+
   /**
    * ワークスペースへの招待を DB に直接作成し、受諾用の平文トークンを返す。
    * (トークンはメールでのみ配布され API レスポンスには含まれないため、画面テストでは DB 直挿しで用意する)

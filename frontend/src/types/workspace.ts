@@ -10,6 +10,11 @@ export interface Workspace {
   createdAt: string;
 }
 
+export interface CreateWorkspaceBody {
+  name: string;
+  description?: string | null;
+}
+
 export interface WorkspaceMember {
   userId: number;
   name: string;

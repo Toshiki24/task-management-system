@@ -12,7 +12,7 @@ test.describe("5.1 認証API", () => {
     const body = await response.json();
     expect(body.accessToken).toEqual(expect.any(String));
     expect(body.accessToken.length).toBeGreaterThan(0);
-    expect(body.user).toEqual({ id: user.id, name: user.name, email: user.email });
+    expect(body.user).toEqual({ id: user.id, name: user.name, email: user.email, isSystemAdmin: false });
   });
 
   test("API-802 メール未指定", async ({ api }) => {

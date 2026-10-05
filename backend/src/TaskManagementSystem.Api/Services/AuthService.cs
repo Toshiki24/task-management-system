@@ -71,6 +71,6 @@ public class AuthService : IAuthService
             accessToken.Token,
             accessToken.ExpiresAt,
             refreshToken,
-            new UserDto(user.Id, user.Name, user.Email));
+            new AuthUserDto(user.Id, user.Name, user.Email, user.IsSystemAdmin));
     }
 }
