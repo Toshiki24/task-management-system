@@ -381,7 +381,9 @@ Phase 1 の UT/API/結合/画面/セキュリティ方針を踏襲。M1 は**可
 ## 10. 実装順序（M1 内の分解）
 
 1. スキーマ（migration）：`workspaces` / `workspace_members` / `invitations` / `audit_logs`、`projects.workspace_id`、`users.is_system_admin`
+   - `projects.workspace_id` は、既存プロジェクト作成を壊さないよう **step1 では NULL 許可**で導入し、既定ワークスペースへバックフィルする（プロジェクト作成をワークスペース対応にする step5 で **NOT NULL 化**）。
 2. 認可の集約（`ProjectAccess` 拡張＝`ResolveAccess`）と**クエリ段階の可視性フィルタ**
+   - step2 では `ResolveAccess` と可視性フィルタ（`WhereVisibleTo`）を**追加**する（既存サービスへの適用＝可視性ゲートは step5 で行う）。
 3. ワークスペース CRUD ＋ メンバー管理 API
 4. 招待フロー（トークン生成/保存/受諾）＋ メール送信（抽象化）
 5. 既存プロジェクト/タスク API のワークスペース配下への移設＋認可適用

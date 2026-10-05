@@ -29,7 +29,8 @@ public static class TestData
         return user;
     }
 
-    public static async Task<Project> CreateProjectAsync(AppDbContext context, string status = ProjectStatus.Active)
+    public static async Task<Project> CreateProjectAsync(
+        AppDbContext context, string status = ProjectStatus.Active, long? workspaceId = null)
     {
         var project = new Project
         {
@@ -38,11 +39,29 @@ public static class TestData
             Status = status,
             StartDate = new DateOnly(2026, 10, 1),
             EndDate = new DateOnly(2026, 12, 31),
+            WorkspaceId = workspaceId,
         };
 
         context.Projects.Add(project);
         await context.SaveChangesAsync();
         return project;
+    }
+
+    public static async Task<Workspace> CreateWorkspaceAsync(AppDbContext context)
+    {
+        var workspace = new Workspace { Name = Unique("ut-workspace"), Description = "単体テスト用ワークスペース" };
+        context.Workspaces.Add(workspace);
+        await context.SaveChangesAsync();
+        return workspace;
+    }
+
+    public static async Task<WorkspaceMember> AddWorkspaceMemberAsync(
+        AppDbContext context, long workspaceId, long userId, string role = WorkspaceMemberRole.Member)
+    {
+        var member = new WorkspaceMember { WorkspaceId = workspaceId, UserId = userId, Role = role };
+        context.WorkspaceMembers.Add(member);
+        await context.SaveChangesAsync();
+        return member;
     }
 
     /// <summary>プロジェクトと、そのOWNERとして登録済みのユーザーを作成する</summary>
