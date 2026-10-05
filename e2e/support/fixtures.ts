@@ -103,6 +103,11 @@ export class TestDataFactory {
     return id;
   }
 
+  /** ユーザーを System Admin にする(DB 直挿し)。 */
+  async makeSystemAdmin(user: TestUser): Promise<void> {
+    await this.db.query("UPDATE users SET is_system_admin = true WHERE id = $1", [user.id]);
+  }
+
   /** 既存ユーザーをワークスペースのメンバーにする(DB 直挿し。重複は無視) */
   async addWorkspaceMember(workspaceId: number, member: TestUser, role = "MEMBER"): Promise<void> {
     await this.db.query(

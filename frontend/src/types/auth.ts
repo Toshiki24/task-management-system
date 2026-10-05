@@ -7,6 +7,7 @@ export interface CurrentUser {
   id: number;
   name: string;
   email: string;
+  isSystemAdmin: boolean;
 }
 
 /** BFFのログイン・セッション確認のレスポンス(トークンは含まない) */

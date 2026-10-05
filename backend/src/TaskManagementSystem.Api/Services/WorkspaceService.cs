@@ -85,8 +85,23 @@ public class WorkspaceService : IWorkspaceService
             Description = request.Description,
         };
 
+        // ワークスペース作成と、作成者を ADMIN メンバーとして登録するのは、
+        // 一方だけ成功する状態を防ぐため同一トランザクションで行う(プロジェクト作成の OWNER 登録と同方針)。
+        // 作成者が ADMIN になることで、作成直後から自分でメンバー管理できる。
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+
         _dbContext.Workspaces.Add(workspace);
         await _dbContext.SaveChangesAsync();
+
+        _dbContext.WorkspaceMembers.Add(new WorkspaceMember
+        {
+            WorkspaceId = workspace.Id,
+            UserId = currentUserId,
+            Role = WorkspaceMemberRole.Admin,
+        });
+        await _dbContext.SaveChangesAsync();
+
+        await transaction.CommitAsync();
 
         await _dbContext.RecordAuditAsync(
             currentUserId, AuditActions.WorkspaceCreated, AuditTargets.Workspace, workspace.Id, workspace.Id,
@@ -94,7 +109,7 @@ public class WorkspaceService : IWorkspaceService
 
         return new CreateWorkspaceOutcome(
             CreateWorkspaceResult.Success,
-            ToDto(workspace, myRole: null));
+            ToDto(workspace, myRole: WorkspaceMemberRole.Admin));
     }
 
     public async Task<UpdateWorkspaceOutcome> UpdateAsync(

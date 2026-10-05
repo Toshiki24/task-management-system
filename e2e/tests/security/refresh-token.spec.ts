@@ -11,7 +11,7 @@ interface TokenResponse {
   accessToken: string;
   accessTokenExpiresAt: string;
   refreshToken: string;
-  user: { id: number; name: string; email: string };
+  user: { id: number; name: string; email: string; isSystemAdmin: boolean };
 }
 
 async function login(api: APIRequestContext, user: TestUser): Promise<TokenResponse> {
@@ -46,7 +46,7 @@ test.describe("9.7 SEC-05 リフレッシュトークン（API）", () => {
     expect(response.status()).toBe(200);
     const body: TokenResponse = await response.json();
     expect(body.refreshToken).not.toBe(logged.refreshToken);
-    expect(body.user).toEqual({ id: user.id, name: user.name, email: user.email });
+    expect(body.user).toEqual({ id: user.id, name: user.name, email: user.email, isSystemAdmin: false });
     // 再発行したアクセストークンでAPIを呼び出せる
     const projects = await api.get("/api/me/workspaces", { headers: { Authorization: `Bearer ${body.accessToken}` } });
     expect(projects.status()).toBe(200);

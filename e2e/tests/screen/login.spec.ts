@@ -16,7 +16,7 @@ test.describe("7.1 SCR-001 ログイン画面", () => {
     const cookies = await page.context().cookies(WEB_URL);
     expect(cookies.find((c) => c.name === "tms_session")?.httpOnly).toBe(true);
     const session = await page.request.get("/api/bff/auth/session");
-    expect(await session.json()).toEqual({ user: { id: user.id, name: user.name, email: user.email } });
+    expect(await session.json()).toEqual({ user: { id: user.id, name: user.name, email: user.email, isSystemAdmin: false } });
   });
 
   test("SCR-001-02 ログイン失敗", async ({ page, data }) => {

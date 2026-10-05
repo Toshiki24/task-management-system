@@ -6,6 +6,7 @@ import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
 import { ProjectList } from "@/components/project/ProjectList";
 import { apiFetch } from "@/lib/api";
+import { fetchCurrentUser } from "@/lib/auth";
 import type { Project } from "@/types/project";
 import type { Workspace } from "@/types/workspace";
 
@@ -13,7 +14,15 @@ export default function ProjectsPage() {
   const [workspaces, setWorkspaces] = useState<Workspace[] | null>(null);
   const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [projects, setProjects] = useState<Project[] | null>(null);
+  const [isSystemAdmin, setIsSystemAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // System Admin だけに表示する操作(ワークスペース作成)の判定用
+  useEffect(() => {
+    fetchCurrentUser()
+      .then((user) => setIsSystemAdmin(user?.isSystemAdmin ?? false))
+      .catch(() => setIsSystemAdmin(false));
+  }, []);
 
   // 自分が所属するワークスペースを取得し、先頭を初期選択にする
   useEffect(() => {
@@ -49,7 +58,12 @@ export default function ProjectsPage() {
   if (workspaces.length === 0) {
     return (
       <div className="text-sm text-gray-500">
-        所属しているワークスペースがありません。管理者に招待を依頼してください。
+        <p className="mb-2">所属しているワークスペースがありません。管理者に招待を依頼してください。</p>
+        {isSystemAdmin && (
+          <Link href="/workspaces/new" className="font-semibold text-blue-600 hover:underline">
+            ＋ ワークスペースを作成
+          </Link>
+        )}
       </div>
     );
   }
@@ -76,6 +90,14 @@ export default function ProjectsPage() {
         </div>
         {workspaceId !== null && (
           <div className="flex items-center gap-3">
+            {isSystemAdmin && (
+              <Link
+                href="/workspaces/new"
+                className="text-sm font-semibold text-blue-600 hover:underline"
+              >
+                ＋ ワークスペース
+              </Link>
+            )}
             <Link
               href={`/workspaces/${workspaceId}`}
               className="text-sm font-semibold text-blue-600 hover:underline"
