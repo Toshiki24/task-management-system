@@ -13,11 +13,12 @@ test.describe("7.8 SCR-008 ワークスペース管理画面", () => {
     // 自分(ADMIN)が一覧に出る
     await expect(page.getByRole("listitem").filter({ hasText: admin.name })).toBeVisible();
 
-    // 既存ユーザーを MEMBER として追加
+    // 既存ユーザーを MEMBER として追加(メンバー追加フォームに絞って操作する)
     await page.getByRole("button", { name: "メンバー追加" }).click();
-    await page.getByLabel("ユーザー").selectOption({ label: `${target.name} (${target.email})` });
-    await page.getByLabel("ロール", { exact: true }).selectOption("MEMBER");
-    await page.getByRole("button", { name: "追加", exact: true }).click();
+    const addForm = page.locator("form").filter({ has: page.getByLabel("ユーザー") });
+    await addForm.getByLabel("ユーザー").selectOption({ label: `${target.name} (${target.email})` });
+    await addForm.getByLabel("ロール").selectOption("MEMBER");
+    await addForm.getByRole("button", { name: "追加", exact: true }).click();
 
     await expect(page.getByRole("listitem").filter({ hasText: target.name })).toBeVisible();
   });
@@ -87,6 +88,6 @@ test.describe("7.8 SCR-008 ワークスペース管理画面", () => {
     await page.getByRole("link", { name: "ワークスペース設定" }).click();
 
     await expect(page).toHaveURL(`/workspaces/${workspaceId}`);
-    await expect(page.getByRole("heading", { name: "メンバー" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "メンバー", exact: true })).toBeVisible();
   });
 });
