@@ -144,6 +144,8 @@ test.describe("6. 結合テスト", () => {
 
   test("IT-008 CORS設定（ブラウザからAPIを直接呼び出させない）", async ({ api, data, page }) => {
     const user = await data.createUser();
+    // ログイン後の一覧画面(プロジェクト一覧の見出し)を表示するにはワークスペース所属が必要
+    await data.createWorkspace(user);
 
     // プリフライト: 画面(フロントエンド)のオリジンからのAPI呼び出しは許可されない
     // (ブラウザはBFFとのみ通信するため、APIはCORSを許可しない。security-review.md 5.3)

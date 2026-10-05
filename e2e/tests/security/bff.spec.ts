@@ -209,10 +209,14 @@ test.describe("9.9 CSRF対策（BFF）", () => {
 
   test("SEC-04-13 自サイトの画面からの更新リクエストは受け付けられる", async ({ page, data }) => {
     const user = await data.createUser();
+    const workspaceId = await data.createWorkspace(user);
     await signIn(page, user);
     const body = newProjectBody();
 
-    const response = await page.request.post("/api/bff/projects", { headers: BFF_HEADERS, data: body });
+    const response = await page.request.post(`/api/bff/workspaces/${workspaceId}/projects`, {
+      headers: BFF_HEADERS,
+      data: body,
+    });
 
     expect(response.status()).toBe(201);
     data.trackProject((await response.json()).id);
