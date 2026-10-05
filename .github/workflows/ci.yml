@@ -174,7 +174,7 @@ jobs:
         working-directory: infra/terraform
     steps:
       - uses: actions/checkout@v7
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
       - name: 書式の確認
         run: terraform fmt -check -recursive
       - name: 構成の検証
