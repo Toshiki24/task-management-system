@@ -2,7 +2,17 @@
 
 案件・タスク管理システムの次フェーズ（Phase 2）の要件定義。Phase 1（MVP・本番公開済み）を土台に、**開発チームが日常的に使えるタスク管理システム**へ発展させる。
 
-> Phase 1 の範囲・構成は [README](../../README.md) / [基本設計書](../basic-design.md) / [AWS構成設計書](../aws-architecture.md) を参照。
+> Phase 1 の範囲・構成は [README](../../README.md) / [基本設計書](../../design/basic-design.md) / [AWS構成設計書](../../design/aws-architecture.md) を参照。
+
+### ドキュメント構成（保存先）
+
+Phase 1 の慣例（要件は `docs/`、設計書は `design/`）に合わせる。
+
+| 種類 | 保存先 |
+| --- | --- |
+| 要件定義 | `docs/phase2/requirements.md`（本書） |
+| 設計判断の記録（ADR） | `docs/phase2/adr/`（例：`0001-workspace-model.md`） |
+| 基本設計（マイルストーンごと） | `design/phase2/`（例：`m1-workspace.md`） |
 
 ---
 
