@@ -76,6 +76,24 @@ public static class DatabaseSeeder
             workspaceId = (long)(await command.ExecuteScalarAsync())!;
         }
 
+        // 1.5 既定ワークフロー(TODO/IN_PROGRESS/DONE)を用意する(Phase 2 M2 §3.1)。
+        //     新規インストールでは既定ワークスペースがこのセットアップで初めて作られるため、
+        //     マイグレーションのバックフィル対象にならない。状態が無い場合のみ投入する(冪等)。
+        await using (var command = new NpgsqlCommand(
+            "INSERT INTO workflow_states (workspace_id, key, name, category, position, is_default) "
+                + "SELECT @ws, v.key, v.name, v.category, v.position, v.is_default "
+                + "FROM (VALUES "
+                + "  ('TODO', '未着手', 'TODO', 0, true), "
+                + "  ('IN_PROGRESS', '対応中', 'IN_PROGRESS', 1, false), "
+                + "  ('DONE', '完了', 'DONE', 2, false) "
+                + ") AS v(key, name, category, position, is_default) "
+                + "WHERE NOT EXISTS (SELECT 1 FROM workflow_states ws WHERE ws.workspace_id = @ws)",
+            connection))
+        {
+            command.Parameters.AddWithValue("ws", workspaceId);
+            await command.ExecuteNonQueryAsync();
+        }
+
         // 2. ユーザーごとに System Admin フラグとワークスペース所属を設定する
         foreach (var user in users)
         {

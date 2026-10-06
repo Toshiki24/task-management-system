@@ -9,6 +9,7 @@ public enum CreateTaskResult
     Forbidden,
     AssigneeNotFound,
     AssigneeNotMember,
+    InvalidStatus,
 }
 
 public enum UpdateTaskResult
@@ -18,6 +19,7 @@ public enum UpdateTaskResult
     Forbidden,
     AssigneeNotFound,
     AssigneeNotMember,
+    InvalidStatus,
 }
 
 public enum DeleteTaskResult

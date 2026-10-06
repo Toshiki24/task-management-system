@@ -18,6 +18,9 @@ public static class AuditActions
     public const string ProjectDeleted = "project.deleted";
     public const string SystemAdminGranted = "user.system_admin.granted";
     public const string SystemAdminRevoked = "user.system_admin.revoked";
+    public const string WorkflowStateCreated = "workspace.workflow_state.created";
+    public const string WorkflowStateUpdated = "workspace.workflow_state.updated";
+    public const string WorkflowStateDeleted = "workspace.workflow_state.deleted";
 }
 
 /// <summary>監査ログの対象種別。</summary>
@@ -27,6 +30,7 @@ public static class AuditTargets
     public const string Project = "project";
     public const string User = "user";
     public const string Invitation = "invitation";
+    public const string WorkflowState = "workflow_state";
 }
 
 /// <summary>

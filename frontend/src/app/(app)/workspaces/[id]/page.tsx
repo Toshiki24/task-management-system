@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
+import { WorkflowStates } from "@/components/workspace/WorkflowStates";
 import { WorkspaceInvite } from "@/components/workspace/WorkspaceInvite";
 import { WorkspaceMembers } from "@/components/workspace/WorkspaceMembers";
 import { apiFetch } from "@/lib/api";
@@ -65,6 +66,14 @@ export default function WorkspaceSettingsPage({
           <WorkspaceInvite workspaceId={workspaceId} />
         </section>
       )}
+
+      <section className="mt-6 rounded-lg bg-white p-6 shadow-sm">
+        <h2 className="mb-1 text-base font-semibold text-gray-900">ワークフロー(タスクの状態)</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          カンバンの列になるタスクの状態です。{canManage ? "追加・並べ替え・削除ができます。" : "変更はワークスペース管理者(ADMIN)のみ可能です。"}
+        </p>
+        <WorkflowStates workspaceId={workspaceId} canManage={canManage} />
+      </section>
     </div>
   );
 }

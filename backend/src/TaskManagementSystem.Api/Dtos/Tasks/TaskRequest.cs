@@ -12,8 +12,8 @@ public record TaskRequest(
 
     string? Description,
 
-    [AllowedValues(null, TaskItemStatus.Todo, TaskItemStatus.InProgress, TaskItemStatus.Done,
-        ErrorMessage = "タスク状態の値が不正です。")]
+    // status はワークスペースのワークフロー(workflow_states)に対して検証するため、
+    // ここでは固定値の AllowedValues を使わない(検証は TaskService 側で LINQ により行う。M2 §3.2)。
     string? Status,
 
     [AllowedValues(null, TaskItemPriority.Low, TaskItemPriority.Medium, TaskItemPriority.High,

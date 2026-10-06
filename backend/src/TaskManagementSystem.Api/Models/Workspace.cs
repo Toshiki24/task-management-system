@@ -19,4 +19,5 @@ public class Workspace
     public ICollection<WorkspaceMember> Members { get; set; } = new List<WorkspaceMember>();
     public ICollection<Project> Projects { get; set; } = new List<Project>();
     public ICollection<Invitation> Invitations { get; set; } = new List<Invitation>();
+    public ICollection<WorkflowState> WorkflowStates { get; set; } = new List<WorkflowState>();
 }

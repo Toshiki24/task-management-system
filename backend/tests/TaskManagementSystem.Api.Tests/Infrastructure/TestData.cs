@@ -56,6 +56,19 @@ public static class TestData
         var workspace = new Workspace { Name = Unique("ut-workspace"), Description = "単体テスト用ワークスペース" };
         context.Workspaces.Add(workspace);
         await context.SaveChangesAsync();
+
+        // 既定ワークフロー(TODO/IN_PROGRESS/DONE)を用意する。タスクの status はこの状態キーを参照する(M2 §3)。
+        context.WorkflowStates.AddRange(DefaultWorkflow.States.Select(s => new WorkflowState
+        {
+            WorkspaceId = workspace.Id,
+            Key = s.Key,
+            Name = s.Name,
+            Category = s.Category,
+            Position = s.Position,
+            IsDefault = s.IsDefault,
+        }));
+        await context.SaveChangesAsync();
+
         return workspace;
     }
 

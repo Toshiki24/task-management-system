@@ -99,6 +99,18 @@ public class WorkspaceService : IWorkspaceService
             UserId = currentUserId,
             Role = WorkspaceMemberRole.Admin,
         });
+
+        // 既定のワークフロー状態(TODO/IN_PROGRESS/DONE)を用意する。
+        // これによりタスク作成時の status がそのまま有効な状態キーになる(M2 §3.1)。
+        _dbContext.WorkflowStates.AddRange(DefaultWorkflow.States.Select(s => new WorkflowState
+        {
+            WorkspaceId = workspace.Id,
+            Key = s.Key,
+            Name = s.Name,
+            Category = s.Category,
+            Position = s.Position,
+            IsDefault = s.IsDefault,
+        }));
         await _dbContext.SaveChangesAsync();
 
         await transaction.CommitAsync();

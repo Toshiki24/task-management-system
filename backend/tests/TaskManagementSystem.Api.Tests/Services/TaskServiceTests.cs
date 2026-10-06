@@ -24,6 +24,38 @@ public class TaskServiceTests : IClassFixture<TestDatabaseFixture>
         priority,
         new DateOnly(2026, 10, 31));
 
+    [Fact(DisplayName = "M2 ワークフロー外の status は InvalidStatus(= 400)")]
+    public async Task CreateAsync_RejectsStatusOutsideWorkflow()
+    {
+        await using var arrange = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
+
+        await using var context = _db.CreateContext();
+        var outcome = await new TaskService(context).CreateAsync(
+            project.Id, NewRequest(status: "NOT_A_STATE"), owner.Id);
+
+        Assert.Equal(CreateTaskResult.InvalidStatus, outcome.Result);
+    }
+
+    [Fact(DisplayName = "M2 WS に追加したカスタム状態は status に使える")]
+    public async Task CreateAsync_AcceptsCustomWorkflowState()
+    {
+        await using var arrange = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(arrange);
+        var workspaceId = await arrange.Projects
+            .Where(p => p.Id == project.Id).Select(p => p.WorkspaceId).SingleAsync();
+        await new WorkflowStateService(arrange).CreateAsync(
+            workspaceId, new Dtos.Workflow.WorkflowStateCreateRequest(
+                "REVIEW", "レビュー中", WorkflowStateCategory.InProgress, null), owner.Id);
+
+        await using var context = _db.CreateContext();
+        var outcome = await new TaskService(context).CreateAsync(
+            project.Id, NewRequest(status: "REVIEW"), owner.Id);
+
+        Assert.Equal(CreateTaskResult.Success, outcome.Result);
+        Assert.Equal("REVIEW", outcome.Data!.Status);
+    }
+
     [Fact(DisplayName = "UT-501 存在しないプロジェクトのタスク一覧取得")]
     public async Task GetByProjectAsync_ReturnsNull_WhenProjectNotExists()
     {
