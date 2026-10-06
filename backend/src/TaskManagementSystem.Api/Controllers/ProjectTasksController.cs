@@ -59,4 +59,25 @@ public class ProjectTasksController : ControllerBase
             _ => Created($"/api/tasks/{outcome.Data!.Id}", outcome.Data),
         };
     }
+
+    [HttpPatch("{taskId}/move")]
+    public async Task<ActionResult<TaskDto>> Move(long projectId, long taskId, MoveTaskRequest request)
+    {
+        var outcome = await _taskService.MoveAsync(taskId, request, this.GetCurrentUserId());
+
+        return outcome.Result switch
+        {
+            MoveTaskResult.TaskNotFound =>
+                NotFound(new ErrorResponse("指定されたタスクが存在しません。")),
+
+            MoveTaskResult.Forbidden => this.ForbiddenError(),
+
+            MoveTaskResult.InvalidStatus =>
+                BadRequest(new ValidationErrorResponse(
+                    "入力内容に誤りがあります。",
+                    new[] { new ValidationErrorItem("toStatus", "タスク状態の値が不正です。") })),
+
+            _ => Ok(outcome.Data),
+        };
+    }
 }

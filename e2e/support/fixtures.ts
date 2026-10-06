@@ -36,6 +36,7 @@ export interface Task {
   status: string;
   priority: string;
   dueDate: string | null;
+  boardPosition: number;
 }
 
 export interface CreatedComment {

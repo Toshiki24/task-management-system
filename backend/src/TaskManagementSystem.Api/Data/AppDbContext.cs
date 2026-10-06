@@ -103,14 +103,18 @@ public class AppDbContext : DbContext
             entity.ToTable("tasks");
 
             entity.Property(e => e.Title).HasMaxLength(200).IsRequired();
-            entity.Property(e => e.Status).HasMaxLength(30).IsRequired().HasDefaultValue(TaskItemStatus.Todo);
+            // status はワークフロー状態キー(workflow_states.key, 最大50)を指すため 50 文字に合わせる
+            entity.Property(e => e.Status).HasMaxLength(50).IsRequired().HasDefaultValue(TaskItemStatus.Todo);
             entity.Property(e => e.Priority).HasMaxLength(30).IsRequired().HasDefaultValue(TaskItemPriority.Medium);
+            entity.Property(e => e.BoardPosition).HasDefaultValue(0d);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             entity.HasIndex(e => e.ProjectId).HasDatabaseName("idx_tasks_project_id");
             entity.HasIndex(e => e.AssigneeId).HasDatabaseName("idx_tasks_assignee_id");
             entity.HasIndex(e => e.Status).HasDatabaseName("idx_tasks_status");
+            entity.HasIndex(e => new { e.ProjectId, e.Status, e.BoardPosition })
+                .HasDatabaseName("idx_tasks_board_order");
             entity.HasIndex(e => e.DueDate).HasDatabaseName("idx_tasks_due_date");
 
             entity.HasOne(e => e.Project)
@@ -161,8 +165,10 @@ public class AppDbContext : DbContext
         // ============================================================
         modelBuilder.Entity<TaskStatusHistory>(entity =>
         {
-            entity.Property(e => e.FromStatus).HasMaxLength(30);
-            entity.Property(e => e.ToStatus).HasMaxLength(30).IsRequired();
+            // from_status/to_status はワークフロー状態キー(最大50)を記録する。
+            // 状態は WS ごとに可変のため、固定値の CHECK 制約は設けない(tasks.status と同方針。M2 §4.2)。
+            entity.Property(e => e.FromStatus).HasMaxLength(50);
+            entity.Property(e => e.ToStatus).HasMaxLength(50).IsRequired();
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             entity.HasIndex(e => e.TaskId).HasDatabaseName("idx_task_status_histories_task_id");
@@ -178,16 +184,6 @@ public class AppDbContext : DbContext
                 .HasForeignKey(e => e.ChangedBy)
                 .HasConstraintName("fk_task_status_histories_user")
                 .OnDelete(DeleteBehavior.Cascade);
-
-            entity.ToTable(tb =>
-            {
-                tb.HasCheckConstraint(
-                    "chk_task_status_histories_from_status",
-                    "from_status IS NULL OR from_status IN ('TODO', 'IN_PROGRESS', 'DONE')");
-                tb.HasCheckConstraint(
-                    "chk_task_status_histories_to_status",
-                    "to_status IN ('TODO', 'IN_PROGRESS', 'DONE')");
-            });
         });
 
         // ============================================================

@@ -27,6 +27,10 @@ public class TaskItem
     public string? Description { get; set; }
     public string Status { get; set; } = TaskItemStatus.Todo;
     public string Priority { get; set; } = TaskItemPriority.Medium;
+
+    /// <summary>同一 (project_id, status) 内でのカンバン表示順。小さいほど上(M2 §4.2)。</summary>
+    public double BoardPosition { get; set; }
+
     public DateOnly? DueDate { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

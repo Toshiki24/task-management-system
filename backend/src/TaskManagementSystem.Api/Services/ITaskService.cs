@@ -29,9 +29,19 @@ public enum DeleteTaskResult
     Forbidden,
 }
 
+public enum MoveTaskResult
+{
+    Success,
+    TaskNotFound,
+    Forbidden,
+    InvalidStatus,
+}
+
 public record CreateTaskOutcome(CreateTaskResult Result, TaskDto? Data = null);
 
 public record UpdateTaskOutcome(UpdateTaskResult Result, TaskDto? Data = null);
+
+public record MoveTaskOutcome(MoveTaskResult Result, TaskDto? Data = null);
 
 public interface ITaskService
 {
@@ -39,5 +49,6 @@ public interface ITaskService
     Task<TaskDto?> GetByIdAsync(long id, long currentUserId);
     Task<CreateTaskOutcome> CreateAsync(long projectId, TaskRequest request, long currentUserId);
     Task<UpdateTaskOutcome> UpdateAsync(long id, TaskRequest request, long currentUserId);
+    Task<MoveTaskOutcome> MoveAsync(long id, MoveTaskRequest request, long currentUserId);
     Task<DeleteTaskResult> DeleteAsync(long id, long currentUserId);
 }
