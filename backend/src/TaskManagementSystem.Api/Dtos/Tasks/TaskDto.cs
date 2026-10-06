@@ -8,5 +8,6 @@ public record TaskDto(
     string? Description,
     string Status,
     string Priority,
-    DateOnly? DueDate
+    DateOnly? DueDate,
+    double BoardPosition
 );

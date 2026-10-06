@@ -158,7 +158,7 @@ public class TaskServiceTests : IClassFixture<TestDatabaseFixture>
         Assert.Equal(UpdateTaskResult.Success, outcome.Result);
         Assert.Equal(
             new TaskDto(task.Id, project.Id, assignee.Id, request.Title, request.Description,
-                TaskItemStatus.Done, TaskItemPriority.Low, request.DueDate),
+                TaskItemStatus.Done, TaskItemPriority.Low, request.DueDate, task.BoardPosition),
             outcome.Data);
 
         await using var assert = _db.CreateContext();

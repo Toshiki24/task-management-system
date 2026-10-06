@@ -77,6 +77,8 @@ public class TaskService : ITaskService
             return new CreateTaskOutcome(CreateTaskResult.InvalidStatus);
         }
 
+        var status = request.Status ?? defaultKey ?? TaskItemStatus.Todo;
+
         var task = new TaskItem
         {
             ProjectId = projectId,
@@ -84,7 +86,9 @@ public class TaskService : ITaskService
             Title = request.Title,
             Description = request.Description,
             DueDate = request.DueDate,
-            Status = request.Status ?? defaultKey ?? TaskItemStatus.Todo,
+            Status = status,
+            // 作成時はその状態列の末尾に置く
+            BoardPosition = await NextBoardPositionAsync(projectId, status),
         };
 
         if (request.Priority is not null)
@@ -148,8 +152,9 @@ public class TaskService : ITaskService
         // status/priorityのようなNOT NULL制約付きの列は、
         // 未指定(null)の場合に空にできないため既存値を維持する。
         // 一方assigneeId/description/dueDateはNULL許容なので、未指定はnullとして上書きする(PUTの完全上書きセマンティクス)。
-        if (request.Status is not null)
+        if (request.Status is not null && request.Status != task.Status)
         {
+            RecordStatusHistory(task, task.Status, request.Status, currentUserId);
             task.Status = request.Status;
         }
 
@@ -187,6 +192,107 @@ public class TaskService : ITaskService
         await _dbContext.SaveChangesAsync();
 
         return DeleteTaskResult.Success;
+    }
+
+    public async Task<MoveTaskOutcome> MoveAsync(long id, MoveTaskRequest request, long currentUserId)
+    {
+        var access = await _dbContext.ResolveTaskAccessAsync(id, currentUserId);
+        if (access is null || !access.Value.CanView)
+        {
+            return new MoveTaskOutcome(MoveTaskResult.TaskNotFound);
+        }
+
+        // Viewer はカード移動できない
+        if (!access.Value.CanWrite)
+        {
+            return new MoveTaskOutcome(MoveTaskResult.Forbidden);
+        }
+
+        var task = await _dbContext.Tasks.FindAsync(id);
+        if (task is null)
+        {
+            return new MoveTaskOutcome(MoveTaskResult.TaskNotFound);
+        }
+
+        // 移動先の状態はそのタスクの属する WS のワークフローに含まれること(M2 §3.2)
+        var workspaceId = await _dbContext.Projects
+            .Where(p => p.Id == task.ProjectId)
+            .Select(p => p.WorkspaceId)
+            .FirstAsync();
+        var (validKeys, _) = await GetWorkflowAsync(workspaceId);
+        if (!validKeys.Contains(request.ToStatus))
+        {
+            return new MoveTaskOutcome(MoveTaskResult.InvalidStatus);
+        }
+
+        // 状態が変わるなら履歴に記録する(既存の task_status_histories を使う。M2 §4.2)
+        if (request.ToStatus != task.Status)
+        {
+            RecordStatusHistory(task, task.Status, request.ToStatus, currentUserId);
+            task.Status = request.ToStatus;
+        }
+
+        task.BoardPosition = await ResolveBoardPositionAsync(task, request.BeforeTaskId);
+
+        await _dbContext.SaveChangesAsync();
+
+        return new MoveTaskOutcome(MoveTaskResult.Success, ToDto(task));
+    }
+
+    /// <summary>その状態列の末尾(既存最大の次)の並び順を返す。</summary>
+    private async Task<double> NextBoardPositionAsync(long projectId, string status)
+    {
+        var max = await _dbContext.Tasks
+            .Where(t => t.ProjectId == projectId && t.Status == status)
+            .Select(t => (double?)t.BoardPosition)
+            .MaxAsync();
+        return (max ?? -1d) + 1d;
+    }
+
+    /// <summary>
+    /// 移動後の並び順を算出する。beforeTaskId が null なら列の末尾、指定ありならその直前(前のカードとの中点)。
+    /// 自分自身は計算対象から除外する。
+    /// </summary>
+    private async Task<double> ResolveBoardPositionAsync(TaskItem task, long? beforeTaskId)
+    {
+        // 対象列(移動後の status)のカードを並び順で取得(自分は除く)
+        var column = await _dbContext.Tasks
+            .Where(t => t.ProjectId == task.ProjectId && t.Status == task.Status && t.Id != task.Id)
+            .OrderBy(t => t.BoardPosition)
+            .ThenBy(t => t.Id)
+            .Select(t => new { t.Id, t.BoardPosition })
+            .ToListAsync();
+
+        if (beforeTaskId is null)
+        {
+            // 末尾へ
+            var last = column.Count > 0 ? column[^1].BoardPosition : -1d;
+            return last + 1d;
+        }
+
+        var index = column.FindIndex(c => c.Id == beforeTaskId.Value);
+        if (index < 0)
+        {
+            // 基準カードが見つからない(別列など)場合は末尾へ
+            var last = column.Count > 0 ? column[^1].BoardPosition : -1d;
+            return last + 1d;
+        }
+
+        var after = column[index].BoardPosition;
+        var before = index == 0 ? after - 1d : column[index - 1].BoardPosition;
+        return (before + after) / 2d;
+    }
+
+    /// <summary>状態遷移を task_status_histories に 1 件記録する(保存は呼び出し側の SaveChanges に委ねる)。</summary>
+    private void RecordStatusHistory(TaskItem task, string fromStatus, string toStatus, long changedBy)
+    {
+        _dbContext.TaskStatusHistories.Add(new TaskStatusHistory
+        {
+            TaskId = task.Id,
+            ChangedBy = changedBy,
+            FromStatus = fromStatus,
+            ToStatus = toStatus,
+        });
     }
 
     /// <summary>
@@ -240,5 +346,6 @@ public class TaskService : ITaskService
         task.Description,
         task.Status,
         task.Priority,
-        task.DueDate);
+        task.DueDate,
+        task.BoardPosition);
 }

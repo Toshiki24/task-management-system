@@ -40,7 +40,12 @@ test.describe("5.5 タスクAPI", () => {
     const response = await api.post(`/api/projects/${project.id}/tasks`, { headers: bearer(user), data: request });
 
     expect(response.status()).toBe(201);
-    expect(await response.json()).toEqual({ id: expect.any(Number), projectId: project.id, ...request });
+    expect(await response.json()).toEqual({
+      id: expect.any(Number),
+      projectId: project.id,
+      boardPosition: expect.any(Number),
+      ...request,
+    });
   });
 
   test("API-1902 title未指定", async ({ api, data }) => {
@@ -147,7 +152,12 @@ test.describe("5.5 タスクAPI", () => {
     const response = await api.put(`/api/tasks/${task.id}`, { headers: bearer(user), data: request });
 
     expect(response.status()).toBe(200);
-    expect(await response.json()).toEqual({ id: task.id, projectId: project.id, ...request });
+    expect(await response.json()).toEqual({
+      id: task.id,
+      projectId: project.id,
+      boardPosition: task.boardPosition,
+      ...request,
+    });
   });
 
   test("API-2102 存在しないタスクの更新", async ({ api, data }) => {
