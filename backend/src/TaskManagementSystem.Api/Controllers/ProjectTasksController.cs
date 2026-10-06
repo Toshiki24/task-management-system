@@ -51,6 +51,11 @@ public class ProjectTasksController : ControllerBase
                     "入力内容に誤りがあります。",
                     new[] { new ValidationErrorItem("assigneeId", "指定されたユーザーはプロジェクトのメンバーではありません。") })),
 
+            CreateTaskResult.InvalidStatus =>
+                BadRequest(new ValidationErrorResponse(
+                    "入力内容に誤りがあります。",
+                    new[] { new ValidationErrorItem("status", "タスク状態の値が不正です。") })),
+
             _ => Created($"/api/tasks/{outcome.Data!.Id}", outcome.Data),
         };
     }

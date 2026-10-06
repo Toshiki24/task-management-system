@@ -64,6 +64,19 @@ public class TaskService : ITaskService
                 return new CreateTaskOutcome(CreateTaskResult.AssigneeNotMember);
         }
 
+        // status はワークスペースのワークフロー(workflow_states)に対して検証する(M2 §3.2)。
+        // 未指定なら既定状態(is_default)にする。固定の TODO/IN_PROGRESS/DONE には縛らない。
+        var workspaceId = await _dbContext.Projects
+            .Where(p => p.Id == projectId)
+            .Select(p => p.WorkspaceId)
+            .FirstAsync();
+        var (validKeys, defaultKey) = await GetWorkflowAsync(workspaceId);
+
+        if (request.Status is not null && !validKeys.Contains(request.Status))
+        {
+            return new CreateTaskOutcome(CreateTaskResult.InvalidStatus);
+        }
+
         var task = new TaskItem
         {
             ProjectId = projectId,
@@ -71,12 +84,8 @@ public class TaskService : ITaskService
             Title = request.Title,
             Description = request.Description,
             DueDate = request.DueDate,
+            Status = request.Status ?? defaultKey ?? TaskItemStatus.Todo,
         };
-
-        if (request.Status is not null)
-        {
-            task.Status = request.Status;
-        }
 
         if (request.Priority is not null)
         {
@@ -117,12 +126,26 @@ public class TaskService : ITaskService
                 return new UpdateTaskOutcome(UpdateTaskResult.AssigneeNotMember);
         }
 
+        // status が指定された場合は、タスクの属するワークスペースのワークフローに対して検証する(M2 §3.2)
+        if (request.Status is not null)
+        {
+            var workspaceId = await _dbContext.Tasks
+                .Where(t => t.Id == id)
+                .Select(t => t.Project.WorkspaceId)
+                .FirstAsync();
+            var (validKeys, _) = await GetWorkflowAsync(workspaceId);
+            if (!validKeys.Contains(request.Status))
+            {
+                return new UpdateTaskOutcome(UpdateTaskResult.InvalidStatus);
+            }
+        }
+
         task.AssigneeId = request.AssigneeId;
         task.Title = request.Title;
         task.Description = request.Description;
         task.DueDate = request.DueDate;
 
-        // status/priorityのようなNOT NULL制約付きのenum列は、
+        // status/priorityのようなNOT NULL制約付きの列は、
         // 未指定(null)の場合に空にできないため既存値を維持する。
         // 一方assigneeId/description/dueDateはNULL許容なので、未指定はnullとして上書きする(PUTの完全上書きセマンティクス)。
         if (request.Status is not null)
@@ -164,6 +187,24 @@ public class TaskService : ITaskService
         await _dbContext.SaveChangesAsync();
 
         return DeleteTaskResult.Success;
+    }
+
+    /// <summary>
+    /// ワークスペースのワークフロー状態キー一覧と既定キーを返す(M2 §3.2)。
+    /// 状態が未設定の WS でも落ちないよう、既定が無ければ先頭、それも無ければ null を返す。
+    /// </summary>
+    private async Task<(List<string> ValidKeys, string? DefaultKey)> GetWorkflowAsync(long workspaceId)
+    {
+        var states = await _dbContext.WorkflowStates
+            .Where(s => s.WorkspaceId == workspaceId)
+            .OrderBy(s => s.Position)
+            .ThenBy(s => s.Id)
+            .Select(s => new { s.Key, s.IsDefault })
+            .ToListAsync();
+
+        var validKeys = states.Select(s => s.Key).ToList();
+        var defaultKey = states.FirstOrDefault(s => s.IsDefault)?.Key ?? validKeys.FirstOrDefault();
+        return (validKeys, defaultKey);
     }
 
     private enum AssigneeCheck

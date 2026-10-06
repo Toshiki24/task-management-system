@@ -99,8 +99,24 @@ export class TestDataFactory {
     );
     const id = Number(rows[0].id);
     this.workspaceIds.push(id);
+    await this.seedDefaultWorkflow(id);
     await this.addWorkspaceMember(id, owner, role);
     return id;
+  }
+
+  /**
+   * 既定ワークフロー(TODO/IN_PROGRESS/DONE)を DB 直挿しで用意する。
+   * (本番・アプリ経由の作成では自動で用意されるが、テストでは WS を DB 直挿しするため合わせる。M2 §3)
+   */
+  async seedDefaultWorkflow(workspaceId: number): Promise<void> {
+    await this.db.query(
+      `INSERT INTO workflow_states (workspace_id, key, name, category, position, is_default)
+       VALUES ($1, 'TODO', '未着手', 'TODO', 0, true),
+              ($1, 'IN_PROGRESS', '対応中', 'IN_PROGRESS', 1, false),
+              ($1, 'DONE', '完了', 'DONE', 2, false)
+       ON CONFLICT (workspace_id, key) DO NOTHING`,
+      [workspaceId],
+    );
   }
 
   /** ユーザーを System Admin にする(DB 直挿し)。 */

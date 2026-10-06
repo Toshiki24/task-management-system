@@ -89,6 +89,7 @@ builder.Services.AddScoped<ISystemAdminService, SystemAdminService>();
 // メール送信は M1 ではプレースホルダ(ログ出力)。SES/SMTP 実装への差し替えを想定
 builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddScoped<IWorkflowStateService, WorkflowStateService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 
 var jwtSection = builder.Configuration.GetSection("Jwt");

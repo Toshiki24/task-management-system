@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
     public DbSet<TaskItem> Tasks => Set<TaskItem>();
+    public DbSet<WorkflowState> WorkflowStates => Set<WorkflowState>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<TaskStatusHistory> TaskStatusHistories => Set<TaskStatusHistory>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -124,9 +125,10 @@ public class AppDbContext : DbContext
                 .HasConstraintName("fk_tasks_assignee")
                 .OnDelete(DeleteBehavior.SetNull);
 
+            // status はワークスペースごとのワークフロー(workflow_states.key)を指す動的な値のため、
+            // 固定値の CHECK 制約は設けない。妥当性はサービス層で LINQ により WS の状態集合に対して検証する(M2 §3.2)。
             entity.ToTable(tb =>
             {
-                tb.HasCheckConstraint("chk_tasks_status", "status IN ('TODO', 'IN_PROGRESS', 'DONE')");
                 tb.HasCheckConstraint("chk_tasks_priority", "priority IN ('LOW', 'MEDIUM', 'HIGH')");
             });
         });
@@ -224,6 +226,37 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
+
+        // ============================================================
+        // WorkflowStates (Phase 2 M2)
+        // ============================================================
+        modelBuilder.Entity<WorkflowState>(entity =>
+        {
+            entity.ToTable("workflow_states");
+
+            entity.Property(e => e.Key).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Category).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Color).HasMaxLength(20);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            // 状態キーは WS 内で一意(タスクの status はこの key を指す)
+            entity.HasIndex(e => new { e.WorkspaceId, e.Key })
+                .IsUnique()
+                .HasDatabaseName("uq_workflow_states_workspace_key");
+            entity.HasIndex(e => e.WorkspaceId).HasDatabaseName("idx_workflow_states_workspace_id");
+
+            entity.HasOne(e => e.Workspace)
+                .WithMany(w => w.WorkflowStates)
+                .HasForeignKey(e => e.WorkspaceId)
+                .HasConstraintName("fk_workflow_states_workspace")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(tb => tb.HasCheckConstraint(
+                "chk_workflow_states_category",
+                "category IN ('BACKLOG', 'TODO', 'IN_PROGRESS', 'DONE', 'CANCELLED')"));
         });
 
         // ============================================================

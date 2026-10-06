@@ -83,13 +83,20 @@ test.describe("5.5 タスクAPI", () => {
     const user = await data.createUser();
     const project = await data.createProject(user);
 
-    const response = await api.post(`/api/projects/${project.id}/tasks`, {
+    // priority は固定値のため入力検証(モデルバインド)で弾かれる
+    const priorityRes = await api.post(`/api/projects/${project.id}/tasks`, {
       headers: bearer(user),
-      data: { title: unique("E2Eタスク"), status: "INVALID", priority: "INVALID" },
+      data: { title: unique("E2Eタスク"), priority: "INVALID" },
     });
+    await expectValidationError(priorityRes, "priority", "優先度の値が不正です。");
 
-    await expectValidationError(response, "status", "タスク状態の値が不正です。");
-    await expectValidationError(response, "priority", "優先度の値が不正です。");
+    // status はワークスペースのワークフロー(workflow_states)に対して検証する(M2 §3.2)。
+    // 状態集合に無いキーは 400。
+    const statusRes = await api.post(`/api/projects/${project.id}/tasks`, {
+      headers: bearer(user),
+      data: { title: unique("E2Eタスク"), status: "INVALID" },
+    });
+    await expectValidationError(statusRes, "status", "タスク状態の値が不正です。");
   });
 
   test("API-1906 存在しないプロジェクトへの作成", async ({ api, data }) => {
