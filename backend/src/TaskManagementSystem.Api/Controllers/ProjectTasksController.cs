@@ -70,6 +70,47 @@ public class ProjectTasksController : ControllerBase
         };
     }
 
+    [HttpPatch("bulk")]
+    public async Task<ActionResult<BulkUpdateTasksResponse>> BulkUpdate(long projectId, BulkUpdateTasksRequest request)
+    {
+        var outcome = await _taskService.BulkUpdateAsync(projectId, request, this.GetCurrentUserId());
+
+        return outcome.Result switch
+        {
+            BulkUpdateResult.ProjectNotFound =>
+                NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。")),
+
+            BulkUpdateResult.Forbidden => this.ForbiddenError(),
+
+            BulkUpdateResult.InvalidTask =>
+                BadRequest(new ValidationErrorResponse(
+                    "入力内容に誤りがあります。",
+                    new[] { new ValidationErrorItem("taskIds", "対象タスクが不正です(同一プロジェクトのタスクを指定してください)。") })),
+
+            BulkUpdateResult.InvalidStatus =>
+                BadRequest(new ValidationErrorResponse(
+                    "入力内容に誤りがあります。",
+                    new[] { new ValidationErrorItem("status", "タスク状態の値が不正です。") })),
+
+            BulkUpdateResult.InvalidLabel =>
+                BadRequest(new ValidationErrorResponse(
+                    "入力内容に誤りがあります。",
+                    new[] { new ValidationErrorItem("labelIds", "指定されたラベルが存在しません。") })),
+
+            BulkUpdateResult.AssigneeNotFound =>
+                BadRequest(new ValidationErrorResponse(
+                    "入力内容に誤りがあります。",
+                    new[] { new ValidationErrorItem("assigneeId", "指定されたユーザーが存在しません。") })),
+
+            BulkUpdateResult.AssigneeNotMember =>
+                BadRequest(new ValidationErrorResponse(
+                    "入力内容に誤りがあります。",
+                    new[] { new ValidationErrorItem("assigneeId", "指定されたユーザーはプロジェクトのメンバーではありません。") })),
+
+            _ => Ok(new BulkUpdateTasksResponse(outcome.Updated)),
+        };
+    }
+
     [HttpPatch("{taskId}/move")]
     public async Task<ActionResult<TaskDto>> Move(long projectId, long taskId, MoveTaskRequest request)
     {

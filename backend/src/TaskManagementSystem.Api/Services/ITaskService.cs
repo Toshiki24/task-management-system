@@ -41,6 +41,20 @@ public enum MoveTaskResult
     InvalidStatus,
 }
 
+public enum BulkUpdateResult
+{
+    Success,
+    ProjectNotFound,
+    Forbidden,
+    InvalidTask,
+    InvalidStatus,
+    InvalidLabel,
+    AssigneeNotFound,
+    AssigneeNotMember,
+}
+
+public record BulkUpdateOutcome(BulkUpdateResult Result, int Updated = 0);
+
 public record CreateTaskOutcome(CreateTaskResult Result, TaskDto? Data = null);
 
 public record UpdateTaskOutcome(UpdateTaskResult Result, TaskDto? Data = null);
@@ -55,5 +69,6 @@ public interface ITaskService
     Task<CreateTaskOutcome> CreateAsync(long projectId, TaskRequest request, long currentUserId);
     Task<UpdateTaskOutcome> UpdateAsync(long id, TaskRequest request, long currentUserId);
     Task<MoveTaskOutcome> MoveAsync(long id, MoveTaskRequest request, long currentUserId);
+    Task<BulkUpdateOutcome> BulkUpdateAsync(long projectId, BulkUpdateTasksRequest request, long currentUserId);
     Task<DeleteTaskResult> DeleteAsync(long id, long currentUserId);
 }
