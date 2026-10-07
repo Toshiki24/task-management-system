@@ -1,5 +1,5 @@
-import { expect, test } from "../../support/fixtures";
-import { signIn } from "../../support/ui";
+import { bearer, expect, test } from "../../support/fixtures";
+import { modal, signIn } from "../../support/ui";
 
 test.describe("7.18 SCR-018 タスク依存 (M2)", () => {
   test("SCR-018-01 ブロッカーを追加すると一覧に表示され、未完了なら警告が出る", async ({ page, data }) => {
@@ -38,5 +38,60 @@ test.describe("7.18 SCR-018 タスク依存 (M2)", () => {
     await page.getByRole("button", { name: "依存関係を削除" }).click();
 
     await expect(page.getByRole("link", { name: /前提タスクB/ })).toHaveCount(0);
+  });
+
+  test("SCR-018-03 未完了ブロッカーがあると完了時に確認モーダルが出て、確定すると全て完了になる", async ({
+    page,
+    data,
+    api,
+  }) => {
+    const owner = await data.createUser("オーナー");
+    const project = await data.createProject(owner);
+    const taskA = await data.createTask(project.id, owner, { title: "本体タスクA" });
+    const blockerB = await data.createTask(project.id, owner, { title: "前提タスクB" });
+    // A は B に待たされる(未完了のブロッカー)
+    await api.post(`/api/tasks/${taskA.id}/dependencies`, {
+      headers: bearer(owner),
+      data: { taskId: blockerB.id, relation: "BLOCKED_BY" },
+    });
+    await signIn(page, owner);
+    await page.goto(`/tasks/${taskA.id}`);
+
+    await page.getByRole("button", { name: "編集" }).click();
+    await page.getByLabel("ステータス").selectOption({ label: "完了" });
+    await page.getByRole("button", { name: "保存" }).click();
+
+    // 確認モーダルにブロッカーが列挙される
+    const confirm = modal(page, "未完了のブロッカーがあります");
+    await expect(confirm).toBeVisible();
+    await expect(confirm.getByText("前提タスクB")).toBeVisible();
+
+    await confirm.getByRole("button", { name: "全て完了にする" }).click();
+
+    // モーダルが閉じ、本体タスク・ブロッカーともに完了になる
+    await expect(modal(page, "未完了のブロッカーがあります")).toHaveCount(0);
+    await expect
+      .poll(async () => (await (await api.get(`/api/tasks/${taskA.id}`, { headers: bearer(owner) })).json()).status)
+      .toBe("DONE");
+    const bAfter = await (await api.get(`/api/tasks/${blockerB.id}`, { headers: bearer(owner) })).json();
+    expect(bAfter.status).toBe("DONE");
+  });
+
+  test("SCR-018-04 ブロッカーが無ければ確認モーダルは出ずに完了できる", async ({ page, data, api }) => {
+    const owner = await data.createUser("オーナー");
+    const project = await data.createProject(owner);
+    const taskA = await data.createTask(project.id, owner, { title: "単独タスクA" });
+    await signIn(page, owner);
+    await page.goto(`/tasks/${taskA.id}`);
+
+    await page.getByRole("button", { name: "編集" }).click();
+    await page.getByLabel("ステータス").selectOption({ label: "完了" });
+    await page.getByRole("button", { name: "保存" }).click();
+
+    // モーダルは出ず、そのまま完了になる
+    await expect(modal(page, "未完了のブロッカーがあります")).toHaveCount(0);
+    await expect
+      .poll(async () => (await (await api.get(`/api/tasks/${taskA.id}`, { headers: bearer(owner) })).json()).status)
+      .toBe("DONE");
   });
 });
