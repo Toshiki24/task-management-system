@@ -56,6 +56,11 @@ public class TasksController : ControllerBase
                     "入力内容に誤りがあります。",
                     new[] { new ValidationErrorItem("status", "タスク状態の値が不正です。") })),
 
+            UpdateTaskResult.InvalidLabel =>
+                BadRequest(new ValidationErrorResponse(
+                    "入力内容に誤りがあります。",
+                    new[] { new ValidationErrorItem("labelIds", "指定されたラベルが存在しません。") })),
+
             _ => Ok(outcome.Data),
         };
     }

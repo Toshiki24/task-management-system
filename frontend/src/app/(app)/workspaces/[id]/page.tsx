@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
+import { LabelManager } from "@/components/workspace/LabelManager";
 import { WorkflowStates } from "@/components/workspace/WorkflowStates";
 import { WorkspaceInvite } from "@/components/workspace/WorkspaceInvite";
 import { WorkspaceMembers } from "@/components/workspace/WorkspaceMembers";
@@ -73,6 +74,14 @@ export default function WorkspaceSettingsPage({
           カンバンの列になるタスクの状態です。{canManage ? "追加・並べ替え・削除ができます。" : "変更はワークスペース管理者(ADMIN)のみ可能です。"}
         </p>
         <WorkflowStates workspaceId={workspaceId} canManage={canManage} />
+      </section>
+
+      <section className="mt-6 rounded-lg bg-white p-6 shadow-sm">
+        <h2 className="mb-1 text-base font-semibold text-gray-900">ラベル</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          タスクに付けるラベルです。{canManage ? "追加・削除ができます。" : "変更はワークスペース管理者(ADMIN)のみ可能です。"}
+        </p>
+        <LabelManager workspaceId={workspaceId} canManage={canManage} />
       </section>
     </div>
   );

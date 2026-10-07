@@ -31,6 +31,9 @@ public class TaskItem
     /// <summary>同一 (project_id, status) 内でのカンバン表示順。小さいほど上(M2 §4.2)。</summary>
     public double BoardPosition { get; set; }
 
+    /// <summary>見積(ポイント)。任意(M2 §8.2)。</summary>
+    public int? EstimatePoints { get; set; }
+
     public DateOnly? DueDate { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -39,4 +42,5 @@ public class TaskItem
     public User? Assignee { get; set; }
     public ICollection<TaskComment> Comments { get; set; } = new List<TaskComment>();
     public ICollection<TaskStatusHistory> StatusHistories { get; set; } = new List<TaskStatusHistory>();
+    public ICollection<TaskLabel> TaskLabels { get; set; } = new List<TaskLabel>();
 }

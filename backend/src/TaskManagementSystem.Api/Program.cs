@@ -90,6 +90,7 @@ builder.Services.AddScoped<ISystemAdminService, SystemAdminService>();
 builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IWorkflowStateService, WorkflowStateService>();
+builder.Services.AddScoped<ILabelService, LabelService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 
 var jwtSection = builder.Configuration.GetSection("Jwt");

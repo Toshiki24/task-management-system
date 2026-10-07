@@ -37,6 +37,8 @@ export interface Task {
   priority: string;
   dueDate: string | null;
   boardPosition: number;
+  estimatePoints: number | null;
+  labels: { id: number; workspaceId: number; name: string; color: string | null }[];
 }
 
 export interface CreatedComment {

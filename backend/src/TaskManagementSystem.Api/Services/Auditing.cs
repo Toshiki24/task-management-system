@@ -21,6 +21,9 @@ public static class AuditActions
     public const string WorkflowStateCreated = "workspace.workflow_state.created";
     public const string WorkflowStateUpdated = "workspace.workflow_state.updated";
     public const string WorkflowStateDeleted = "workspace.workflow_state.deleted";
+    public const string LabelCreated = "workspace.label.created";
+    public const string LabelUpdated = "workspace.label.updated";
+    public const string LabelDeleted = "workspace.label.deleted";
 }
 
 /// <summary>監査ログの対象種別。</summary>
@@ -31,6 +34,7 @@ public static class AuditTargets
     public const string User = "user";
     public const string Invitation = "invitation";
     public const string WorkflowState = "workflow_state";
+    public const string Label = "label";
 }
 
 /// <summary>

@@ -36,6 +36,30 @@ export function TaskDetail({ task, members }: TaskDetailProps) {
           <dt className="text-gray-500">期限</dt>
           <dd className="mt-0.5 text-gray-900">{formatDate(task.dueDate)}</dd>
         </div>
+        <div>
+          <dt className="text-gray-500">見積</dt>
+          <dd className="mt-0.5 text-gray-900">{task.estimatePoints ?? "-"}</dd>
+        </div>
+      </div>
+      <div>
+        <dt className="text-gray-500">ラベル</dt>
+        <dd className="mt-0.5">
+          {task.labels.length === 0 ? (
+            <span className="text-gray-900">-</span>
+          ) : (
+            <span className="flex flex-wrap gap-1.5">
+              {task.labels.map((label) => (
+                <span
+                  key={label.id}
+                  className="rounded-full px-2 py-0.5 text-xs text-white"
+                  style={{ backgroundColor: label.color ?? "#6b7280" }}
+                >
+                  {label.name}
+                </span>
+              ))}
+            </span>
+          )}
+        </dd>
       </div>
       <div>
         <dt className="text-gray-500">説明</dt>
