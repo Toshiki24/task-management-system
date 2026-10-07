@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/common/Button";
 import { Input } from "@/components/common/Input";
 import { Modal } from "@/components/common/Modal";
@@ -28,6 +28,20 @@ function toFilters(v: SavedView): TaskFilters {
     labelId: f.labelId ?? [],
     sort: f.sort ?? "",
   };
+}
+
+/** 配列(順不同)・文字列を比較してフィルタ条件が一致するか判定する。 */
+function filtersEqual(a: TaskFilters, b: TaskFilters): boolean {
+  const sameSet = (x: (string | number)[], y: (string | number)[]) =>
+    x.length === y.length && [...x].sort().join("|") === [...y].sort().join("|");
+  return (
+    a.keyword === b.keyword &&
+    a.assigneeId === b.assigneeId &&
+    a.sort === b.sort &&
+    sameSet(a.status, b.status) &&
+    sameSet(a.priority, b.priority) &&
+    sameSet(a.labelId, b.labelId)
+  );
 }
 
 /** 画面のフィルタ状態を保存用の filters(API形式)に変換する。 */
@@ -60,6 +74,15 @@ export function SavedViewBar({
   const [saveName, setSaveName] = useState("");
   const [saveShared, setSaveShared] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 表示中のビューと実際の絞り込み条件がずれたら、選択を（なし）に戻す
+  useEffect(() => {
+    if (selectedId === "") return;
+    const view = views.find((v) => v.id === selectedId);
+    if (!view || !filtersEqual(filters, toFilters(view))) {
+      setSelectedId("");
+    }
+  }, [filters, selectedId, views]);
 
   if (workspaceId === null) {
     return null;

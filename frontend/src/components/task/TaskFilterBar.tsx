@@ -58,6 +58,8 @@ interface TaskFilterBarProps {
   members: Member[];
   value: TaskFilters;
   onChange: (next: TaskFilters) => void;
+  /** 現在のユーザーID。担当者候補で「自分」と二重に並ばないよう、本人はメンバー一覧から除外する。 */
+  currentUserId?: number | null;
 }
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -75,7 +77,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
   );
 }
 
-export function TaskFilterBar({ states, labels, members, value, onChange }: TaskFilterBarProps) {
+export function TaskFilterBar({ states, labels, members, value, onChange, currentUserId }: TaskFilterBarProps) {
   function toggle<T>(list: T[], item: T): T[] {
     return list.includes(item) ? list.filter((x) => x !== item) : [...list, item];
   }
@@ -115,7 +117,10 @@ export function TaskFilterBar({ states, labels, members, value, onChange }: Task
             { value: "", label: "すべて" },
             { value: "me", label: "自分" },
             { value: "none", label: "未割り当て" },
-            ...members.map((m) => ({ value: String(m.userId), label: m.name })),
+            // 本人は「自分」で選べるため、メンバー一覧からは除外して重複を防ぐ
+            ...members
+              .filter((m) => m.userId !== currentUserId)
+              .map((m) => ({ value: String(m.userId), label: m.name })),
           ]}
         />
         <Select
