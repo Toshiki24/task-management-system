@@ -32,7 +32,14 @@ test.describe("7.14 SCR-014 タスク一覧の絞り込み (M2)", () => {
     await signIn(page, owner);
 
     await page.goto(`/projects/${project.id}/tasks`);
-    await page.getByLabel("担当者").selectOption("me");
+
+    // 担当者候補に「自分」があるので、本人(owner)の氏名はメンバー一覧に二重表示しない
+    const assignee = page.getByLabel("担当者");
+    await expect(assignee.getByRole("option", { name: "自分" })).toHaveCount(1);
+    await expect(assignee.getByRole("option", { name: owner.name })).toHaveCount(0);
+    await expect(assignee.getByRole("option", { name: other.name })).toHaveCount(1);
+
+    await assignee.selectOption("me");
 
     await expect(page.getByRole("cell", { name: mine.title })).toBeVisible();
     await expect(page.getByRole("cell", { name: theirs.title })).toHaveCount(0);

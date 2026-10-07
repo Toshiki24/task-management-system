@@ -12,6 +12,7 @@ import { TaskFilterBar, EMPTY_FILTERS, buildTaskQuery, type TaskFilters } from "
 import { TaskForm } from "@/components/task/TaskForm";
 import { TaskList } from "@/components/task/TaskList";
 import { apiFetch } from "@/lib/api";
+import { fetchCurrentUser } from "@/lib/auth";
 import { statusLabelMap } from "@/lib/taskLabels";
 import type { Label } from "@/types/label";
 import type { Member } from "@/types/member";
@@ -41,6 +42,7 @@ export default function ProjectTasksPage() {
   const [labels, setLabels] = useState<Label[]>([]);
   const [views, setViews] = useState<SavedView[]>([]);
   const [workspaceId, setWorkspaceId] = useState<number | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
   const [view, setView] = useState<"list" | "board">("list");
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +61,11 @@ export default function ProjectTasksPage() {
       .catch(() => {
         // 担当者名の表示に使うだけなので、取得できなくても一覧自体は表示する
       });
+
+    // 担当者フィルタで本人を「自分」と二重に出さないため、現在のユーザーIDを取得する
+    fetchCurrentUser()
+      .then((user) => setCurrentUserId(user?.id ?? null))
+      .catch(() => setCurrentUserId(null));
 
     // ボードの列・フィルタの候補に使うワークフロー状態とラベルを、所属ワークスペースから取得する
     apiFetch<Project>(`/projects/${projectId}`)
@@ -143,6 +150,7 @@ export default function ProjectTasksPage() {
             members={members}
             value={filters}
             onChange={setFilters}
+            currentUserId={currentUserId}
           />
         </>
       )}

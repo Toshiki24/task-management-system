@@ -32,5 +32,11 @@ test.describe("7.15 SCR-015 保存ビュー (M2)", () => {
     await page.getByLabel("保存ビュー").selectOption({ label: `${viewName}` });
     await expect(page.getByRole("cell", { name: doing.title })).toBeVisible();
     await expect(page.getByRole("cell", { name: todo.title })).toHaveCount(0);
+
+    // ビュー適用後に条件を変えると、選択は（なし）に戻る(表示中ビューと条件がずれるため)
+    await expect(page.getByLabel("保存ビュー")).toHaveValue(/\d+/);
+    await page.getByRole("button", { name: "対応中", pressed: true }).click();
+    await expect(page.getByLabel("保存ビュー")).toHaveValue("");
+    await expect(page.getByRole("cell", { name: todo.title })).toBeVisible();
   });
 });
