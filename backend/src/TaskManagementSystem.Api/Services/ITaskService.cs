@@ -47,7 +47,7 @@ public record MoveTaskOutcome(MoveTaskResult Result, TaskDto? Data = null);
 
 public interface ITaskService
 {
-    Task<List<TaskDto>?> GetByProjectAsync(long projectId, long currentUserId);
+    Task<List<TaskDto>?> GetByProjectAsync(long projectId, long currentUserId, TaskListQuery? query = null);
     Task<TaskDto?> GetByIdAsync(long id, long currentUserId);
     Task<CreateTaskOutcome> CreateAsync(long projectId, TaskRequest request, long currentUserId);
     Task<UpdateTaskOutcome> UpdateAsync(long id, TaskRequest request, long currentUserId);

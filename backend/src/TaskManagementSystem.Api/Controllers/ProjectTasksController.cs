@@ -18,9 +18,9 @@ public class ProjectTasksController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<TaskDto>>> GetAll(long projectId)
+    public async Task<ActionResult<List<TaskDto>>> GetAll(long projectId, [FromQuery] TaskListQuery query)
     {
-        var tasks = await _taskService.GetByProjectAsync(projectId, this.GetCurrentUserId());
+        var tasks = await _taskService.GetByProjectAsync(projectId, this.GetCurrentUserId(), query);
         if (tasks is null)
         {
             return NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。"));

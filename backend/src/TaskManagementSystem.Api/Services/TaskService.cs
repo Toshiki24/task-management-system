@@ -15,7 +15,7 @@ public class TaskService : ITaskService
         _dbContext = dbContext;
     }
 
-    public async Task<List<TaskDto>?> GetByProjectAsync(long projectId, long currentUserId)
+    public async Task<List<TaskDto>?> GetByProjectAsync(long projectId, long currentUserId, TaskListQuery? query = null)
     {
         var access = await _dbContext.ResolveAccessAsync(projectId, currentUserId);
         if (access is null || !access.Value.CanView)
@@ -23,13 +23,96 @@ public class TaskService : ITaskService
             return null;
         }
 
-        var tasks = await _dbContext.Tasks
-            .Where(t => t.ProjectId == projectId)
+        var tasks = await ApplySort(
+                ApplyFilters(_dbContext.Tasks.Where(t => t.ProjectId == projectId), query, currentUserId),
+                query?.Sort)
             .Include(t => t.TaskLabels).ThenInclude(tl => tl.Label)
-            .OrderBy(t => t.Id)
             .ToListAsync();
 
         return tasks.Select(ToDto).ToList();
+    }
+
+    /// <summary>検索・絞り込み条件を LINQ で積み上げる(M2 §5.1。生 SQL は使わない)。</summary>
+    private static IQueryable<TaskItem> ApplyFilters(IQueryable<TaskItem> source, TaskListQuery? q, long currentUserId)
+    {
+        if (q is null)
+        {
+            return source;
+        }
+
+        if (q.Status is { Length: > 0 })
+        {
+            source = source.Where(t => q.Status.Contains(t.Status));
+        }
+
+        if (q.Priority is { Length: > 0 })
+        {
+            source = source.Where(t => q.Priority.Contains(t.Priority));
+        }
+
+        if (q.LabelId is { Length: > 0 })
+        {
+            source = source.Where(t => t.TaskLabels.Any(tl => q.LabelId.Contains(tl.LabelId)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(q.AssigneeId))
+        {
+            if (q.AssigneeId == "none")
+            {
+                source = source.Where(t => t.AssigneeId == null);
+            }
+            else if (q.AssigneeId == "me")
+            {
+                source = source.Where(t => t.AssigneeId == currentUserId);
+            }
+            else if (long.TryParse(q.AssigneeId, out var assigneeId))
+            {
+                source = source.Where(t => t.AssigneeId == assigneeId);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(q.Keyword))
+        {
+            var pattern = $"%{q.Keyword.Trim()}%";
+            source = source.Where(t =>
+                EF.Functions.ILike(t.Title, pattern)
+                || (t.Description != null && EF.Functions.ILike(t.Description, pattern)));
+        }
+
+        if (q.DueBefore is { } before)
+        {
+            source = source.Where(t => t.DueDate != null && t.DueDate <= before);
+        }
+
+        if (q.DueAfter is { } after)
+        {
+            source = source.Where(t => t.DueDate != null && t.DueDate >= after);
+        }
+
+        return source;
+    }
+
+    /// <summary>並べ替えを適用する。許可したキーのみ(ホワイトリスト)。既定は ID 昇順(従来互換)。</summary>
+    private static IQueryable<TaskItem> ApplySort(IQueryable<TaskItem> source, string? sort)
+    {
+        if (string.IsNullOrWhiteSpace(sort))
+        {
+            return source.OrderBy(t => t.Id);
+        }
+
+        var desc = sort.StartsWith('-');
+        var key = desc ? sort[1..] : sort;
+
+        return key switch
+        {
+            "dueDate" => desc ? source.OrderByDescending(t => t.DueDate) : source.OrderBy(t => t.DueDate),
+            "priority" => desc ? source.OrderByDescending(t => t.Priority) : source.OrderBy(t => t.Priority),
+            "title" => desc ? source.OrderByDescending(t => t.Title) : source.OrderBy(t => t.Title),
+            "status" => desc ? source.OrderByDescending(t => t.Status) : source.OrderBy(t => t.Status),
+            "createdAt" => desc ? source.OrderByDescending(t => t.CreatedAt) : source.OrderBy(t => t.CreatedAt),
+            "updatedAt" => desc ? source.OrderByDescending(t => t.UpdatedAt) : source.OrderBy(t => t.UpdatedAt),
+            _ => source.OrderBy(t => t.Id),
+        };
     }
 
     public async Task<TaskDto?> GetByIdAsync(long id, long currentUserId)
