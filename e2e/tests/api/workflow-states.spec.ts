@@ -136,4 +136,35 @@ test.describe("5.11 ワークフロー状態API (M2)", () => {
     expect(response.status()).toBe(201);
     expect((await response.json()).status).toBe("REVIEW");
   });
+
+  test("API-2109 WS Admin は状態を改名・並べ替えできる。Member は 403", async ({ api, data }) => {
+    const admin = await data.createUser("WS管理者");
+    const member = await data.createUser("一般メンバー");
+    const workspaceId = await data.createWorkspace(admin, "ADMIN");
+    await data.addWorkspaceMember(workspaceId, member, "MEMBER");
+    const states = await (await api.get(`/api/workspaces/${workspaceId}/workflow-states`, {
+      headers: bearer(admin),
+    })).json();
+    const done = states.find((s: { key: string }) => s.key === "DONE");
+
+    // Member は変更できない
+    const forbidden = await api.patch(`/api/workspaces/${workspaceId}/workflow-states/${done.id}`, {
+      headers: bearer(member),
+      data: { name: "クローズ", category: "DONE" },
+    });
+    expect(forbidden.status()).toBe(403);
+
+    // Admin は改名＋先頭(position=0)へ並べ替え
+    const updated = await api.patch(`/api/workspaces/${workspaceId}/workflow-states/${done.id}`, {
+      headers: bearer(admin),
+      data: { name: "クローズ", category: "DONE", position: 0 },
+    });
+    expect(updated.status()).toBe(200);
+
+    const reordered = await (await api.get(`/api/workspaces/${workspaceId}/workflow-states`, {
+      headers: bearer(admin),
+    })).json();
+    expect(reordered[0].key).toBe("DONE");
+    expect(reordered[0].name).toBe("クローズ");
+  });
 });

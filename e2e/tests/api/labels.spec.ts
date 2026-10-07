@@ -91,4 +91,43 @@ test.describe("5.13 ラベルAPI (M2)", () => {
     });
     await expectValidationError(response, "labelIds", "指定されたラベルが存在しません。");
   });
+
+  test("API-2307 WS Admin はラベルを更新できる。Member は 403、重複名は 409", async ({ api, data }) => {
+    const admin = await data.createUser("WS管理者");
+    const member = await data.createUser("一般");
+    const workspaceId = await data.createWorkspace(admin, "ADMIN");
+    await data.addWorkspaceMember(workspaceId, member, "MEMBER");
+    const bug = await (await api.post(`/api/workspaces/${workspaceId}/labels`, {
+      headers: bearer(admin),
+      data: { name: "bug", color: "#f00" },
+    })).json();
+    await api.post(`/api/workspaces/${workspaceId}/labels`, {
+      headers: bearer(admin),
+      data: { name: "feature", color: "#0f0" },
+    });
+
+    // Member は変更不可
+    const forbidden = await api.patch(`/api/workspaces/${workspaceId}/labels/${bug.id}`, {
+      headers: bearer(member),
+      data: { name: "defect", color: "#f00" },
+    });
+    expect(forbidden.status()).toBe(403);
+
+    // 既存の別ラベルと同名は 409
+    const dup = await api.patch(`/api/workspaces/${workspaceId}/labels/${bug.id}`, {
+      headers: bearer(admin),
+      data: { name: "feature", color: "#f00" },
+    });
+    expect(dup.status()).toBe(409);
+
+    // Admin は改名・色変更できる
+    const updated = await api.patch(`/api/workspaces/${workspaceId}/labels/${bug.id}`, {
+      headers: bearer(admin),
+      data: { name: "defect", color: "#333" },
+    });
+    expect(updated.status()).toBe(200);
+    const body = await updated.json();
+    expect(body.name).toBe("defect");
+    expect(body.color).toBe("#333");
+  });
 });

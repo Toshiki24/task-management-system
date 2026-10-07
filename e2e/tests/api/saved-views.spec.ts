@@ -80,4 +80,43 @@ test.describe("5.15 保存ビューAPI (M2)", () => {
     });
     expect(ok.status()).toBe(204);
   });
+
+  test("API-2505 作成者はビューを更新できる。他メンバーは 403、WS Admin は可", async ({ api, data }) => {
+    const admin = await data.createUser("WS管理者");
+    const owner = await data.createUser("作成者");
+    const other = await data.createUser("別メンバー");
+    const workspaceId = await data.createWorkspace(admin, "ADMIN");
+    await data.addWorkspaceMember(workspaceId, owner, "MEMBER");
+    await data.addWorkspaceMember(workspaceId, other, "MEMBER");
+
+    const view = await (await api.post(`/api/workspaces/${workspaceId}/views`, {
+      headers: bearer(owner),
+      data: { name: "作業中", viewType: "LIST", isShared: true, filters: { status: ["TODO"] } },
+    })).json();
+
+    // 他の一般メンバーは更新不可
+    const forbidden = await api.patch(`/api/workspaces/${workspaceId}/views/${view.id}`, {
+      headers: bearer(other),
+      data: { name: "書換", viewType: "LIST", isShared: true, filters: null },
+    });
+    expect(forbidden.status()).toBe(403);
+
+    // 作成者は更新できる(条件も差し替わる)
+    const updated = await api.patch(`/api/workspaces/${workspaceId}/views/${view.id}`, {
+      headers: bearer(owner),
+      data: { name: "完了分", viewType: "BOARD", isShared: false, filters: { status: ["DONE"] } },
+    });
+    expect(updated.status()).toBe(200);
+    const body = await updated.json();
+    expect(body.name).toBe("完了分");
+    expect(body.viewType).toBe("BOARD");
+    expect(body.filters.status).toEqual(["DONE"]);
+
+    // WS Admin も更新できる
+    const byAdmin = await api.patch(`/api/workspaces/${workspaceId}/views/${view.id}`, {
+      headers: bearer(admin),
+      data: { name: "管理者更新", viewType: "LIST", isShared: true, filters: null },
+    });
+    expect(byAdmin.status()).toBe(200);
+  });
 });
