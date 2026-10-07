@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TaskManagementSystem.Api.Data;
+using TaskManagementSystem.Api.Dtos.Common;
 using TaskManagementSystem.Api.Dtos.Labels;
 using TaskManagementSystem.Api.Dtos.Tasks;
 using TaskManagementSystem.Api.Models;
@@ -30,6 +31,68 @@ public class TaskService : ITaskService
             .ToListAsync();
 
         return tasks.Select(ToDto).ToList();
+    }
+
+    public async Task<PagedResult<MyTaskDto>> GetMyTasksAsync(long currentUserId, MyTasksQuery query)
+    {
+        var page = query.Page is > 0 ? query.Page.Value : 1;
+        var pageSize = query.PageSize is > 0 and <= 100 ? query.PageSize.Value : 20;
+
+        // 自分が担当で、かつ自分が所属する(見える)ワークスペースのタスクに限る(M2 §6)
+        var q = _dbContext.Tasks
+            .Where(t => t.AssigneeId == currentUserId
+                && t.Project.Workspace.Members.Any(m => m.UserId == currentUserId));
+
+        if (query.Status is { Length: > 0 })
+        {
+            q = q.Where(t => query.Status.Contains(t.Status));
+        }
+
+        if (query.Priority is { Length: > 0 })
+        {
+            q = q.Where(t => query.Priority.Contains(t.Priority));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Keyword))
+        {
+            var pattern = $"%{query.Keyword.Trim()}%";
+            q = q.Where(t =>
+                EF.Functions.ILike(t.Title, pattern)
+                || (t.Description != null && EF.Functions.ILike(t.Description, pattern)));
+        }
+
+        var total = await q.CountAsync();
+
+        // 既定は期限の近い順(Postgres は ASC で NULL を末尾に置く)。指定時はホワイトリストの並べ替え。
+        var sorted = string.IsNullOrWhiteSpace(query.Sort)
+            ? q.OrderBy(t => t.DueDate).ThenBy(t => t.Id)
+            : ApplySort(q, query.Sort);
+
+        var items = await sorted
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Include(t => t.Project).ThenInclude(p => p.Workspace)
+            .Include(t => t.TaskLabels).ThenInclude(tl => tl.Label)
+            .ToListAsync();
+
+        var dtos = items.Select(t => new MyTaskDto(
+            t.Id,
+            t.ProjectId,
+            t.Project.Name,
+            t.Project.WorkspaceId,
+            t.Project.Workspace.Name,
+            t.Title,
+            t.Status,
+            t.Priority,
+            t.DueDate,
+            t.EstimatePoints,
+            t.TaskLabels
+                .Where(tl => tl.Label is not null)
+                .Select(tl => new LabelDto(tl.Label.Id, tl.Label.WorkspaceId, tl.Label.Name, tl.Label.Color))
+                .OrderBy(l => l.Name)
+                .ToList())).ToList();
+
+        return new PagedResult<MyTaskDto>(dtos, page, pageSize, total);
     }
 
     /// <summary>検索・絞り込み条件を LINQ で積み上げる(M2 §5.1。生 SQL は使わない)。</summary>
