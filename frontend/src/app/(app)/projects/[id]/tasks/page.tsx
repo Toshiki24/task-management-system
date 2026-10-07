@@ -7,9 +7,11 @@ import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
 import { Modal } from "@/components/common/Modal";
 import { TaskBoard } from "@/components/task/TaskBoard";
+import { TaskFilterBar, EMPTY_FILTERS, buildTaskQuery, type TaskFilters } from "@/components/task/TaskFilterBar";
 import { TaskForm } from "@/components/task/TaskForm";
 import { TaskList } from "@/components/task/TaskList";
 import { apiFetch } from "@/lib/api";
+import type { Label } from "@/types/label";
 import type { Member } from "@/types/member";
 import type { Project } from "@/types/project";
 import type { Task, TaskRequestBody } from "@/types/task";
@@ -33,36 +35,51 @@ export default function ProjectTasksPage() {
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [states, setStates] = useState<WorkflowState[]>([]);
+  const [labels, setLabels] = useState<Label[]>([]);
+  const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
   const [view, setView] = useState<"list" | "board">("list");
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // フィルタ条件が変わるたびに、条件付きでタスクを取り直す
   useEffect(() => {
-    apiFetch<Task[]>(`/projects/${projectId}/tasks`)
+    apiFetch<Task[]>(`/projects/${projectId}/tasks${buildTaskQuery(filters)}`)
       .then(setTasks)
       .catch(() => setError("タスク情報の取得に失敗しました。"));
+  }, [projectId, filters]);
 
+  useEffect(() => {
     apiFetch<Member[]>(`/projects/${projectId}/members`)
       .then(setMembers)
       .catch(() => {
         // 担当者名の表示に使うだけなので、取得できなくても一覧自体は表示する
       });
 
-    // ボード表示の列に使うワークフロー状態を、プロジェクトの所属ワークスペースから取得する
+    // ボードの列・フィルタの候補に使うワークフロー状態とラベルを、所属ワークスペースから取得する
     apiFetch<Project>(`/projects/${projectId}`)
-      .then((project) => apiFetch<WorkflowState[]>(`/workspaces/${project.workspaceId}/workflow-states`))
-      .then(setStates)
+      .then(async (project) => {
+        const [wsStates, wsLabels] = await Promise.all([
+          apiFetch<WorkflowState[]>(`/workspaces/${project.workspaceId}/workflow-states`),
+          apiFetch<Label[]>(`/workspaces/${project.workspaceId}/labels`),
+        ]);
+        setStates(wsStates);
+        setLabels(wsLabels);
+      })
       .catch(() => {
-        // 取得できなければボード表示は出さない(リスト表示は影響しない)
+        // 取得できなければボード/フィルタの候補は出さない(リスト表示は影響しない)
       });
   }, [projectId]);
+
+  async function reloadTasks() {
+    setTasks(await apiFetch<Task[]>(`/projects/${projectId}/tasks${buildTaskQuery(filters)}`));
+  }
 
   async function handleCreate(value: TaskRequestBody) {
     await apiFetch<Task>(`/projects/${projectId}/tasks`, {
       method: "POST",
       body: JSON.stringify(value),
     });
-    setTasks(await apiFetch<Task[]>(`/projects/${projectId}/tasks`));
+    await reloadTasks();
     setIsModalOpen(false);
   }
 
@@ -98,6 +115,16 @@ export default function ProjectTasksPage() {
           </Button>
         </div>
       </div>
+
+      {view === "list" && (
+        <TaskFilterBar
+          states={states}
+          labels={labels}
+          members={members}
+          value={filters}
+          onChange={setFilters}
+        />
+      )}
 
       {error && <ErrorMessage message={error} />}
       {!error && tasks === null && <Loading />}
