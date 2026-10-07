@@ -36,6 +36,9 @@ export function TaskList({ tasks, members, onAddClick, statusLabels = {} }: Task
     );
   }
 
+  // サブタスクの「何の子か」を表示するため、同一プロジェクトのタスクから親タイトルを引く
+  const titleById = new Map(tasks.map((t) => [t.id, t.title]));
+
   return (
     <table className="w-full border-collapse overflow-hidden rounded-lg bg-white text-sm shadow-sm">
       <thead>
@@ -52,9 +55,25 @@ export function TaskList({ tasks, members, onAddClick, statusLabels = {} }: Task
           <tr
             key={task.id}
             onClick={() => router.push(`/tasks/${task.id}`)}
-            className="cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50"
+            className={`cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50 ${
+              task.parentTaskId !== null ? "border-l-4 border-l-indigo-400" : ""
+            }`}
           >
-            <td className="px-4 py-3 text-gray-900">{task.title}</td>
+            <td className="px-4 py-3 text-gray-900">
+              {task.parentTaskId !== null && (
+                <span className="mb-0.5 block truncate text-[11px] text-indigo-600">
+                  ↳ {titleById.get(task.parentTaskId) ?? "親タスク"} のサブタスク
+                </span>
+              )}
+              <span className="flex items-center gap-1.5">
+                <span className="truncate">{task.title}</span>
+                {task.subtaskProgress.total > 0 && (
+                  <span className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-normal text-indigo-700">
+                    サブタスク {task.subtaskProgress.done}/{task.subtaskProgress.total}
+                  </span>
+                )}
+              </span>
+            </td>
             <td className="px-4 py-3 text-gray-600">
               {assigneeName(task.assigneeId)}
             </td>

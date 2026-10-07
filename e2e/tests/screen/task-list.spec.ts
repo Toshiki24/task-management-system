@@ -96,4 +96,19 @@ test.describe("7.5 SCR-006 タスク一覧画面", () => {
     await expect(page).toHaveURL(`/tasks/${task.id}`);
     await expect(page.getByRole("heading", { name: "タスク詳細" })).toBeVisible();
   });
+
+  test("SCR-006-07 リスト表示で親行は件数バッジ、子行は親名を表示する", async ({ page, data }) => {
+    const owner = await data.createUser("オーナー");
+    const project = await data.createProject(owner);
+    const parent = await data.createTask(project.id, owner, { title: "親タスクA" });
+    await data.createTask(project.id, owner, { title: "子タスク1", parentTaskId: parent.id });
+    await signIn(page, owner);
+
+    await page.goto(`/projects/${project.id}/tasks`);
+
+    // 親行: サブタスク件数バッジ(0/1)が付く
+    await expect(tableRow(page, "親タスクA").getByText("サブタスク 0/1")).toBeVisible();
+    // 子行: どの親のサブタスクかを表示する
+    await expect(tableRow(page, "子タスク1").getByText("↳ 親タスクA のサブタスク")).toBeVisible();
+  });
 });
