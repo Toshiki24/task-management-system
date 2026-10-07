@@ -93,6 +93,7 @@ builder.Services.AddScoped<IWorkflowStateService, WorkflowStateService>();
 builder.Services.AddScoped<ILabelService, LabelService>();
 builder.Services.AddScoped<ISavedViewService, SavedViewService>();
 builder.Services.AddScoped<IChecklistService, ChecklistService>();
+builder.Services.AddScoped<IDependencyService, DependencyService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
