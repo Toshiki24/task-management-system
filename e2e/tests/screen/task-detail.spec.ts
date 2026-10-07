@@ -19,8 +19,8 @@ test.describe("7.6 SCR-007 タスク詳細画面", () => {
     await page.goto(`/tasks/${task.id}`);
 
     await expect(detailField(page, "タイトル")).toHaveText(task.title);
-    await expect(detailField(page, "ステータス")).toHaveText("DONE");
-    await expect(detailField(page, "優先度")).toHaveText("LOW");
+    await expect(detailField(page, "ステータス")).toHaveText("完了");
+    await expect(detailField(page, "優先度")).toHaveText("低");
     await expect(detailField(page, "担当者")).toHaveText(assignee.name);
     await expect(detailField(page, "期限")).toHaveText("2026/11/15");
     await expect(detailField(page, "説明")).toHaveText("詳細表示確認用の説明");
@@ -48,8 +48,8 @@ test.describe("7.6 SCR-007 タスク詳細画面", () => {
     await expect(page.getByRole("button", { name: "編集" })).toBeVisible();
     await expect(detailField(page, "タイトル")).toHaveText(newTitle);
     await expect(detailField(page, "担当者")).toHaveText(assignee.name);
-    await expect(detailField(page, "ステータス")).toHaveText("IN_PROGRESS");
-    await expect(detailField(page, "優先度")).toHaveText("HIGH");
+    await expect(detailField(page, "ステータス")).toHaveText("対応中");
+    await expect(detailField(page, "優先度")).toHaveText("高");
     await expect(detailField(page, "期限")).toHaveText("2026/12/24");
   });
 

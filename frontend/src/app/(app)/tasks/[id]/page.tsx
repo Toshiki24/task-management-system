@@ -10,8 +10,11 @@ import { CommentList } from "@/components/task/CommentList";
 import { TaskDetail } from "@/components/task/TaskDetail";
 import { TaskForm } from "@/components/task/TaskForm";
 import { ApiError, apiFetch, formatApiErrorMessage } from "@/lib/api";
+import { statusLabelMap } from "@/lib/taskLabels";
 import type { Member } from "@/types/member";
+import type { Project } from "@/types/project";
 import type { Task } from "@/types/task";
+import type { WorkflowState } from "@/types/workflow";
 
 export default function TaskDetailPage() {
   const params = useParams<{ id: string }>();
@@ -20,6 +23,7 @@ export default function TaskDetailPage() {
 
   const [task, setTask] = useState<Task | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
+  const [states, setStates] = useState<WorkflowState[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -45,6 +49,14 @@ export default function TaskDetailPage() {
       .then(setMembers)
       .catch(() => {
         // 担当者名の表示に使うだけなので、取得できなくても詳細自体は表示する
+      });
+
+    // 状態の表示名(日本語)に使うワークフロー状態を所属ワークスペースから取得する
+    apiFetch<Project>(`/projects/${task.projectId}`)
+      .then((project) => apiFetch<WorkflowState[]>(`/workspaces/${project.workspaceId}/workflow-states`))
+      .then(setStates)
+      .catch(() => {
+        // 取得できなければ状態はキー表示にフォールバックする
       });
   }, [task]);
 
@@ -95,7 +107,7 @@ export default function TaskDetailPage() {
 
         {deleteError && <ErrorMessage message={deleteError} />}
 
-        {!isEditing && <TaskDetail task={task} members={members} />}
+        {!isEditing && <TaskDetail task={task} members={members} statusLabels={statusLabelMap(states)} />}
 
         {isEditing && (
           <TaskForm
