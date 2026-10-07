@@ -7,8 +7,10 @@ import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
 import { Modal } from "@/components/common/Modal";
 import { CommentList } from "@/components/task/CommentList";
+import { TaskChecklist } from "@/components/task/TaskChecklist";
 import { TaskDetail } from "@/components/task/TaskDetail";
 import { TaskForm } from "@/components/task/TaskForm";
+import { TaskSubtasks } from "@/components/task/TaskSubtasks";
 import { ApiError, apiFetch, formatApiErrorMessage } from "@/lib/api";
 import { statusLabelMap } from "@/lib/taskLabels";
 import type { Member } from "@/types/member";
@@ -135,6 +137,21 @@ export default function TaskDetailPage() {
             onCancel={() => setIsEditing(false)}
           />
         )}
+      </div>
+
+      {/* サブタスクは親タスク(トップレベル)のみ表示する(1 階層のため) */}
+      {task.parentTaskId === null && (
+        <div className="rounded-lg bg-white p-6 shadow-sm">
+          <TaskSubtasks
+            projectId={task.projectId}
+            parentTaskId={task.id}
+            statusLabels={statusLabelMap(states)}
+          />
+        </div>
+      )}
+
+      <div className="rounded-lg bg-white p-6 shadow-sm">
+        <TaskChecklist taskId={taskId} />
       </div>
 
       <div className="rounded-lg bg-white p-6 shadow-sm">

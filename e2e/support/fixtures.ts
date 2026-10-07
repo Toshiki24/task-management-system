@@ -39,6 +39,8 @@ export interface Task {
   boardPosition: number;
   estimatePoints: number | null;
   labels: { id: number; workspaceId: number; name: string; color: string | null }[];
+  parentTaskId: number | null;
+  subtaskProgress: { done: number; total: number };
 }
 
 export interface CreatedComment {

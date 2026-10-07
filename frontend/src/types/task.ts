@@ -17,6 +17,8 @@ export interface Task {
   boardPosition: number;
   estimatePoints: number | null;
   labels: Label[];
+  parentTaskId: number | null;
+  subtaskProgress: { done: number; total: number };
 }
 
 export interface TaskRequestBody {
@@ -28,6 +30,15 @@ export interface TaskRequestBody {
   dueDate?: string | null;
   estimatePoints?: number | null;
   labelIds?: number[];
+  parentTaskId?: number | null;
+}
+
+export interface ChecklistItem {
+  id: number;
+  taskId: number;
+  content: string;
+  isDone: boolean;
+  position: number;
 }
 
 export interface MoveTaskBody {

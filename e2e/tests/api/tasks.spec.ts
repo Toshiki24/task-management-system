@@ -46,6 +46,8 @@ test.describe("5.5 タスクAPI", () => {
       boardPosition: expect.any(Number),
       estimatePoints: null,
       labels: [],
+      parentTaskId: null,
+      subtaskProgress: { done: 0, total: 0 },
       ...request,
     });
   });
@@ -160,6 +162,8 @@ test.describe("5.5 タスクAPI", () => {
       boardPosition: task.boardPosition,
       estimatePoints: null,
       labels: [],
+      parentTaskId: null,
+      subtaskProgress: { done: 0, total: 0 },
       ...request,
     });
   });

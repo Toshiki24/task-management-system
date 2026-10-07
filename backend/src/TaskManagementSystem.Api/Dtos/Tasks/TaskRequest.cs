@@ -26,5 +26,8 @@ public record TaskRequest(
     int? EstimatePoints = null,
 
     /// <summary>付与するラベル ID の集合(完全上書き)。null は変更なし、空配列は全解除。</summary>
-    long[]? LabelIds = null
+    long[]? LabelIds = null,
+
+    /// <summary>親タスク ID(作成時のみ有効)。指定すると同一プロジェクトのサブタスクになる。null=親タスク。</summary>
+    long? ParentTaskId = null
 );

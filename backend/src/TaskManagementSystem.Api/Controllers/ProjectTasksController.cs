@@ -61,6 +61,11 @@ public class ProjectTasksController : ControllerBase
                     "入力内容に誤りがあります。",
                     new[] { new ValidationErrorItem("labelIds", "指定されたラベルが存在しません。") })),
 
+            CreateTaskResult.InvalidParent =>
+                BadRequest(new ValidationErrorResponse(
+                    "入力内容に誤りがあります。",
+                    new[] { new ValidationErrorItem("parentTaskId", "親タスクが不正です(同一プロジェクトの親タスクを指定してください)。") })),
+
             _ => Created($"/api/tasks/{outcome.Data!.Id}", outcome.Data),
         };
     }

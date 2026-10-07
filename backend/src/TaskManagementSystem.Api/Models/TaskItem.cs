@@ -23,6 +23,9 @@ public class TaskItem
     public long Id { get; set; }
     public long ProjectId { get; set; }
     public long? AssigneeId { get; set; }
+
+    /// <summary>親タスク。NULL=親(トップレベル)。サブタスクは同一プロジェクト・1 階層のみ(M2 §7.1)。</summary>
+    public long? ParentTaskId { get; set; }
     public string Title { get; set; } = null!;
     public string? Description { get; set; }
     public string Status { get; set; } = TaskItemStatus.Todo;
@@ -43,4 +46,8 @@ public class TaskItem
     public ICollection<TaskComment> Comments { get; set; } = new List<TaskComment>();
     public ICollection<TaskStatusHistory> StatusHistories { get; set; } = new List<TaskStatusHistory>();
     public ICollection<TaskLabel> TaskLabels { get; set; } = new List<TaskLabel>();
+    public ICollection<TaskChecklistItem> ChecklistItems { get; set; } = new List<TaskChecklistItem>();
+
+    public TaskItem? ParentTask { get; set; }
+    public ICollection<TaskItem> Subtasks { get; set; } = new List<TaskItem>();
 }
