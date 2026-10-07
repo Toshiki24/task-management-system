@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<WorkflowState> WorkflowStates => Set<WorkflowState>();
     public DbSet<Label> Labels => Set<Label>();
     public DbSet<TaskLabel> TaskLabels => Set<TaskLabel>();
+    public DbSet<SavedView> SavedViews => Set<SavedView>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<TaskStatusHistory> TaskStatusHistories => Set<TaskStatusHistory>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -299,6 +300,39 @@ public class AppDbContext : DbContext
                 .HasForeignKey(e => e.LabelId)
                 .HasConstraintName("fk_task_labels_label")
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ============================================================
+        // SavedViews (Phase 2 M2)
+        // ============================================================
+        modelBuilder.Entity<SavedView>(entity =>
+        {
+            entity.ToTable("saved_views");
+
+            entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.ViewType).HasMaxLength(10).IsRequired();
+            entity.Property(e => e.Filters).HasColumnType("jsonb").IsRequired();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.WorkspaceId).HasDatabaseName("idx_saved_views_workspace_id");
+            entity.HasIndex(e => e.OwnerUserId).HasDatabaseName("idx_saved_views_owner_user_id");
+
+            entity.HasOne(e => e.Workspace)
+                .WithMany()
+                .HasForeignKey(e => e.WorkspaceId)
+                .HasConstraintName("fk_saved_views_workspace")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.OwnerUser)
+                .WithMany()
+                .HasForeignKey(e => e.OwnerUserId)
+                .HasConstraintName("fk_saved_views_owner_user")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(tb => tb.HasCheckConstraint(
+                "chk_saved_views_view_type",
+                "view_type IN ('LIST', 'BOARD')"));
         });
 
         // ============================================================
