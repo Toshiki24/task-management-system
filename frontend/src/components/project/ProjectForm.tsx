@@ -6,12 +6,13 @@ import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Input } from "@/components/common/Input";
 import { Select } from "@/components/common/Select";
 import { formatApiErrorMessage } from "@/lib/api";
+import { PROJECT_STATUS_LABELS } from "@/lib/projectStatus";
 import type { ProjectRequestBody, ProjectStatus } from "@/types/project";
 
 const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
-  { value: "ACTIVE", label: "ACTIVE" },
-  { value: "COMPLETED", label: "COMPLETED" },
-  { value: "ARCHIVED", label: "ARCHIVED" },
+  { value: "ACTIVE", label: PROJECT_STATUS_LABELS.ACTIVE },
+  { value: "COMPLETED", label: PROJECT_STATUS_LABELS.COMPLETED },
+  { value: "ARCHIVED", label: PROJECT_STATUS_LABELS.ARCHIVED },
 ];
 
 interface ProjectFormProps {

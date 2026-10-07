@@ -56,7 +56,7 @@ export default function MyTasksPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-4">
-        <h1 className="text-lg font-bold text-gray-900">My Tasks</h1>
+        <h1 className="text-lg font-bold text-gray-900">マイタスク</h1>
         <form
           onSubmit={(e) => {
             e.preventDefault();

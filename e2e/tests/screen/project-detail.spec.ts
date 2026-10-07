@@ -20,7 +20,7 @@ test.describe("7.4 SCR-005 プロジェクト詳細画面", () => {
     await page.goto(`/projects/${project.id}`);
 
     await expect(field(page, "プロジェクト名")).toHaveText(project.name);
-    await expect(field(page, "ステータス")).toHaveText("COMPLETED");
+    await expect(field(page, "ステータス")).toHaveText("完了");
     await expect(field(page, "説明")).toHaveText("詳細表示確認用の説明");
     await expect(field(page, "開始日")).toHaveText("2026/10/01");
     await expect(field(page, "終了日")).toHaveText("2026/12/31");
@@ -55,7 +55,7 @@ test.describe("7.4 SCR-005 プロジェクト詳細画面", () => {
 
     await expect(page.getByRole("button", { name: "編集" })).toBeVisible();
     await expect(field(page, "プロジェクト名")).toHaveText(newName);
-    await expect(field(page, "ステータス")).toHaveText("COMPLETED");
+    await expect(field(page, "ステータス")).toHaveText("完了");
   });
 
   test("SCR-005-04 編集のキャンセル", async ({ page, data, api }) => {
