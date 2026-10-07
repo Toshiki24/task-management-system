@@ -103,9 +103,25 @@ export function TaskBoard({ projectId, tasks, states, members, onChanged }: Task
                     className="cursor-pointer rounded-md border border-gray-200 bg-white p-3 text-sm shadow-sm hover:border-blue-300"
                   >
                     <p className="mb-1 font-medium text-gray-900">{task.title}</p>
+                    {task.labels.length > 0 && (
+                      <p className="mb-1 flex flex-wrap gap-1">
+                        {task.labels.map((label) => (
+                          <span
+                            key={label.id}
+                            className="rounded-full px-1.5 py-0.5 text-[10px] text-white"
+                            style={{ backgroundColor: label.color ?? "#6b7280" }}
+                          >
+                            {label.name}
+                          </span>
+                        ))}
+                      </p>
+                    )}
                     <p className="flex items-center justify-between text-xs text-gray-500">
                       <span>{assigneeName(task.assigneeId)}</span>
-                      <span>優先度: {PRIORITY_LABEL[task.priority] ?? task.priority}</span>
+                      <span>
+                        {task.estimatePoints != null && <span className="mr-2">{task.estimatePoints}pt</span>}
+                        優先度: {PRIORITY_LABEL[task.priority] ?? task.priority}
+                      </span>
                     </p>
                   </article>
                 ))}

@@ -10,6 +10,7 @@ public enum CreateTaskResult
     AssigneeNotFound,
     AssigneeNotMember,
     InvalidStatus,
+    InvalidLabel,
 }
 
 public enum UpdateTaskResult
@@ -20,6 +21,7 @@ public enum UpdateTaskResult
     AssigneeNotFound,
     AssigneeNotMember,
     InvalidStatus,
+    InvalidLabel,
 }
 
 public enum DeleteTaskResult

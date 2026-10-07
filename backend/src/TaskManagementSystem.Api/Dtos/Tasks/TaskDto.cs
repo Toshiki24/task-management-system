@@ -1,3 +1,5 @@
+using TaskManagementSystem.Api.Dtos.Labels;
+
 namespace TaskManagementSystem.Api.Dtos.Tasks;
 
 public record TaskDto(
@@ -9,5 +11,7 @@ public record TaskDto(
     string Status,
     string Priority,
     DateOnly? DueDate,
-    double BoardPosition
+    double BoardPosition,
+    int? EstimatePoints,
+    IReadOnlyList<LabelDto> Labels
 );

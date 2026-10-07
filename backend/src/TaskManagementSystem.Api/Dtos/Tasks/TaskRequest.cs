@@ -20,5 +20,11 @@ public record TaskRequest(
         ErrorMessage = "優先度の値が不正です。")]
     string? Priority,
 
-    DateOnly? DueDate
+    DateOnly? DueDate,
+
+    [Range(0, 10000, ErrorMessage = "見積の値が不正です。")]
+    int? EstimatePoints = null,
+
+    /// <summary>付与するラベル ID の集合(完全上書き)。null は変更なし、空配列は全解除。</summary>
+    long[]? LabelIds = null
 );

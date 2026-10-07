@@ -3,6 +3,8 @@
 export type TaskStatus = string;
 export type TaskPriority = "LOW" | "MEDIUM" | "HIGH";
 
+import type { Label } from "@/types/label";
+
 export interface Task {
   id: number;
   projectId: number;
@@ -13,6 +15,8 @@ export interface Task {
   priority: TaskPriority;
   dueDate: string | null;
   boardPosition: number;
+  estimatePoints: number | null;
+  labels: Label[];
 }
 
 export interface TaskRequestBody {
@@ -22,6 +26,8 @@ export interface TaskRequestBody {
   status?: TaskStatus;
   priority?: TaskPriority;
   dueDate?: string | null;
+  estimatePoints?: number | null;
+  labelIds?: number[];
 }
 
 export interface MoveTaskBody {

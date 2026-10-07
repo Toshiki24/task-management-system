@@ -107,6 +107,8 @@ export default function TaskDetailPage() {
               status: task.status,
               priority: task.priority,
               dueDate: task.dueDate,
+              estimatePoints: task.estimatePoints,
+              labelIds: task.labels.map((label) => label.id),
             }}
             submitLabel="保存"
             submittingLabel="保存中..."

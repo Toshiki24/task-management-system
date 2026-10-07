@@ -44,6 +44,8 @@ test.describe("5.5 タスクAPI", () => {
       id: expect.any(Number),
       projectId: project.id,
       boardPosition: expect.any(Number),
+      estimatePoints: null,
+      labels: [],
       ...request,
     });
   });
@@ -156,6 +158,8 @@ test.describe("5.5 タスクAPI", () => {
       id: task.id,
       projectId: project.id,
       boardPosition: task.boardPosition,
+      estimatePoints: null,
+      labels: [],
       ...request,
     });
   });

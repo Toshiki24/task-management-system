@@ -22,6 +22,8 @@ const INITIAL_VALUE: TaskRequestBody = {
   status: "TODO",
   priority: "MEDIUM",
   dueDate: "",
+  estimatePoints: null,
+  labelIds: [],
 };
 
 export default function ProjectTasksPage() {

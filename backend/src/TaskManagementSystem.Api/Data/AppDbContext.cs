@@ -18,6 +18,8 @@ public class AppDbContext : DbContext
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
     public DbSet<TaskItem> Tasks => Set<TaskItem>();
     public DbSet<WorkflowState> WorkflowStates => Set<WorkflowState>();
+    public DbSet<Label> Labels => Set<Label>();
+    public DbSet<TaskLabel> TaskLabels => Set<TaskLabel>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<TaskStatusHistory> TaskStatusHistories => Set<TaskStatusHistory>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -253,6 +255,50 @@ public class AppDbContext : DbContext
             entity.ToTable(tb => tb.HasCheckConstraint(
                 "chk_workflow_states_category",
                 "category IN ('BACKLOG', 'TODO', 'IN_PROGRESS', 'DONE', 'CANCELLED')"));
+        });
+
+        // ============================================================
+        // Labels / TaskLabels (Phase 2 M2)
+        // ============================================================
+        modelBuilder.Entity<Label>(entity =>
+        {
+            entity.ToTable("labels");
+
+            entity.Property(e => e.Name).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Color).HasMaxLength(20);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => new { e.WorkspaceId, e.Name })
+                .IsUnique()
+                .HasDatabaseName("uq_labels_workspace_name");
+            entity.HasIndex(e => e.WorkspaceId).HasDatabaseName("idx_labels_workspace_id");
+
+            entity.HasOne(e => e.Workspace)
+                .WithMany(w => w.Labels)
+                .HasForeignKey(e => e.WorkspaceId)
+                .HasConstraintName("fk_labels_workspace")
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TaskLabel>(entity =>
+        {
+            entity.ToTable("task_labels");
+
+            entity.HasKey(e => new { e.TaskId, e.LabelId });
+            entity.HasIndex(e => e.LabelId).HasDatabaseName("idx_task_labels_label_id");
+
+            entity.HasOne(e => e.Task)
+                .WithMany(t => t.TaskLabels)
+                .HasForeignKey(e => e.TaskId)
+                .HasConstraintName("fk_task_labels_task")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Label)
+                .WithMany(l => l.TaskLabels)
+                .HasForeignKey(e => e.LabelId)
+                .HasConstraintName("fk_task_labels_label")
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ============================================================

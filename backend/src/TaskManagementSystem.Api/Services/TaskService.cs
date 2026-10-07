@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TaskManagementSystem.Api.Data;
+using TaskManagementSystem.Api.Dtos.Labels;
 using TaskManagementSystem.Api.Dtos.Tasks;
 using TaskManagementSystem.Api.Models;
 
@@ -24,6 +25,7 @@ public class TaskService : ITaskService
 
         var tasks = await _dbContext.Tasks
             .Where(t => t.ProjectId == projectId)
+            .Include(t => t.TaskLabels).ThenInclude(tl => tl.Label)
             .OrderBy(t => t.Id)
             .ToListAsync();
 
@@ -38,7 +40,9 @@ public class TaskService : ITaskService
             return null;
         }
 
-        var task = await _dbContext.Tasks.FindAsync(id);
+        var task = await _dbContext.Tasks
+            .Include(t => t.TaskLabels).ThenInclude(tl => tl.Label)
+            .FirstOrDefaultAsync(t => t.Id == id);
         return task is null ? null : ToDto(task);
     }
 
@@ -77,6 +81,11 @@ public class TaskService : ITaskService
             return new CreateTaskOutcome(CreateTaskResult.InvalidStatus);
         }
 
+        if (!await LabelsValidAsync(workspaceId, request.LabelIds))
+        {
+            return new CreateTaskOutcome(CreateTaskResult.InvalidLabel);
+        }
+
         var status = request.Status ?? defaultKey ?? TaskItemStatus.Todo;
 
         var task = new TaskItem
@@ -87,6 +96,7 @@ public class TaskService : ITaskService
             Description = request.Description,
             DueDate = request.DueDate,
             Status = status,
+            EstimatePoints = request.EstimatePoints,
             // 作成時はその状態列の末尾に置く
             BoardPosition = await NextBoardPositionAsync(projectId, status),
         };
@@ -99,6 +109,13 @@ public class TaskService : ITaskService
         _dbContext.Tasks.Add(task);
         await _dbContext.SaveChangesAsync();
 
+        if (request.LabelIds is not null)
+        {
+            await SetTaskLabelsAsync(task, request.LabelIds);
+            await _dbContext.SaveChangesAsync();
+        }
+
+        await LoadLabelsAsync(task);
         return new CreateTaskOutcome(CreateTaskResult.Success, ToDto(task));
     }
 
@@ -130,13 +147,14 @@ public class TaskService : ITaskService
                 return new UpdateTaskOutcome(UpdateTaskResult.AssigneeNotMember);
         }
 
+        var workspaceId = await _dbContext.Projects
+            .Where(p => p.Id == task.ProjectId)
+            .Select(p => p.WorkspaceId)
+            .FirstAsync();
+
         // status が指定された場合は、タスクの属するワークスペースのワークフローに対して検証する(M2 §3.2)
         if (request.Status is not null)
         {
-            var workspaceId = await _dbContext.Tasks
-                .Where(t => t.Id == id)
-                .Select(t => t.Project.WorkspaceId)
-                .FirstAsync();
             var (validKeys, _) = await GetWorkflowAsync(workspaceId);
             if (!validKeys.Contains(request.Status))
             {
@@ -144,14 +162,20 @@ public class TaskService : ITaskService
             }
         }
 
+        if (!await LabelsValidAsync(workspaceId, request.LabelIds))
+        {
+            return new UpdateTaskOutcome(UpdateTaskResult.InvalidLabel);
+        }
+
         task.AssigneeId = request.AssigneeId;
         task.Title = request.Title;
         task.Description = request.Description;
         task.DueDate = request.DueDate;
+        // 見積は NULL 許容なので、未指定(null)はそのまま解除として上書きする(PUTの完全上書きセマンティクス)
+        task.EstimatePoints = request.EstimatePoints;
 
         // status/priorityのようなNOT NULL制約付きの列は、
         // 未指定(null)の場合に空にできないため既存値を維持する。
-        // 一方assigneeId/description/dueDateはNULL許容なので、未指定はnullとして上書きする(PUTの完全上書きセマンティクス)。
         if (request.Status is not null && request.Status != task.Status)
         {
             RecordStatusHistory(task, task.Status, request.Status, currentUserId);
@@ -163,8 +187,15 @@ public class TaskService : ITaskService
             task.Priority = request.Priority;
         }
 
+        // ラベルは null=変更なし、配列指定=その集合で完全置換(空配列は全解除。M2 §2.3)
+        if (request.LabelIds is not null)
+        {
+            await SetTaskLabelsAsync(task, request.LabelIds);
+        }
+
         await _dbContext.SaveChangesAsync();
 
+        await LoadLabelsAsync(task);
         return new UpdateTaskOutcome(UpdateTaskResult.Success, ToDto(task));
     }
 
@@ -236,6 +267,7 @@ public class TaskService : ITaskService
 
         await _dbContext.SaveChangesAsync();
 
+        await LoadLabelsAsync(task);
         return new MoveTaskOutcome(MoveTaskResult.Success, ToDto(task));
     }
 
@@ -347,5 +379,40 @@ public class TaskService : ITaskService
         task.Status,
         task.Priority,
         task.DueDate,
-        task.BoardPosition);
+        task.BoardPosition,
+        task.EstimatePoints,
+        task.TaskLabels
+            .Where(tl => tl.Label is not null)
+            .Select(tl => new LabelDto(tl.Label.Id, tl.Label.WorkspaceId, tl.Label.Name, tl.Label.Color))
+            .OrderBy(l => l.Name)
+            .ToList());
+
+    /// <summary>ラベルの付与集合がすべて対象ワークスペースのラベルであることを検証する。</summary>
+    private async Task<bool> LabelsValidAsync(long workspaceId, long[]? labelIds)
+    {
+        if (labelIds is null || labelIds.Length == 0)
+        {
+            return true;
+        }
+
+        var distinct = labelIds.Distinct().ToList();
+        var count = await _dbContext.Labels
+            .CountAsync(l => l.WorkspaceId == workspaceId && distinct.Contains(l.Id));
+        return count == distinct.Count;
+    }
+
+    /// <summary>タスクのラベルを指定集合で完全置換する(task_labels を入れ替える)。</summary>
+    private async Task SetTaskLabelsAsync(TaskItem task, long[] labelIds)
+    {
+        await _dbContext.Entry(task).Collection(t => t.TaskLabels).LoadAsync();
+        task.TaskLabels.Clear();
+        foreach (var labelId in labelIds.Distinct())
+        {
+            task.TaskLabels.Add(new TaskLabel { TaskId = task.Id, LabelId = labelId });
+        }
+    }
+
+    /// <summary>ToDto 用に task_labels とラベル本体を読み込む。</summary>
+    private Task LoadLabelsAsync(TaskItem task) =>
+        _dbContext.Entry(task).Collection(t => t.TaskLabels).Query().Include(tl => tl.Label).LoadAsync();
 }
