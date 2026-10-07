@@ -13,10 +13,29 @@ interface TaskListProps {
   onAddClick: () => void;
   /** 状態キー→表示名(日本語)。無い場合はキーをそのまま表示する。 */
   statusLabels?: Record<string, string>;
+  /** 一括操作モード。true のとき各行に選択チェックボックスを表示する。 */
+  selectable?: boolean;
+  /** 選択中のタスク ID 集合(selectable のときのみ使用)。 */
+  selectedIds?: number[];
+  /** 行の選択トグル。 */
+  onToggleSelect?: (taskId: number) => void;
+  /** 全選択/全解除のトグル(引数は現在表示中の全 ID)。 */
+  onToggleSelectAll?: (taskIds: number[]) => void;
 }
 
-export function TaskList({ tasks, members, onAddClick, statusLabels = {} }: TaskListProps) {
+export function TaskList({
+  tasks,
+  members,
+  onAddClick,
+  statusLabels = {},
+  selectable = false,
+  selectedIds = [],
+  onToggleSelect,
+  onToggleSelectAll,
+}: TaskListProps) {
   const router = useRouter();
+  const selected = new Set(selectedIds);
+  const allSelected = tasks.length > 0 && tasks.every((t) => selected.has(t.id));
 
   if (tasks.length === 0) {
     return (
@@ -43,6 +62,16 @@ export function TaskList({ tasks, members, onAddClick, statusLabels = {} }: Task
     <table className="w-full border-collapse overflow-hidden rounded-lg bg-white text-sm shadow-sm">
       <thead>
         <tr className="border-b border-gray-200 text-left text-gray-500">
+          {selectable && (
+            <th className="w-10 px-4 py-2">
+              <input
+                type="checkbox"
+                aria-label="全て選択"
+                checked={allSelected}
+                onChange={() => onToggleSelectAll?.(tasks.map((t) => t.id))}
+              />
+            </th>
+          )}
           <th className="px-4 py-2 font-medium">タスク名</th>
           <th className="px-4 py-2 font-medium">担当者</th>
           <th className="px-4 py-2 font-medium">状態</th>
@@ -55,8 +84,20 @@ export function TaskList({ tasks, members, onAddClick, statusLabels = {} }: Task
           <tr
             key={task.id}
             onClick={() => router.push(`/tasks/${task.id}`)}
-            className="cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50"
+            className={`cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50 ${
+              selectable && selected.has(task.id) ? "bg-blue-50" : ""
+            }`}
           >
+            {selectable && (
+              <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  aria-label={`${task.title} を選択`}
+                  checked={selected.has(task.id)}
+                  onChange={() => onToggleSelect?.(task.id)}
+                />
+              </td>
+            )}
             {/* サブタスクの左アクセント線はセルに付ける(border-collapse では tr の左罫線が描画されないため) */}
             <td
               className={`px-4 py-3 text-gray-900 ${

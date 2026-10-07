@@ -445,6 +445,112 @@ public class TaskService : ITaskService
         return new MoveTaskOutcome(MoveTaskResult.Success, ToDto(task, await SubtaskProgressAsync(task)));
     }
 
+    /// <summary>
+    /// 複数タスクの一括更新(M2 §5.4)。状態・担当・ラベルを対象タスクへまとめて適用する。すべて LINQ/EF。
+    /// 認可はプロジェクト単位(CanWrite)。対象 ID に本プロジェクト外・存在しないものが混ざれば何も変更しない。
+    /// </summary>
+    public async Task<BulkUpdateOutcome> BulkUpdateAsync(
+        long projectId, BulkUpdateTasksRequest request, long currentUserId)
+    {
+        var access = await _dbContext.ResolveAccessAsync(projectId, currentUserId);
+        if (access is null || !access.Value.CanView)
+        {
+            return new BulkUpdateOutcome(BulkUpdateResult.ProjectNotFound);
+        }
+
+        if (!access.Value.CanWrite)
+        {
+            return new BulkUpdateOutcome(BulkUpdateResult.Forbidden);
+        }
+
+        var ids = (request.TaskIds ?? Array.Empty<long>()).Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return new BulkUpdateOutcome(BulkUpdateResult.InvalidTask);
+        }
+
+        var workspaceId = await _dbContext.Projects
+            .Where(p => p.Id == projectId)
+            .Select(p => p.WorkspaceId)
+            .FirstAsync();
+
+        // 状態(指定時)はワークスペースのワークフローに対して検証する
+        if (request.Status is not null)
+        {
+            var (validKeys, _) = await GetWorkflowAsync(workspaceId);
+            if (!validKeys.Contains(request.Status))
+            {
+                return new BulkUpdateOutcome(BulkUpdateResult.InvalidStatus);
+            }
+        }
+
+        // 担当(適用する場合のみ)はプロジェクトメンバーに限る(未割り当ては可)
+        if (request.SetAssignee && request.AssigneeId is { } assigneeId)
+        {
+            switch (await CheckAssigneeAsync(projectId, assigneeId))
+            {
+                case AssigneeCheck.NotFound:
+                    return new BulkUpdateOutcome(BulkUpdateResult.AssigneeNotFound);
+                case AssigneeCheck.NotMember:
+                    return new BulkUpdateOutcome(BulkUpdateResult.AssigneeNotMember);
+            }
+        }
+
+        // ラベルはすべて対象ワークスペースのものであること
+        if (!await LabelsValidAsync(workspaceId, request.AddLabelIds)
+            || !await LabelsValidAsync(workspaceId, request.RemoveLabelIds))
+        {
+            return new BulkUpdateOutcome(BulkUpdateResult.InvalidLabel);
+        }
+
+        var tasks = await _dbContext.Tasks
+            .Where(t => t.ProjectId == projectId && ids.Contains(t.Id))
+            .Include(t => t.TaskLabels)
+            .ToListAsync();
+
+        // 指定 ID に本プロジェクト外・存在しないものが含まれていたら一切変更しない
+        if (tasks.Count != ids.Count)
+        {
+            return new BulkUpdateOutcome(BulkUpdateResult.InvalidTask);
+        }
+
+        var addLabelIds = request.AddLabelIds?.Distinct().ToList() ?? new List<long>();
+        var removeLabelIds = request.RemoveLabelIds?.Distinct().ToHashSet() ?? new HashSet<long>();
+
+        foreach (var task in tasks)
+        {
+            if (request.Status is not null && request.Status != task.Status)
+            {
+                RecordStatusHistory(task, task.Status, request.Status, currentUserId);
+                task.Status = request.Status;
+            }
+
+            if (request.SetAssignee)
+            {
+                task.AssigneeId = request.AssigneeId;
+            }
+
+            foreach (var labelId in addLabelIds)
+            {
+                if (task.TaskLabels.All(tl => tl.LabelId != labelId))
+                {
+                    task.TaskLabels.Add(new TaskLabel { TaskId = task.Id, LabelId = labelId });
+                }
+            }
+
+            if (removeLabelIds.Count > 0)
+            {
+                foreach (var toRemove in task.TaskLabels.Where(tl => removeLabelIds.Contains(tl.LabelId)).ToList())
+                {
+                    task.TaskLabels.Remove(toRemove);
+                }
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+        return new BulkUpdateOutcome(BulkUpdateResult.Success, tasks.Count);
+    }
+
     /// <summary>その状態列の末尾(既存最大の次)の並び順を返す。</summary>
     private async Task<double> NextBoardPositionAsync(long projectId, string status)
     {

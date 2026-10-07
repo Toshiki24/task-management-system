@@ -60,3 +60,13 @@ export interface MoveTaskBody {
   toStatus: string;
   beforeTaskId: number | null;
 }
+
+/** 複数タスクの一括更新(M2 §5.4)。指定した項目だけを全対象へ適用する。 */
+export interface BulkUpdateBody {
+  taskIds: number[];
+  status?: string;
+  setAssignee?: boolean;
+  assigneeId?: number | null;
+  addLabelIds?: number[];
+  removeLabelIds?: number[];
+}

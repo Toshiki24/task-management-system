@@ -6,6 +6,7 @@ import { Button } from "@/components/common/Button";
 import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
 import { Modal } from "@/components/common/Modal";
+import { BulkActionBar } from "@/components/task/BulkActionBar";
 import { SavedViewBar } from "@/components/task/SavedViewBar";
 import { TaskBoard } from "@/components/task/TaskBoard";
 import { TaskFilterBar, EMPTY_FILTERS, buildTaskQuery, type TaskFilters } from "@/components/task/TaskFilterBar";
@@ -18,7 +19,7 @@ import type { Label } from "@/types/label";
 import type { Member } from "@/types/member";
 import type { Project } from "@/types/project";
 import type { SavedView } from "@/types/savedView";
-import type { Task, TaskRequestBody } from "@/types/task";
+import type { BulkUpdateBody, Task, TaskRequestBody } from "@/types/task";
 import type { WorkflowState } from "@/types/workflow";
 
 const INITIAL_VALUE: TaskRequestBody = {
@@ -47,13 +48,34 @@ export default function ProjectTasksPage() {
   const [view, setView] = useState<"list" | "board">("list");
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   // フィルタ条件が変わるたびに、条件付きでタスクを取り直す
   useEffect(() => {
     apiFetch<Task[]>(`/projects/${projectId}/tasks${buildTaskQuery(filters)}`)
       .then(setTasks)
       .catch(() => setError("タスク情報の取得に失敗しました。"));
+    // 条件が変わると対象が変わるため選択はリセットする
+    setSelectedIds([]);
   }, [projectId, filters]);
+
+  function toggleSelect(taskId: number) {
+    setSelectedIds((ids) => (ids.includes(taskId) ? ids.filter((id) => id !== taskId) : [...ids, taskId]));
+  }
+
+  function toggleSelectAll(taskIds: number[]) {
+    setSelectedIds((ids) => (taskIds.every((id) => ids.includes(id)) ? [] : taskIds));
+  }
+
+  async function handleBulkApply(body: BulkUpdateBody) {
+    await apiFetch(`/projects/${projectId}/tasks/bulk`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    await reloadTasks();
+    setSelectedIds([]);
+  }
 
   useEffect(() => {
     apiFetch<Member[]>(`/projects/${projectId}/members`)
@@ -125,6 +147,19 @@ export default function ProjectTasksPage() {
               </button>
             </div>
           )}
+          {view === "list" && (
+            <Button
+              type="button"
+              variant="secondary"
+              aria-pressed={bulkMode}
+              onClick={() => {
+                setBulkMode((on) => !on);
+                setSelectedIds([]);
+              }}
+            >
+              {bulkMode ? "一括操作を終了" : "一括操作"}
+            </Button>
+          )}
           <Button type="button" onClick={() => setIsModalOpen(true)}>
             ＋ タスク追加
           </Button>
@@ -157,12 +192,26 @@ export default function ProjectTasksPage() {
 
       {error && <ErrorMessage message={error} />}
       {!error && tasks === null && <Loading />}
+      {tasks && view === "list" && bulkMode && selectedIds.length > 0 && (
+        <BulkActionBar
+          selectedIds={selectedIds}
+          states={states}
+          members={members}
+          labels={labels}
+          onApply={handleBulkApply}
+          onClear={() => setSelectedIds([])}
+        />
+      )}
       {tasks && view === "list" && (
         <TaskList
           tasks={tasks}
           members={members}
           statusLabels={statusLabelMap(states)}
           onAddClick={() => setIsModalOpen(true)}
+          selectable={bulkMode}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onToggleSelectAll={toggleSelectAll}
         />
       )}
       {tasks && view === "board" && (
