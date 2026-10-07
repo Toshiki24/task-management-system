@@ -1,6 +1,7 @@
 "use client";
 
 import { Select } from "@/components/common/Select";
+import { PRIORITY_LABELS } from "@/lib/taskLabels";
 import type { Label } from "@/types/label";
 import type { Member } from "@/types/member";
 import type { WorkflowState } from "@/types/workflow";
@@ -37,9 +38,9 @@ export function buildTaskQuery(f: TaskFilters): string {
 }
 
 const PRIORITIES = [
-  { value: "HIGH", label: "高" },
-  { value: "MEDIUM", label: "中" },
-  { value: "LOW", label: "低" },
+  { value: "HIGH", label: PRIORITY_LABELS.HIGH },
+  { value: "MEDIUM", label: PRIORITY_LABELS.MEDIUM },
+  { value: "LOW", label: PRIORITY_LABELS.LOW },
 ];
 
 const SORT_OPTIONS = [

@@ -21,8 +21,8 @@ test.describe("7.5 SCR-006 タスク一覧画面", () => {
     await expect(tableRow(page, task.title).getByRole("cell")).toHaveText([
       task.title,
       assignee.name,
-      "IN_PROGRESS",
-      "HIGH",
+      "対応中",
+      "高",
       "2026/11/15",
     ]);
   });

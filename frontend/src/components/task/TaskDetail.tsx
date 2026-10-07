@@ -1,13 +1,16 @@
 import { formatDate } from "@/lib/format";
+import { priorityLabel } from "@/lib/taskLabels";
 import type { Member } from "@/types/member";
 import type { Task } from "@/types/task";
 
 interface TaskDetailProps {
   task: Task;
   members: Member[];
+  /** 状態キー→表示名(日本語)。無い場合はキーをそのまま表示する。 */
+  statusLabels?: Record<string, string>;
 }
 
-export function TaskDetail({ task, members }: TaskDetailProps) {
+export function TaskDetail({ task, members, statusLabels = {} }: TaskDetailProps) {
   const assigneeName =
     members.find((member) => member.userId === task.assigneeId)?.name ?? "-";
 
@@ -20,11 +23,11 @@ export function TaskDetail({ task, members }: TaskDetailProps) {
       <div className="flex gap-8">
         <div>
           <dt className="text-gray-500">ステータス</dt>
-          <dd className="mt-0.5 text-gray-900">{task.status}</dd>
+          <dd className="mt-0.5 text-gray-900">{statusLabels[task.status] ?? task.status}</dd>
         </div>
         <div>
           <dt className="text-gray-500">優先度</dt>
-          <dd className="mt-0.5 text-gray-900">{task.priority}</dd>
+          <dd className="mt-0.5 text-gray-900">{priorityLabel(task.priority)}</dd>
         </div>
       </div>
       <div className="flex gap-8">

@@ -12,6 +12,7 @@ import { TaskFilterBar, EMPTY_FILTERS, buildTaskQuery, type TaskFilters } from "
 import { TaskForm } from "@/components/task/TaskForm";
 import { TaskList } from "@/components/task/TaskList";
 import { apiFetch } from "@/lib/api";
+import { statusLabelMap } from "@/lib/taskLabels";
 import type { Label } from "@/types/label";
 import type { Member } from "@/types/member";
 import type { Project } from "@/types/project";
@@ -152,6 +153,7 @@ export default function ProjectTasksPage() {
         <TaskList
           tasks={tasks}
           members={members}
+          statusLabels={statusLabelMap(states)}
           onAddClick={() => setIsModalOpen(true)}
         />
       )}

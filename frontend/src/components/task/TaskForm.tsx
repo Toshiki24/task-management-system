@@ -6,6 +6,7 @@ import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Input } from "@/components/common/Input";
 import { Select } from "@/components/common/Select";
 import { apiFetch, formatApiErrorMessage } from "@/lib/api";
+import { PRIORITY_LABELS } from "@/lib/taskLabels";
 import type { Label } from "@/types/label";
 import type { Member } from "@/types/member";
 import type { Project } from "@/types/project";
@@ -19,9 +20,9 @@ const FALLBACK_STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
 ];
 
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
-  { value: "LOW", label: "LOW" },
-  { value: "MEDIUM", label: "MEDIUM" },
-  { value: "HIGH", label: "HIGH" },
+  { value: "HIGH", label: PRIORITY_LABELS.HIGH },
+  { value: "MEDIUM", label: PRIORITY_LABELS.MEDIUM },
+  { value: "LOW", label: PRIORITY_LABELS.LOW },
 ];
 
 interface TaskFormProps {

@@ -3,6 +3,7 @@
 import { useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, formatApiErrorMessage } from "@/lib/api";
+import { priorityLabel } from "@/lib/taskLabels";
 import type { Member } from "@/types/member";
 import type { MoveTaskBody, Task } from "@/types/task";
 import type { WorkflowState } from "@/types/workflow";
@@ -15,8 +16,6 @@ interface TaskBoardProps {
   /** 移動後に最新タスクへ更新する(楽観的更新に失敗したときの復帰にも使う) */
   onChanged: (tasks: Task[]) => void;
 }
-
-const PRIORITY_LABEL: Record<string, string> = { LOW: "低", MEDIUM: "中", HIGH: "高" };
 
 export function TaskBoard({ projectId, tasks, states, members, onChanged }: TaskBoardProps) {
   const router = useRouter();
@@ -120,7 +119,7 @@ export function TaskBoard({ projectId, tasks, states, members, onChanged }: Task
                       <span>{assigneeName(task.assigneeId)}</span>
                       <span>
                         {task.estimatePoints != null && <span className="mr-2">{task.estimatePoints}pt</span>}
-                        優先度: {PRIORITY_LABEL[task.priority] ?? task.priority}
+                        優先度: {priorityLabel(task.priority)}
                       </span>
                     </p>
                   </article>
