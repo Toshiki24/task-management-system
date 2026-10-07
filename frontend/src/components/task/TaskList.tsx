@@ -55,11 +55,14 @@ export function TaskList({ tasks, members, onAddClick, statusLabels = {} }: Task
           <tr
             key={task.id}
             onClick={() => router.push(`/tasks/${task.id}`)}
-            className={`cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50 ${
-              task.parentTaskId !== null ? "border-l-4 border-l-indigo-400" : ""
-            }`}
+            className="cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50"
           >
-            <td className="px-4 py-3 text-gray-900">
+            {/* サブタスクの左アクセント線はセルに付ける(border-collapse では tr の左罫線が描画されないため) */}
+            <td
+              className={`px-4 py-3 text-gray-900 ${
+                task.parentTaskId !== null ? "border-l-4 border-l-indigo-400" : ""
+              }`}
+            >
               {task.parentTaskId !== null && (
                 <span className="mb-0.5 block truncate text-[11px] text-indigo-600">
                   ↳ {titleById.get(task.parentTaskId) ?? "親タスク"} のサブタスク
