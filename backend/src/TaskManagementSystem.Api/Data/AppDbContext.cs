@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<Label> Labels => Set<Label>();
     public DbSet<TaskLabel> TaskLabels => Set<TaskLabel>();
     public DbSet<TaskChecklistItem> TaskChecklistItems => Set<TaskChecklistItem>();
+    public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
     public DbSet<SavedView> SavedViews => Set<SavedView>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<TaskStatusHistory> TaskStatusHistories => Set<TaskStatusHistory>();
@@ -168,6 +169,41 @@ public class AppDbContext : DbContext
                 .HasForeignKey(e => e.TaskId)
                 .HasConstraintName("fk_task_checklist_items_task")
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ============================================================
+        // TaskDependencies (Phase 2 M2 §7.3 ブロック/被ブロック)
+        // ============================================================
+        modelBuilder.Entity<TaskDependency>(entity =>
+        {
+            entity.ToTable("task_dependencies");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            // 同一の有向辺(blocking→blocked)は 1 本まで
+            entity.HasIndex(e => new { e.BlockingTaskId, e.BlockedTaskId })
+                .IsUnique()
+                .HasDatabaseName("uq_task_dependencies_pair");
+            entity.HasIndex(e => e.BlockingTaskId).HasDatabaseName("idx_task_dependencies_blocking_task_id");
+            entity.HasIndex(e => e.BlockedTaskId).HasDatabaseName("idx_task_dependencies_blocked_task_id");
+
+            // どちらのタスクが消えても依存辺は消す(逆参照ナビは張らない)
+            entity.HasOne(e => e.BlockingTask)
+                .WithMany()
+                .HasForeignKey(e => e.BlockingTaskId)
+                .HasConstraintName("fk_task_dependencies_blocking_task")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.BlockedTask)
+                .WithMany()
+                .HasForeignKey(e => e.BlockedTaskId)
+                .HasConstraintName("fk_task_dependencies_blocked_task")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // 自己依存は DB でも拒否する(循環のうち最小のもの)
+            entity.ToTable(tb => tb.HasCheckConstraint(
+                "chk_task_dependencies_no_self",
+                "blocking_task_id <> blocked_task_id"));
         });
 
         // ============================================================

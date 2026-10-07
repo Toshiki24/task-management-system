@@ -33,6 +33,21 @@ export interface TaskRequestBody {
   parentTaskId?: number | null;
 }
 
+/** 依存関係で結ばれた相手タスクの要約(依存辺 1 本 = 1 件)。 */
+export interface DependencyLink {
+  dependencyId: number;
+  taskId: number;
+  title: string;
+  status: string;
+  isClosed: boolean;
+}
+
+/** あるタスクの依存関係。blockedBy=このタスクを待たせているタスク、blocking=このタスクが待たせているタスク。 */
+export interface TaskDependencies {
+  blockedBy: DependencyLink[];
+  blocking: DependencyLink[];
+}
+
 export interface ChecklistItem {
   id: number;
   taskId: number;

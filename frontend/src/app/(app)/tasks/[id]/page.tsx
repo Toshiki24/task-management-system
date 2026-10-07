@@ -8,6 +8,7 @@ import { Loading } from "@/components/common/Loading";
 import { Modal } from "@/components/common/Modal";
 import { CommentList } from "@/components/task/CommentList";
 import { TaskChecklist } from "@/components/task/TaskChecklist";
+import { TaskDependencies } from "@/components/task/TaskDependencies";
 import { TaskDetail } from "@/components/task/TaskDetail";
 import { TaskForm } from "@/components/task/TaskForm";
 import { TaskSubtasks } from "@/components/task/TaskSubtasks";
@@ -149,6 +150,14 @@ export default function TaskDetailPage() {
           />
         </div>
       )}
+
+      <div className="rounded-lg bg-white p-6 shadow-sm">
+        <TaskDependencies
+          taskId={taskId}
+          projectId={task.projectId}
+          statusLabels={statusLabelMap(states)}
+        />
+      </div>
 
       <div className="rounded-lg bg-white p-6 shadow-sm">
         <TaskChecklist taskId={taskId} />
