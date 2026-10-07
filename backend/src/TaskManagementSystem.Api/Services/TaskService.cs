@@ -30,7 +30,20 @@ public class TaskService : ITaskService
             .Include(t => t.TaskLabels).ThenInclude(tl => tl.Label)
             .ToListAsync();
 
-        return tasks.Select(ToDto).ToList();
+        // サブタスク進捗は絞り込みに左右されないよう、プロジェクト全体の親子関係から算出する(1 クエリ、N+1 回避)
+        var workspaceId = await _dbContext.Projects
+            .Where(p => p.Id == projectId).Select(p => p.WorkspaceId).FirstAsync();
+        var closed = await GetClosedStatusKeysAsync(workspaceId);
+        var childRows = await _dbContext.Tasks
+            .Where(c => c.ProjectId == projectId && c.ParentTaskId != null)
+            .Select(c => new { ParentId = c.ParentTaskId!.Value, c.Status })
+            .ToListAsync();
+        var byParent = childRows.GroupBy(r => r.ParentId)
+            .ToDictionary(g => g.Key, g => new SubtaskProgress(g.Count(r => closed.Contains(r.Status)), g.Count()));
+
+        return tasks
+            .Select(t => ToDto(t, byParent.GetValueOrDefault(t.Id, new SubtaskProgress(0, 0))))
+            .ToList();
     }
 
     public async Task<PagedResult<MyTaskDto>> GetMyTasksAsync(long currentUserId, MyTasksQuery query)
@@ -189,7 +202,7 @@ public class TaskService : ITaskService
         var task = await _dbContext.Tasks
             .Include(t => t.TaskLabels).ThenInclude(tl => tl.Label)
             .FirstOrDefaultAsync(t => t.Id == id);
-        return task is null ? null : ToDto(task);
+        return task is null ? null : ToDto(task, await SubtaskProgressAsync(task));
     }
 
     public async Task<CreateTaskOutcome> CreateAsync(long projectId, TaskRequest request, long currentUserId)
@@ -232,6 +245,19 @@ public class TaskService : ITaskService
             return new CreateTaskOutcome(CreateTaskResult.InvalidLabel);
         }
 
+        // 親タスク指定時: 同一プロジェクトに存在し、かつ親自身がサブタスクでない(1 階層まで。M2 §7.1)
+        if (request.ParentTaskId is { } parentId)
+        {
+            var parent = await _dbContext.Tasks
+                .Where(t => t.Id == parentId)
+                .Select(t => new { t.ProjectId, t.ParentTaskId })
+                .FirstOrDefaultAsync();
+            if (parent is null || parent.ProjectId != projectId || parent.ParentTaskId is not null)
+            {
+                return new CreateTaskOutcome(CreateTaskResult.InvalidParent);
+            }
+        }
+
         var status = request.Status ?? defaultKey ?? TaskItemStatus.Todo;
 
         var task = new TaskItem
@@ -243,6 +269,7 @@ public class TaskService : ITaskService
             DueDate = request.DueDate,
             Status = status,
             EstimatePoints = request.EstimatePoints,
+            ParentTaskId = request.ParentTaskId,
             // 作成時はその状態列の末尾に置く
             BoardPosition = await NextBoardPositionAsync(projectId, status),
         };
@@ -262,7 +289,8 @@ public class TaskService : ITaskService
         }
 
         await LoadLabelsAsync(task);
-        return new CreateTaskOutcome(CreateTaskResult.Success, ToDto(task));
+        // 作成直後は子タスクが無いため進捗は 0/0
+        return new CreateTaskOutcome(CreateTaskResult.Success, ToDto(task, new SubtaskProgress(0, 0)));
     }
 
     public async Task<UpdateTaskOutcome> UpdateAsync(long id, TaskRequest request, long currentUserId)
@@ -342,7 +370,7 @@ public class TaskService : ITaskService
         await _dbContext.SaveChangesAsync();
 
         await LoadLabelsAsync(task);
-        return new UpdateTaskOutcome(UpdateTaskResult.Success, ToDto(task));
+        return new UpdateTaskOutcome(UpdateTaskResult.Success, ToDto(task, await SubtaskProgressAsync(task)));
     }
 
     public async Task<DeleteTaskResult> DeleteAsync(long id, long currentUserId)
@@ -414,7 +442,7 @@ public class TaskService : ITaskService
         await _dbContext.SaveChangesAsync();
 
         await LoadLabelsAsync(task);
-        return new MoveTaskOutcome(MoveTaskResult.Success, ToDto(task));
+        return new MoveTaskOutcome(MoveTaskResult.Success, ToDto(task, await SubtaskProgressAsync(task)));
     }
 
     /// <summary>その状態列の末尾(既存最大の次)の並び順を返す。</summary>
@@ -516,7 +544,7 @@ public class TaskService : ITaskService
             : AssigneeCheck.Ok;
     }
 
-    private static TaskDto ToDto(TaskItem task) => new(
+    private static TaskDto ToDto(TaskItem task, SubtaskProgress progress) => new(
         task.Id,
         task.ProjectId,
         task.AssigneeId,
@@ -531,7 +559,35 @@ public class TaskService : ITaskService
             .Where(tl => tl.Label is not null)
             .Select(tl => new LabelDto(tl.Label.Id, tl.Label.WorkspaceId, tl.Label.Name, tl.Label.Color))
             .OrderBy(l => l.Name)
-            .ToList());
+            .ToList(),
+        task.ParentTaskId,
+        progress);
+
+    /// <summary>WS の「完了」とみなす状態キー(カテゴリが DONE/CANCELLED)を返す。</summary>
+    private async Task<HashSet<string>> GetClosedStatusKeysAsync(long workspaceId)
+    {
+        var keys = await _dbContext.WorkflowStates
+            .Where(s => s.WorkspaceId == workspaceId
+                && (s.Category == WorkflowStateCategory.Done || s.Category == WorkflowStateCategory.Cancelled))
+            .Select(s => s.Key)
+            .ToListAsync();
+        return keys.ToHashSet();
+    }
+
+    /// <summary>単一タスクのサブタスク進捗を算出する(子タスクの状態カテゴリで完了判定)。</summary>
+    private async Task<SubtaskProgress> SubtaskProgressAsync(TaskItem task)
+    {
+        var workspaceId = await _dbContext.Projects
+            .Where(p => p.Id == task.ProjectId)
+            .Select(p => p.WorkspaceId)
+            .FirstAsync();
+        var closed = await GetClosedStatusKeysAsync(workspaceId);
+        var childStatuses = await _dbContext.Tasks
+            .Where(c => c.ParentTaskId == task.Id)
+            .Select(c => c.Status)
+            .ToListAsync();
+        return new SubtaskProgress(childStatuses.Count(s => closed.Contains(s)), childStatuses.Count);
+    }
 
     /// <summary>ラベルの付与集合がすべて対象ワークスペースのラベルであることを検証する。</summary>
     private async Task<bool> LabelsValidAsync(long workspaceId, long[]? labelIds)

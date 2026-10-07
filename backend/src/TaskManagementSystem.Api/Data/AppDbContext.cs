@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<WorkflowState> WorkflowStates => Set<WorkflowState>();
     public DbSet<Label> Labels => Set<Label>();
     public DbSet<TaskLabel> TaskLabels => Set<TaskLabel>();
+    public DbSet<TaskChecklistItem> TaskChecklistItems => Set<TaskChecklistItem>();
     public DbSet<SavedView> SavedViews => Set<SavedView>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<TaskStatusHistory> TaskStatusHistories => Set<TaskStatusHistory>();
@@ -115,6 +116,7 @@ public class AppDbContext : DbContext
 
             entity.HasIndex(e => e.ProjectId).HasDatabaseName("idx_tasks_project_id");
             entity.HasIndex(e => e.AssigneeId).HasDatabaseName("idx_tasks_assignee_id");
+            entity.HasIndex(e => e.ParentTaskId).HasDatabaseName("idx_tasks_parent_task_id");
             entity.HasIndex(e => e.Status).HasDatabaseName("idx_tasks_status");
             entity.HasIndex(e => new { e.ProjectId, e.Status, e.BoardPosition })
                 .HasDatabaseName("idx_tasks_board_order");
@@ -132,12 +134,40 @@ public class AppDbContext : DbContext
                 .HasConstraintName("fk_tasks_assignee")
                 .OnDelete(DeleteBehavior.SetNull);
 
+            // サブタスク(自己参照)。親を削除したら子も削除する(M2 §7.1)
+            entity.HasOne(e => e.ParentTask)
+                .WithMany(e => e.Subtasks)
+                .HasForeignKey(e => e.ParentTaskId)
+                .HasConstraintName("fk_tasks_parent_task")
+                .OnDelete(DeleteBehavior.Cascade);
+
             // status はワークスペースごとのワークフロー(workflow_states.key)を指す動的な値のため、
             // 固定値の CHECK 制約は設けない。妥当性はサービス層で LINQ により WS の状態集合に対して検証する(M2 §3.2)。
             entity.ToTable(tb =>
             {
                 tb.HasCheckConstraint("chk_tasks_priority", "priority IN ('LOW', 'MEDIUM', 'HIGH')");
             });
+        });
+
+        // ============================================================
+        // TaskChecklistItems (Phase 2 M2)
+        // ============================================================
+        modelBuilder.Entity<TaskChecklistItem>(entity =>
+        {
+            entity.ToTable("task_checklist_items");
+
+            entity.Property(e => e.Content).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.IsDone).HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.TaskId).HasDatabaseName("idx_task_checklist_items_task_id");
+
+            entity.HasOne(e => e.Task)
+                .WithMany(t => t.ChecklistItems)
+                .HasForeignKey(e => e.TaskId)
+                .HasConstraintName("fk_task_checklist_items_task")
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ============================================================

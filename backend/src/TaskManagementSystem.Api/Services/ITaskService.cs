@@ -12,6 +12,7 @@ public enum CreateTaskResult
     AssigneeNotMember,
     InvalidStatus,
     InvalidLabel,
+    InvalidParent,
 }
 
 public enum UpdateTaskResult
