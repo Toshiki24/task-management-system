@@ -16,7 +16,7 @@ import { ApiError, apiFetch, formatApiErrorMessage } from "@/lib/api";
 import { statusLabelMap } from "@/lib/taskLabels";
 import type { Member } from "@/types/member";
 import type { Project } from "@/types/project";
-import type { Task } from "@/types/task";
+import type { DependencyLink, Task, TaskDependencies as Deps, TaskRequestBody } from "@/types/task";
 import type { WorkflowState } from "@/types/workflow";
 
 export default function TaskDetailPage() {
@@ -32,6 +32,14 @@ export default function TaskDetailPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  // 完了(DONE)にしようとしたが未完了ブロッカーが残っている場合の確認状態
+  const [confirmComplete, setConfirmComplete] = useState<
+    { value: TaskRequestBody; openBlockers: DependencyLink[] } | null
+  >(null);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
+  // ブロッカーを一括完了した後、依存関係セクションを再読み込みするためのキー
+  const [depsRefreshKey, setDepsRefreshKey] = useState(0);
 
   useEffect(() => {
     apiFetch<Task>(`/tasks/${taskId}`)
@@ -72,6 +80,63 @@ export default function TaskDetailPage() {
       setDeleteError(formatApiErrorMessage(err, "タスクの削除に失敗しました。"));
       setIsDeleteModalOpen(false);
       setIsDeleting(false);
+    }
+  }
+
+  /** その状態キーが「完了」カテゴリ(DONE)かどうか。 */
+  function isDoneStatus(statusKey: string | null | undefined): boolean {
+    return !!statusKey && states.some((s) => s.key === statusKey && s.category === "DONE");
+  }
+
+  async function saveTask(value: TaskRequestBody) {
+    const updated = await apiFetch<Task>(`/tasks/${taskId}`, {
+      method: "PUT",
+      body: JSON.stringify(value),
+    });
+    setTask(updated);
+    setIsEditing(false);
+  }
+
+  /**
+   * 編集保存のハンドラ。完了(DONE)にしようとしていて未完了ブロッカーが残っている場合は、
+   * いったん確認モーダルを開き、ユーザーの確認を待ってから保存する(ブロッカーがあっても完了は可能)。
+   */
+  async function handleFormSubmit(value: TaskRequestBody) {
+    if (task && isDoneStatus(value.status) && !isDoneStatus(task.status)) {
+      const deps = await apiFetch<Deps>(`/tasks/${taskId}/dependencies`);
+      const openBlockers = deps.blockedBy.filter((d) => !d.isClosed);
+      if (openBlockers.length > 0) {
+        setCompleteError(null);
+        setConfirmComplete({ value, openBlockers });
+        return; // モーダルの確認を待つ(編集フォームは開いたまま)
+      }
+    }
+    await saveTask(value);
+  }
+
+  /** 確認モーダルで「全て完了にする」を選んだとき: ブロッカーを順に完了にしてから本タスクを保存する。 */
+  async function handleConfirmComplete() {
+    if (!confirmComplete || !task) return;
+    const doneKey = states.find((s) => s.category === "DONE")?.key;
+    setIsCompleting(true);
+    setCompleteError(null);
+    try {
+      if (doneKey) {
+        // move は {toStatus} だけで状態変更できる(全フィールドを送る PUT を避ける)
+        for (const blocker of confirmComplete.openBlockers) {
+          await apiFetch(`/projects/${task.projectId}/tasks/${blocker.taskId}/move`, {
+            method: "PATCH",
+            body: JSON.stringify({ toStatus: doneKey, beforeTaskId: null }),
+          });
+        }
+      }
+      await saveTask(confirmComplete.value);
+      setConfirmComplete(null);
+      setDepsRefreshKey((k) => k + 1); // 依存関係セクションを最新化する
+    } catch (err) {
+      setCompleteError(formatApiErrorMessage(err, "ブロッカーの完了に失敗しました。"));
+    } finally {
+      setIsCompleting(false);
     }
   }
 
@@ -127,14 +192,7 @@ export default function TaskDetailPage() {
             }}
             submitLabel="保存"
             submittingLabel="保存中..."
-            onSubmit={async (value) => {
-              const updated = await apiFetch<Task>(`/tasks/${taskId}`, {
-                method: "PUT",
-                body: JSON.stringify(value),
-              });
-              setTask(updated);
-              setIsEditing(false);
-            }}
+            onSubmit={handleFormSubmit}
             onCancel={() => setIsEditing(false)}
           />
         )}
@@ -153,6 +211,7 @@ export default function TaskDetailPage() {
 
       <div className="rounded-lg bg-white p-6 shadow-sm">
         <TaskDependencies
+          key={depsRefreshKey}
           taskId={taskId}
           projectId={task.projectId}
           statusLabels={statusLabelMap(states)}
@@ -194,6 +253,53 @@ export default function TaskDetailPage() {
             disabled={isDeleting}
           >
             {isDeleting ? "削除中..." : "削除"}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={confirmComplete !== null}
+        title="未完了のブロッカーがあります"
+        onClose={() => (isCompleting ? undefined : setConfirmComplete(null))}
+      >
+        <p className="text-sm text-gray-700">
+          このタスクには、まだ完了していない次のブロッカーがあります。
+          <br />
+          これらも全て完了にして、このタスクを完了にしますか？
+        </p>
+        <ul className="mt-3 max-h-48 list-disc space-y-1 overflow-y-auto rounded-md border border-gray-200 bg-gray-50 px-6 py-3 text-sm text-gray-800">
+          {confirmComplete?.openBlockers.map((blocker) => (
+            <li key={blocker.dependencyId}>
+              {blocker.title}
+              <span className="ml-1 text-xs text-gray-500">
+                ({statusLabelMap(states)[blocker.status] ?? blocker.status})
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        {completeError && (
+          <div className="mt-3">
+            <ErrorMessage message={completeError} />
+          </div>
+        )}
+
+        <div className="mt-6 flex justify-end gap-3">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setConfirmComplete(null)}
+            disabled={isCompleting}
+          >
+            キャンセル
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            onClick={handleConfirmComplete}
+            disabled={isCompleting}
+          >
+            {isCompleting ? "完了処理中..." : "全て完了にする"}
           </Button>
         </div>
       </Modal>
