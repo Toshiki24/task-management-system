@@ -21,7 +21,7 @@ test.describe("7.2 SCR-003 プロジェクト一覧画面", () => {
     await expect(tableRow(page, project.name).getByRole("cell")).toHaveText([
       project.name,
       "一覧表示確認用の説明",
-      "ACTIVE",
+      "進行中",
       "2026/10/01",
       "2026/12/31",
     ]);

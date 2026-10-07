@@ -11,6 +11,7 @@ import { ProjectForm } from "@/components/project/ProjectForm";
 import { ProjectMemberList } from "@/components/project/ProjectMemberList";
 import { apiFetch, formatApiErrorMessage } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { projectStatusLabel } from "@/lib/projectStatus";
 import type { Project } from "@/types/project";
 
 export default function ProjectDetailPage() {
@@ -86,7 +87,7 @@ export default function ProjectDetailPage() {
             </div>
             <div>
               <dt className="text-gray-500">ステータス</dt>
-              <dd className="mt-0.5 text-gray-900">{project.status}</dd>
+              <dd className="mt-0.5 text-gray-900">{projectStatusLabel(project.status)}</dd>
             </div>
             <div>
               <dt className="text-gray-500">説明</dt>

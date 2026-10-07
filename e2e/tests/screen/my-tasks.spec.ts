@@ -9,7 +9,7 @@ test.describe("7.16 SCR-016 My Tasks (M2)", () => {
     await signIn(page, me);
     await page.goto("/projects");
 
-    await page.getByRole("link", { name: "My Tasks" }).click();
+    await page.getByRole("link", { name: "マイタスク" }).click();
     await expect(page).toHaveURL("/me/tasks");
 
     await expect(page.getByRole("link", { name: /自分の担当タスク/ })).toBeVisible();

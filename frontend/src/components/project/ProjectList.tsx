@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/format";
+import { projectStatusLabel } from "@/lib/projectStatus";
 import type { Project } from "@/types/project";
 
 interface ProjectListProps {
@@ -51,7 +52,7 @@ export function ProjectList({ projects, workspaceId }: ProjectListProps) {
             <td className="max-w-xs truncate px-4 py-3 text-gray-600">
               {project.description ?? "-"}
             </td>
-            <td className="px-4 py-3 text-gray-600">{project.status}</td>
+            <td className="px-4 py-3 text-gray-600">{projectStatusLabel(project.status)}</td>
             <td className="px-4 py-3 text-gray-600">
               {formatDate(project.startDate)}
             </td>
