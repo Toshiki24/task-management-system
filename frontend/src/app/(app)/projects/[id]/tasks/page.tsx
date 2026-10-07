@@ -6,6 +6,7 @@ import { Button } from "@/components/common/Button";
 import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
 import { Modal } from "@/components/common/Modal";
+import { SavedViewBar } from "@/components/task/SavedViewBar";
 import { TaskBoard } from "@/components/task/TaskBoard";
 import { TaskFilterBar, EMPTY_FILTERS, buildTaskQuery, type TaskFilters } from "@/components/task/TaskFilterBar";
 import { TaskForm } from "@/components/task/TaskForm";
@@ -14,6 +15,7 @@ import { apiFetch } from "@/lib/api";
 import type { Label } from "@/types/label";
 import type { Member } from "@/types/member";
 import type { Project } from "@/types/project";
+import type { SavedView } from "@/types/savedView";
 import type { Task, TaskRequestBody } from "@/types/task";
 import type { WorkflowState } from "@/types/workflow";
 
@@ -36,6 +38,8 @@ export default function ProjectTasksPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [states, setStates] = useState<WorkflowState[]>([]);
   const [labels, setLabels] = useState<Label[]>([]);
+  const [views, setViews] = useState<SavedView[]>([]);
+  const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
   const [view, setView] = useState<"list" | "board">("list");
   const [error, setError] = useState<string | null>(null);
@@ -58,15 +62,18 @@ export default function ProjectTasksPage() {
     // ボードの列・フィルタの候補に使うワークフロー状態とラベルを、所属ワークスペースから取得する
     apiFetch<Project>(`/projects/${projectId}`)
       .then(async (project) => {
-        const [wsStates, wsLabels] = await Promise.all([
+        setWorkspaceId(project.workspaceId);
+        const [wsStates, wsLabels, wsViews] = await Promise.all([
           apiFetch<WorkflowState[]>(`/workspaces/${project.workspaceId}/workflow-states`),
           apiFetch<Label[]>(`/workspaces/${project.workspaceId}/labels`),
+          apiFetch<SavedView[]>(`/workspaces/${project.workspaceId}/views`),
         ]);
         setStates(wsStates);
         setLabels(wsLabels);
+        setViews(wsViews);
       })
       .catch(() => {
-        // 取得できなければボード/フィルタの候補は出さない(リスト表示は影響しない)
+        // 取得できなければボード/フィルタ/保存ビューの候補は出さない(リスト表示は影響しない)
       });
   }, [projectId]);
 
@@ -117,13 +124,26 @@ export default function ProjectTasksPage() {
       </div>
 
       {view === "list" && (
-        <TaskFilterBar
-          states={states}
-          labels={labels}
-          members={members}
-          value={filters}
-          onChange={setFilters}
-        />
+        <>
+          <SavedViewBar
+            workspaceId={workspaceId}
+            views={views}
+            filters={filters}
+            viewType={view}
+            onApply={(nextFilters, nextView) => {
+              setFilters(nextFilters);
+              setView(nextView);
+            }}
+            onViewsChanged={setViews}
+          />
+          <TaskFilterBar
+            states={states}
+            labels={labels}
+            members={members}
+            value={filters}
+            onChange={setFilters}
+          />
+        </>
       )}
 
       {error && <ErrorMessage message={error} />}
