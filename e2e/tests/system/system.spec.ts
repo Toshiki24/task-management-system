@@ -77,8 +77,8 @@ test.describe("8. システムテスト", () => {
     await page.getByLabel("期限").fill("2026-11-30");
     await page.getByRole("button", { name: "保存" }).click();
     await expect(detailField(page, "担当者")).toHaveText(member.name);
-    await expect(detailField(page, "ステータス")).toHaveText("IN_PROGRESS");
-    await expect(detailField(page, "優先度")).toHaveText("HIGH");
+    await expect(detailField(page, "ステータス")).toHaveText("対応中");
+    await expect(detailField(page, "優先度")).toHaveText("高");
     await expect(detailField(page, "期限")).toHaveText("2026/11/30");
 
     // ⑥ コメント投稿

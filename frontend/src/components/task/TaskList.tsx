@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/common/Button";
 import { formatDate } from "@/lib/format";
+import { priorityLabel } from "@/lib/taskLabels";
 import type { Task } from "@/types/task";
 import type { Member } from "@/types/member";
 
@@ -10,9 +11,11 @@ interface TaskListProps {
   tasks: Task[];
   members: Member[];
   onAddClick: () => void;
+  /** 状態キー→表示名(日本語)。無い場合はキーをそのまま表示する。 */
+  statusLabels?: Record<string, string>;
 }
 
-export function TaskList({ tasks, members, onAddClick }: TaskListProps) {
+export function TaskList({ tasks, members, onAddClick, statusLabels = {} }: TaskListProps) {
   const router = useRouter();
 
   if (tasks.length === 0) {
@@ -55,8 +58,8 @@ export function TaskList({ tasks, members, onAddClick }: TaskListProps) {
             <td className="px-4 py-3 text-gray-600">
               {assigneeName(task.assigneeId)}
             </td>
-            <td className="px-4 py-3 text-gray-600">{task.status}</td>
-            <td className="px-4 py-3 text-gray-600">{task.priority}</td>
+            <td className="px-4 py-3 text-gray-600">{statusLabels[task.status] ?? task.status}</td>
+            <td className="px-4 py-3 text-gray-600">{priorityLabel(task.priority)}</td>
             <td className="px-4 py-3 text-gray-600">
               {formatDate(task.dueDate)}
             </td>
