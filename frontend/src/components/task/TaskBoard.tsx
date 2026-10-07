@@ -27,6 +27,9 @@ export function TaskBoard({ projectId, tasks, states, members, onChanged }: Task
     return members.find((m) => m.userId === assigneeId)?.name ?? "-";
   }
 
+  // サブタスクの「何の子か」を表示するため、同一プロジェクトのタスクから親タイトルを引く
+  const titleById = new Map(tasks.map((t) => [t.id, t.title]));
+
   function columnTasks(stateKey: string): Task[] {
     return tasks
       .filter((t) => t.status === stateKey)
@@ -99,9 +102,23 @@ export function TaskBoard({ projectId, tasks, states, members, onChanged }: Task
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => onDropToCard(e, state.key, task.id)}
                     onClick={() => router.push(`/tasks/${task.id}`)}
-                    className="cursor-pointer rounded-md border border-gray-200 bg-white p-3 text-sm shadow-sm hover:border-blue-300"
+                    className={`cursor-pointer rounded-md border border-gray-200 bg-white p-3 text-sm shadow-sm hover:border-blue-300 ${
+                      task.parentTaskId !== null ? "border-l-4 border-l-indigo-400" : ""
+                    }`}
                   >
-                    <p className="mb-1 font-medium text-gray-900">{task.title}</p>
+                    {task.parentTaskId !== null && (
+                      <p className="mb-0.5 truncate text-[11px] text-indigo-600">
+                        ↳ {titleById.get(task.parentTaskId) ?? "親タスク"} のサブタスク
+                      </p>
+                    )}
+                    <p className="mb-1 flex items-center gap-1.5 font-medium text-gray-900">
+                      <span className="truncate">{task.title}</span>
+                      {task.subtaskProgress.total > 0 && (
+                        <span className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-normal text-indigo-700">
+                          サブタスク {task.subtaskProgress.done}/{task.subtaskProgress.total}
+                        </span>
+                      )}
+                    </p>
                     {task.labels.length > 0 && (
                       <p className="mb-1 flex flex-wrap gap-1">
                         {task.labels.map((label) => (

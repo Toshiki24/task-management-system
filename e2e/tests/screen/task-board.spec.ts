@@ -35,4 +35,21 @@ test.describe("7.12 SCR-012 カンバンボード (M2)", () => {
 
     await expect(page).toHaveURL(`/tasks/${task.id}`);
   });
+
+  test("SCR-012-03 親カードは件数バッジ、子カードは親名を表示する", async ({ page, data }) => {
+    const owner = await data.createUser("オーナー");
+    const project = await data.createProject(owner);
+    const parent = await data.createTask(project.id, owner, { title: "親タスクA" });
+    await data.createTask(project.id, owner, { title: "子タスク1", parentTaskId: parent.id });
+    await signIn(page, owner);
+
+    await page.goto(`/projects/${project.id}/tasks`);
+    await page.getByRole("tab", { name: "ボード" }).click();
+
+    const todoColumn = page.getByRole("region", { name: "列: 未着手" });
+    // 親カード: サブタスク件数バッジ(0/1)が付く
+    await expect(todoColumn.getByText("サブタスク 0/1")).toBeVisible();
+    // 子カード: どの親のサブタスクかを表示する
+    await expect(todoColumn.getByText("↳ 親タスクA のサブタスク")).toBeVisible();
+  });
 });
