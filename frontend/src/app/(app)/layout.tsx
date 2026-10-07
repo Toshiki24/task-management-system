@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CommandPalette } from "@/components/layout/CommandPalette";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { fetchCurrentUser, logout } from "@/lib/auth";
@@ -12,6 +13,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [authState, setAuthState] = useState<
     { status: "checking" } | { status: "ready"; user: CurrentUser | null }
   >({ status: "checking" });
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
     // ログイン状態はHttpOnlyのCookieで管理しており、JavaScriptからは分からないため、BFFに問い合わせて確定させる
@@ -47,11 +49,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Header userName={authState.user?.name} />
+      <Header userName={authState.user?.name} onOpenCommand={() => setPaletteOpen(true)} />
       <div className="flex flex-1">
         <Sidebar onLogout={handleLogout} />
         <main className="flex-1 bg-gray-50 p-6">{children}</main>
       </div>
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   );
 }

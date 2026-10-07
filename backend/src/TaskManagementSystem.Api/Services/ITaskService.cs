@@ -65,6 +65,7 @@ public interface ITaskService
 {
     Task<List<TaskDto>?> GetByProjectAsync(long projectId, long currentUserId, TaskListQuery? query = null);
     Task<PagedResult<MyTaskDto>> GetMyTasksAsync(long currentUserId, MyTasksQuery query);
+    Task<List<TaskSearchResultDto>> SearchVisibleTasksAsync(long currentUserId, string? keyword, int limit);
     Task<TaskDto?> GetByIdAsync(long id, long currentUserId);
     Task<CreateTaskOutcome> CreateAsync(long projectId, TaskRequest request, long currentUserId);
     Task<UpdateTaskOutcome> UpdateAsync(long id, TaskRequest request, long currentUserId);

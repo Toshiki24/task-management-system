@@ -61,6 +61,15 @@ export interface MoveTaskBody {
   beforeTaskId: number | null;
 }
 
+/** コマンドパレットの横断検索で返るタスク要約(M2 §5.5)。 */
+export interface TaskSearchResult {
+  id: number;
+  projectId: number;
+  projectName: string;
+  title: string;
+  status: string;
+}
+
 /** 複数タスクの一括更新(M2 §5.4)。指定した項目だけを全対象へ適用する。 */
 export interface BulkUpdateBody {
   taskIds: number[];
