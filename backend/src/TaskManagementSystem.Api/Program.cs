@@ -22,6 +22,14 @@ if (MigrationBootstrap.IsMigrationMode)
     return;
 }
 
+// 期限通知ジョブ(JOB_MODE=due-notifications)では、APIホストの代わりにジョブを実行して終了する
+// (同じコンテナイメージを使う。EventBridge のスケジュールから起動する。M3 §7)
+if (DueNotificationBootstrap.IsDueNotificationJob)
+{
+    await DueNotificationBootstrap.RunAsync(builder.Configuration);
+    return;
+}
+
 // AWS Lambda の実行環境(環境変数 AWS_LAMBDA_FUNCTION_NAME がある場合)で動いているか
 var runningOnLambda = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME"));
 
@@ -97,6 +105,7 @@ builder.Services.AddScoped<IDependencyService, DependencyService>();
 builder.Services.AddScoped<IActivityService, ActivityService>();
 builder.Services.AddScoped<IWatcherService, WatcherService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IDueNotificationService, DueNotificationService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
