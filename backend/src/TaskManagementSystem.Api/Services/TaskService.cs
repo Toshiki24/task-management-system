@@ -319,10 +319,14 @@ public class TaskService : ITaskService
         ActivityRecorder.Record(_dbContext, projectId, task.Id, currentUserId,
             ActivityVerb.Created, new { title = task.Title });
 
-        // 担当者は自動でウォッチに追加する(M3 §4)
+        // 担当者は自動でウォッチに追加し、本人以外なら担当通知を送る(M3 §4/§6)
         if (task.AssigneeId is { } assignee)
         {
             await WatcherRecorder.EnsureWatchingAsync(_dbContext, task.Id, new[] { assignee });
+            if (assignee != currentUserId)
+            {
+                NotificationRecorder.Add(_dbContext, assignee, NotificationType.Assigned, task.Id, currentUserId);
+            }
         }
 
         await _dbContext.SaveChangesAsync();
@@ -399,6 +403,11 @@ public class TaskService : ITaskService
             }
         }
 
+        // 通知生成用に、適用前の状態・担当の変化を控える(M3 §6)
+        var assigneeChanged = request.AssigneeId != task.AssigneeId;
+        var statusChanged = request.Status is not null && request.Status != task.Status;
+        var oldStatus = task.Status;
+
         task.AssigneeId = request.AssigneeId;
         task.Title = request.Title;
         task.Description = request.Description;
@@ -431,10 +440,25 @@ public class TaskService : ITaskService
                 ActivityVerb.Updated, new { fields = changedFields });
         }
 
-        // 新しい担当者を自動でウォッチに追加する(M3 §4)
+        // 新しい担当者を自動でウォッチに追加し、本人以外なら担当通知を送る(M3 §4/§6)
         if (request.AssigneeId is { } assignee)
         {
             await WatcherRecorder.EnsureWatchingAsync(_dbContext, task.Id, new[] { assignee });
+            if (assigneeChanged && assignee != currentUserId)
+            {
+                NotificationRecorder.Add(_dbContext, assignee, NotificationType.Assigned, task.Id, currentUserId);
+            }
+        }
+
+        // 状態変更はウォッチャー(実行者を除く)へ通知する(M3 §6)
+        if (statusChanged)
+        {
+            var watcherIds = await _dbContext.TaskWatchers
+                .Where(w => w.TaskId == task.Id && w.UserId != currentUserId)
+                .Select(w => w.UserId)
+                .ToListAsync();
+            NotificationRecorder.AddMany(_dbContext, watcherIds, NotificationType.StatusChanged, task.Id,
+                currentUserId, new { from = oldStatus, to = request.Status });
         }
 
         await _dbContext.SaveChangesAsync();
@@ -507,6 +531,13 @@ public class TaskService : ITaskService
             // アクティビティにも移動を記録(M3 §5)
             ActivityRecorder.Record(_dbContext, task.ProjectId, task.Id, currentUserId,
                 ActivityVerb.Moved, new { from = task.Status, to = request.ToStatus });
+            // ウォッチャー(実行者を除く)へ状態変更通知(M3 §6)
+            var watcherIds = await _dbContext.TaskWatchers
+                .Where(w => w.TaskId == task.Id && w.UserId != currentUserId)
+                .Select(w => w.UserId)
+                .ToListAsync();
+            NotificationRecorder.AddMany(_dbContext, watcherIds, NotificationType.StatusChanged, task.Id,
+                currentUserId, new { from = task.Status, to = request.ToStatus });
             task.Status = request.ToStatus;
         }
 
