@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
+import { useLiveRefresh } from "@/lib/useLiveRefresh";
 import type { AppNotification, NotificationType } from "@/types/notification";
 
 interface Paged<T> {
@@ -37,12 +38,13 @@ export function NotificationBell() {
       });
   }, []);
 
-  // マウント時と一定間隔で未読数を更新する(簡易のポーリング。リアルタイムは後続)
+  // マウント時に未読数を取得する
   useEffect(() => {
     loadUnread();
-    const handle = setInterval(loadUnread, 30000);
-    return () => clearInterval(handle);
   }, [loadUnread]);
+
+  // フォーカス時＋一定間隔で未読数を最新化する(M3 §7 リアルタイム更新)
+  useLiveRefresh(loadUnread, { intervalMs: 30000 });
 
   // 外側クリックで閉じる
   useEffect(() => {
