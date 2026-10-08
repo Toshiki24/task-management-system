@@ -108,6 +108,34 @@ public class TaskService : ITaskService
         return new PagedResult<MyTaskDto>(dtos, page, pageSize, total);
     }
 
+    /// <summary>
+    /// ユーザーが閲覧できるタスクをキーワードで横断検索する(コマンドパレット用。M2 §5.5)。
+    /// 可視性は「所属ワークスペースのタスク」または System Admin。生 SQL は使わず LINQ/EF。
+    /// </summary>
+    public async Task<List<TaskSearchResultDto>> SearchVisibleTasksAsync(long currentUserId, string? keyword, int limit)
+    {
+        var take = limit is > 0 and <= 50 ? limit : 20;
+
+        var q = _dbContext.Tasks
+            .Where(t => t.Project.Workspace.Members.Any(m => m.UserId == currentUserId)
+                || _dbContext.Users.Any(u => u.Id == currentUserId && u.IsSystemAdmin));
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            var pattern = $"%{keyword.Trim()}%";
+            q = q.Where(t =>
+                EF.Functions.ILike(t.Title, pattern)
+                || (t.Description != null && EF.Functions.ILike(t.Description, pattern)));
+        }
+
+        return await q
+            .OrderByDescending(t => t.UpdatedAt)
+            .ThenByDescending(t => t.Id)
+            .Take(take)
+            .Select(t => new TaskSearchResultDto(t.Id, t.ProjectId, t.Project.Name, t.Title, t.Status))
+            .ToListAsync();
+    }
+
     /// <summary>検索・絞り込み条件を LINQ で積み上げる(M2 §5.1。生 SQL は使わない)。</summary>
     private static IQueryable<TaskItem> ApplyFilters(IQueryable<TaskItem> source, TaskListQuery? q, long currentUserId)
     {

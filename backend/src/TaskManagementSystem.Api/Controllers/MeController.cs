@@ -36,4 +36,12 @@ public class MeController : ControllerBase
     {
         return Ok(await _taskService.GetMyTasksAsync(this.GetCurrentUserId(), query));
     }
+
+    /// <summary>閲覧できるタスクの横断検索(コマンドパレット用。キーワード未指定なら最近更新順。M2 §5.5)。</summary>
+    [HttpGet("search/tasks")]
+    public async Task<ActionResult<List<TaskSearchResultDto>>> SearchTasks(
+        [FromQuery] string? keyword, [FromQuery] int? limit)
+    {
+        return Ok(await _taskService.SearchVisibleTasksAsync(this.GetCurrentUserId(), keyword, limit ?? 20));
+    }
 }
