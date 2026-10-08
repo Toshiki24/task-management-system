@@ -8,10 +8,13 @@ namespace TaskManagementSystem.Api.Services;
 public class CommentService : ICommentService
 {
     private readonly AppDbContext _dbContext;
+    private readonly INotificationEmailSender? _notificationEmails;
 
-    public CommentService(AppDbContext dbContext)
+    // notificationEmails は任意(未指定=メール送信なし)。単体テストは DbContext だけで生成できる。
+    public CommentService(AppDbContext dbContext, INotificationEmailSender? notificationEmails = null)
     {
         _dbContext = dbContext;
+        _notificationEmails = notificationEmails;
     }
 
     public async Task<List<CommentDto>?> GetByTaskAsync(long taskId, long currentUserId)
@@ -77,17 +80,23 @@ public class CommentService : ICommentService
 
         // 通知生成(M3 §6)。自分の操作では自分に通知しない。
         // 被メンション者には MENTION を、それ以外の既存ウォッチャーには COMMENT を送る(二重送信を避ける)。
+        var created = new List<Models.Notification>();
         var mentionTargets = mentioned.Where(id => id != userId).ToList();
-        NotificationRecorder.AddMany(_dbContext, mentionTargets, NotificationType.Mention, taskId, userId,
-            new { commentId = comment.Id });
+        created.AddRange(NotificationRecorder.AddMany(_dbContext, mentionTargets, NotificationType.Mention, taskId,
+            userId, new { commentId = comment.Id }));
 
         var watcherIds = await _dbContext.TaskWatchers
             .Where(w => w.TaskId == taskId).Select(w => w.UserId).ToListAsync();
         var commentTargets = watcherIds.Where(id => id != userId && !mentioned.Contains(id)).ToList();
-        NotificationRecorder.AddMany(_dbContext, commentTargets, NotificationType.Comment, taskId, userId,
-            new { commentId = comment.Id });
+        created.AddRange(NotificationRecorder.AddMany(_dbContext, commentTargets, NotificationType.Comment, taskId,
+            userId, new { commentId = comment.Id }));
 
         await _dbContext.SaveChangesAsync();
+
+        if (_notificationEmails is not null && created.Count > 0)
+        {
+            await _notificationEmails.SendForAsync(created);
+        }
 
         return new CreateCommentOutcome(
             CreateCommentResult.Success,

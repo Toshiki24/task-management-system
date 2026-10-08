@@ -86,8 +86,21 @@ builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
 builder.Services.AddScoped<IWorkspaceMemberService, WorkspaceMemberService>();
 builder.Services.AddScoped<IInvitationService, InvitationService>();
 builder.Services.AddScoped<ISystemAdminService, SystemAdminService>();
-// メール送信は M1 ではプレースホルダ(ログ出力)。SES/SMTP 実装への差し替えを想定
-builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
+// メール送信: Email:FromAddress が設定されていれば SES で実送信、未設定なら従来どおりログ出力。
+// 本番(Lambda)は Secrets/環境変数で FromAddress を与えて SES を使う。開発・テストはログ出力のまま。
+if (!string.IsNullOrWhiteSpace(builder.Configuration.GetValue<string>("Email:FromAddress")))
+{
+    // リージョンは実行環境(Lambda の AWS_REGION 等)から解決される
+    builder.Services.AddSingleton<Amazon.SimpleEmailV2.IAmazonSimpleEmailServiceV2>(
+        _ => new Amazon.SimpleEmailV2.AmazonSimpleEmailServiceV2Client());
+    builder.Services.AddSingleton<IEmailSender, SesEmailSender>();
+}
+else
+{
+    builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
+}
+// 通知メールの本文組み立て・送信(アプリ内通知の生成に相乗り)
+builder.Services.AddScoped<INotificationEmailSender, NotificationEmailSender>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IWorkflowStateService, WorkflowStateService>();
 builder.Services.AddScoped<ILabelService, LabelService>();
