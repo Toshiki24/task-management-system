@@ -48,6 +48,7 @@ test.describe("5.5 タスクAPI", () => {
       labels: [],
       parentTaskId: null,
       subtaskProgress: { done: 0, total: 0 },
+      cycleId: null,
       ...request,
     });
   });
@@ -164,6 +165,7 @@ test.describe("5.5 タスクAPI", () => {
       labels: [],
       parentTaskId: null,
       subtaskProgress: { done: 0, total: 0 },
+      cycleId: null,
       ...request,
     });
   });

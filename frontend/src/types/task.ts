@@ -19,6 +19,7 @@ export interface Task {
   labels: Label[];
   parentTaskId: number | null;
   subtaskProgress: { done: number; total: number };
+  cycleId: number | null;
 }
 
 export interface TaskRequestBody {

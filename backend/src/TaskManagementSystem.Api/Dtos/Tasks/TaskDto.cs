@@ -18,5 +18,6 @@ public record TaskDto(
     int? EstimatePoints,
     IReadOnlyList<LabelDto> Labels,
     long? ParentTaskId,
-    SubtaskProgress SubtaskProgress
+    SubtaskProgress SubtaskProgress,
+    long? CycleId
 );

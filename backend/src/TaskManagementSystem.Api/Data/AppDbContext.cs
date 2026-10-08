@@ -26,6 +26,7 @@ public class AppDbContext : DbContext
     public DbSet<CommentMention> CommentMentions => Set<CommentMention>();
     public DbSet<TaskWatcher> TaskWatchers => Set<TaskWatcher>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<Cycle> Cycles => Set<Cycle>();
     public DbSet<SavedView> SavedViews => Set<SavedView>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<TaskStatusHistory> TaskStatusHistories => Set<TaskStatusHistory>();
@@ -145,6 +146,14 @@ public class AppDbContext : DbContext
                 .HasForeignKey(e => e.ParentTaskId)
                 .HasConstraintName("fk_tasks_parent_task")
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // 所属サイクル(M3 §8)。サイクル削除時はタスクを消さずバックログ(NULL)へ戻す
+            entity.HasIndex(e => e.CycleId).HasDatabaseName("idx_tasks_cycle_id");
+            entity.HasOne(e => e.Cycle)
+                .WithMany()
+                .HasForeignKey(e => e.CycleId)
+                .HasConstraintName("fk_tasks_cycle")
+                .OnDelete(DeleteBehavior.SetNull);
 
             // status はワークスペースごとのワークフロー(workflow_states.key)を指す動的な値のため、
             // 固定値の CHECK 制約は設けない。妥当性はサービス層で LINQ により WS の状態集合に対して検証する(M2 §3.2)。
@@ -272,6 +281,31 @@ public class AppDbContext : DbContext
                 .HasForeignKey(e => e.UserId)
                 .HasConstraintName("fk_task_comments_user")
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ============================================================
+        // Cycles (Phase 2 M3 §8 サイクル/バックログ)
+        // ============================================================
+        modelBuilder.Entity<Cycle>(entity =>
+        {
+            entity.ToTable("cycles");
+
+            entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(20).IsRequired().HasDefaultValue(CycleStatus.Planned);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.ProjectId).HasDatabaseName("idx_cycles_project_id");
+
+            entity.HasOne(e => e.Project)
+                .WithMany()
+                .HasForeignKey(e => e.ProjectId)
+                .HasConstraintName("fk_cycles_project")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(tb => tb.HasCheckConstraint(
+                "chk_cycles_status",
+                "status IN ('PLANNED', 'ACTIVE', 'CLOSED')"));
         });
 
         // ============================================================
