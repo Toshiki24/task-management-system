@@ -141,7 +141,12 @@ test.describe("8. システムテスト", () => {
 
       // ユーザーAの画面からも、投稿者がユーザーBとして記録されていることを確認する
       await pageA.goto(`/tasks/${taskId}`);
-      await expect(pageA.getByRole("listitem").filter({ hasText: commentText })).toContainText(userB.name);
+      // アクティビティにもコメント抜粋が出るため、コメント欄に絞って検証する
+      const commentsSection = pageA
+        .locator("div")
+        .filter({ has: pageA.getByRole("heading", { name: "コメント" }) })
+        .last();
+      await expect(commentsSection.getByRole("listitem").filter({ hasText: commentText })).toContainText(userB.name);
       const comments = await (await api.get(`/api/tasks/${taskId}/comments`, { headers: bearer(userA) })).json();
       expect(comments).toEqual([expect.objectContaining({ comment: commentText, userId: userB.id, userName: userB.name })]);
     } finally {

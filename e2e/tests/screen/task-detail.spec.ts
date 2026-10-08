@@ -80,7 +80,12 @@ test.describe("7.6 SCR-007 タスク詳細画面", () => {
 
     await page.goto(`/tasks/${task.id}`);
 
-    const item = page.getByRole("listitem").filter({ hasText: comment.comment });
+    // アクティビティにもコメント抜粋が出るため、コメント欄に絞って検証する
+    const commentsSection = page
+      .locator("div")
+      .filter({ has: page.getByRole("heading", { name: "コメント" }) })
+      .last();
+    const item = commentsSection.getByRole("listitem").filter({ hasText: comment.comment });
     await expect(item.locator("p")).toHaveText([user.name, comment.comment, /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/]);
   });
 

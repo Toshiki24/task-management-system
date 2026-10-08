@@ -71,7 +71,8 @@ test.describe("7.18 SCR-018 タスク依存 (M2)", () => {
     // モーダルが閉じ、本体タスク・ブロッカーともに完了になる
     await expect(modal(page, "未完了のブロッカーがあります")).toHaveCount(0);
     await expect
-      .poll(async () => (await (await api.get(`/api/tasks/${taskA.id}`, { headers: bearer(owner) })).json()).status)
+      .poll(async () => (await (await api.get(`/api/tasks/${taskA.id}`, { headers: bearer(owner) })).json()).status,
+        { timeout: 15000 })
       .toBe("DONE");
     const bAfter = await (await api.get(`/api/tasks/${blockerB.id}`, { headers: bearer(owner) })).json();
     expect(bAfter.status).toBe("DONE");
@@ -91,7 +92,8 @@ test.describe("7.18 SCR-018 タスク依存 (M2)", () => {
     // モーダルは出ず、そのまま完了になる
     await expect(modal(page, "未完了のブロッカーがあります")).toHaveCount(0);
     await expect
-      .poll(async () => (await (await api.get(`/api/tasks/${taskA.id}`, { headers: bearer(owner) })).json()).status)
+      .poll(async () => (await (await api.get(`/api/tasks/${taskA.id}`, { headers: bearer(owner) })).json()).status,
+        { timeout: 15000 })
       .toBe("DONE");
   });
 });

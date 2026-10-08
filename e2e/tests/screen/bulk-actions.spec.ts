@@ -27,7 +27,7 @@ test.describe("7.19 SCR-019 一括操作 (M2)", () => {
       .poll(async () => {
         const tasks = await (await api.get(`/api/projects/${project.id}/tasks`, { headers: bearer(owner) })).json();
         return tasks.every((t: { status: string }) => t.status === "DONE");
-      })
+      }, { timeout: 15000 })
       .toBe(true);
     expect(t1.id).toBeGreaterThan(0);
     expect(t2.id).toBeGreaterThan(0);

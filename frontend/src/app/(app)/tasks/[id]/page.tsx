@@ -7,6 +7,7 @@ import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
 import { Modal } from "@/components/common/Modal";
 import { CommentList } from "@/components/task/CommentList";
+import { TaskActivity } from "@/components/task/TaskActivity";
 import { TaskChecklist } from "@/components/task/TaskChecklist";
 import { TaskDependencies } from "@/components/task/TaskDependencies";
 import { TaskDetail } from "@/components/task/TaskDetail";
@@ -40,6 +41,8 @@ export default function TaskDetailPage() {
   const [completeError, setCompleteError] = useState<string | null>(null);
   // ブロッカーを一括完了した後、依存関係セクションを再読み込みするためのキー
   const [depsRefreshKey, setDepsRefreshKey] = useState(0);
+  // 編集・完了操作のあとにアクティビティを再読み込みするためのキー
+  const [activityRefreshKey, setActivityRefreshKey] = useState(0);
 
   useEffect(() => {
     apiFetch<Task>(`/tasks/${taskId}`)
@@ -95,6 +98,7 @@ export default function TaskDetailPage() {
     });
     setTask(updated);
     setIsEditing(false);
+    setActivityRefreshKey((k) => k + 1);
   }
 
   /**
@@ -225,6 +229,14 @@ export default function TaskDetailPage() {
       <div className="rounded-lg bg-white p-6 shadow-sm">
         <h2 className="mb-4 text-base font-bold text-gray-900">コメント</h2>
         <CommentList taskId={taskId} />
+      </div>
+
+      <div className="rounded-lg bg-white p-6 shadow-sm">
+        <TaskActivity
+          key={activityRefreshKey}
+          taskId={taskId}
+          statusLabels={statusLabelMap(states)}
+        />
       </div>
 
       <Modal
