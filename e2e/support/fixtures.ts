@@ -42,6 +42,7 @@ export interface Task {
   parentTaskId: number | null;
   subtaskProgress: { done: number; total: number };
   cycleId: number | null;
+  milestoneId: number | null;
 }
 
 export interface CreatedComment {

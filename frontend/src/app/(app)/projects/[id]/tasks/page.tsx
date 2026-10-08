@@ -8,6 +8,7 @@ import { Loading } from "@/components/common/Loading";
 import { Modal } from "@/components/common/Modal";
 import { BulkActionBar } from "@/components/task/BulkActionBar";
 import { CyclePlanning } from "@/components/task/CyclePlanning";
+import { MilestonePlanning } from "@/components/task/MilestonePlanning";
 import { SavedViewBar } from "@/components/task/SavedViewBar";
 import { TaskBoard } from "@/components/task/TaskBoard";
 import { TaskFilterBar, EMPTY_FILTERS, buildTaskQuery, type TaskFilters } from "@/components/task/TaskFilterBar";
@@ -46,7 +47,7 @@ export default function ProjectTasksPage() {
   const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
-  const [view, setView] = useState<"list" | "board" | "cycle">("list");
+  const [view, setView] = useState<"list" | "board" | "cycle" | "milestone">("list");
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [bulkMode, setBulkMode] = useState(false);
@@ -151,9 +152,18 @@ export default function ProjectTasksPage() {
                 role="tab"
                 aria-selected={view === "cycle"}
                 onClick={() => setView("cycle")}
-                className={`rounded-r-md px-3 py-1.5 ${view === "cycle" ? "bg-blue-600 text-white" : "text-gray-600"}`}
+                className={`px-3 py-1.5 ${view === "cycle" ? "bg-blue-600 text-white" : "text-gray-600"}`}
               >
                 サイクル
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "milestone"}
+                onClick={() => setView("milestone")}
+                className={`rounded-r-md px-3 py-1.5 ${view === "milestone" ? "bg-blue-600 text-white" : "text-gray-600"}`}
+              >
+                マイルストーン
               </button>
             </div>
           )}
@@ -235,6 +245,14 @@ export default function ProjectTasksPage() {
       )}
       {tasks && view === "cycle" && (
         <CyclePlanning
+          projectId={projectId}
+          tasks={tasks}
+          statusLabels={statusLabelMap(states)}
+          onReloadTasks={reloadTasks}
+        />
+      )}
+      {tasks && view === "milestone" && (
+        <MilestonePlanning
           projectId={projectId}
           tasks={tasks}
           statusLabels={statusLabelMap(states)}
