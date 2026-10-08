@@ -123,4 +123,82 @@ public class CommentServiceTests : IClassFixture<TestDatabaseFixture>
 
         Assert.Equal(CreateCommentResult.Forbidden, outcome.Result);
     }
+
+    [Fact(DisplayName = "M3 投稿者はコメントを編集でき、edited=true になる")]
+    public async Task UpdateAsync_ByAuthor_SetsEdited()
+    {
+        await using var ctx = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(ctx);
+        var task = await TestData.CreateTaskAsync(ctx, project.Id);
+        var service = new CommentService(ctx);
+        var created = (await service.CreateAsync(task.Id, owner.Id, new CommentRequest("最初"))).Data!;
+
+        var outcome = await service.UpdateAsync(task.Id, created.Id, owner.Id, new CommentRequest("修正後"));
+
+        Assert.Equal(UpdateCommentResult.Success, outcome.Result);
+        Assert.Equal("修正後", outcome.Data!.Comment);
+        Assert.True(outcome.Data.Edited);
+    }
+
+    [Fact(DisplayName = "M3 他人のコメントは編集できない(403)")]
+    public async Task UpdateAsync_ByOther_Forbidden()
+    {
+        await using var ctx = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(ctx);
+        var member = await TestData.CreateUserAsync(ctx);
+        await TestData.AddMemberAsync(ctx, project.Id, member.Id, ProjectMemberRole.Member);
+        var task = await TestData.CreateTaskAsync(ctx, project.Id);
+        var service = new CommentService(ctx);
+        var created = (await service.CreateAsync(task.Id, owner.Id, new CommentRequest("本人の"))).Data!;
+
+        Assert.Equal(UpdateCommentResult.Forbidden,
+            (await service.UpdateAsync(task.Id, created.Id, member.Id, new CommentRequest("横取り"))).Result);
+    }
+
+    [Fact(DisplayName = "M3 投稿者は論理削除でき、一覧では本文が伏せられる")]
+    public async Task DeleteAsync_ByAuthor_MasksBody()
+    {
+        await using var ctx = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(ctx);
+        var task = await TestData.CreateTaskAsync(ctx, project.Id);
+        var service = new CommentService(ctx);
+        var created = (await service.CreateAsync(task.Id, owner.Id, new CommentRequest("消えるコメント"))).Data!;
+
+        Assert.Equal(DeleteCommentResult.Success, await service.DeleteAsync(task.Id, created.Id, owner.Id));
+
+        var list = await service.GetByTaskAsync(task.Id, owner.Id);
+        var dto = Assert.Single(list!);
+        Assert.True(dto.IsDeleted);
+        Assert.Null(dto.Comment);
+    }
+
+    [Fact(DisplayName = "M3 プロジェクト管理者(OWNER)は他人のコメントを削除できる")]
+    public async Task DeleteAsync_ByManager_Allowed()
+    {
+        await using var ctx = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(ctx);
+        var member = await TestData.CreateUserAsync(ctx);
+        await TestData.AddMemberAsync(ctx, project.Id, member.Id, ProjectMemberRole.Member);
+        var task = await TestData.CreateTaskAsync(ctx, project.Id);
+        var service = new CommentService(ctx);
+        // member が投稿、owner(プロジェクト OWNER / WS Admin)が削除
+        var created = (await service.CreateAsync(task.Id, member.Id, new CommentRequest("メンバーの発言"))).Data!;
+
+        Assert.Equal(DeleteCommentResult.Success, await service.DeleteAsync(task.Id, created.Id, owner.Id));
+    }
+
+    [Fact(DisplayName = "M3 一般メンバーは他人のコメントを削除できない(403)")]
+    public async Task DeleteAsync_ByOtherMember_Forbidden()
+    {
+        await using var ctx = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(ctx);
+        var member = await TestData.CreateUserAsync(ctx);
+        await TestData.AddMemberAsync(ctx, project.Id, member.Id, ProjectMemberRole.Member);
+        var task = await TestData.CreateTaskAsync(ctx, project.Id);
+        var service = new CommentService(ctx);
+        var created = (await service.CreateAsync(task.Id, owner.Id, new CommentRequest("OWNERの発言"))).Data!;
+
+        // member は投稿者でも管理者でもないので削除不可
+        Assert.Equal(DeleteCommentResult.Forbidden, await service.DeleteAsync(task.Id, created.Id, member.Id));
+    }
 }

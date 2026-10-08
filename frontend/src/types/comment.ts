@@ -3,7 +3,10 @@ export interface Comment {
   taskId: number;
   userId: number;
   userName: string;
-  comment: string;
+  /** 削除済み(isDeleted=true)のときは null。 */
+  comment: string | null;
+  edited: boolean;
+  isDeleted: boolean;
   createdAt: string;
 }
 
