@@ -53,6 +53,14 @@ public class CommentService : ICommentService
         _dbContext.TaskComments.Add(comment);
         await _dbContext.SaveChangesAsync();
 
+        // コメント投稿をアクティビティに記録する(M3 §5)
+        var projectId = await _dbContext.Tasks
+            .Where(t => t.Id == taskId).Select(t => t.ProjectId).FirstAsync();
+        var excerpt = request.Comment.Length > 50 ? request.Comment[..50] : request.Comment;
+        ActivityRecorder.Record(_dbContext, projectId, taskId, userId,
+            ActivityVerb.Commented, new { commentId = comment.Id, excerpt });
+        await _dbContext.SaveChangesAsync();
+
         return new CreateCommentOutcome(
             CreateCommentResult.Success,
             new CommentCreatedDto(comment.Id, comment.TaskId, comment.UserId, comment.Comment, comment.CreatedAt));

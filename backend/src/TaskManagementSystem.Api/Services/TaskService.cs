@@ -313,8 +313,12 @@ public class TaskService : ITaskService
         if (request.LabelIds is not null)
         {
             await SetTaskLabelsAsync(task, request.LabelIds);
-            await _dbContext.SaveChangesAsync();
         }
+
+        // 作成をアクティビティに記録(M3 §5)
+        ActivityRecorder.Record(_dbContext, projectId, task.Id, currentUserId,
+            ActivityVerb.Created, new { title = task.Title });
+        await _dbContext.SaveChangesAsync();
 
         await LoadLabelsAsync(task);
         // 作成直後は子タスクが無いため進捗は 0/0
@@ -369,6 +373,25 @@ public class TaskService : ITaskService
             return new UpdateTaskOutcome(UpdateTaskResult.InvalidLabel);
         }
 
+        // 変更項目をアクティビティ記録用に収集する(適用前に比較する。M3 §5)
+        var changedFields = new List<string>();
+        if (request.Title != task.Title) changedFields.Add("タイトル");
+        if (request.Description != task.Description) changedFields.Add("説明");
+        if (request.AssigneeId != task.AssigneeId) changedFields.Add("担当者");
+        if (request.Status is not null && request.Status != task.Status) changedFields.Add("状態");
+        if (request.Priority is not null && request.Priority != task.Priority) changedFields.Add("優先度");
+        if (request.DueDate != task.DueDate) changedFields.Add("期限");
+        if (request.EstimatePoints != task.EstimatePoints) changedFields.Add("見積");
+        if (request.LabelIds is not null)
+        {
+            var currentLabelIds = await _dbContext.TaskLabels
+                .Where(tl => tl.TaskId == task.Id).Select(tl => tl.LabelId).ToListAsync();
+            if (!currentLabelIds.OrderBy(x => x).SequenceEqual(request.LabelIds.Distinct().OrderBy(x => x)))
+            {
+                changedFields.Add("ラベル");
+            }
+        }
+
         task.AssigneeId = request.AssigneeId;
         task.Title = request.Title;
         task.Description = request.Description;
@@ -393,6 +416,12 @@ public class TaskService : ITaskService
         if (request.LabelIds is not null)
         {
             await SetTaskLabelsAsync(task, request.LabelIds);
+        }
+
+        if (changedFields.Count > 0)
+        {
+            ActivityRecorder.Record(_dbContext, task.ProjectId, task.Id, currentUserId,
+                ActivityVerb.Updated, new { fields = changedFields });
         }
 
         await _dbContext.SaveChangesAsync();
@@ -462,6 +491,9 @@ public class TaskService : ITaskService
         if (request.ToStatus != task.Status)
         {
             RecordStatusHistory(task, task.Status, request.ToStatus, currentUserId);
+            // アクティビティにも移動を記録(M3 §5)
+            ActivityRecorder.Record(_dbContext, task.ProjectId, task.Id, currentUserId,
+                ActivityVerb.Moved, new { from = task.Status, to = request.ToStatus });
             task.Status = request.ToStatus;
         }
 

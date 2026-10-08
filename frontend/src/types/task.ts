@@ -61,6 +61,19 @@ export interface MoveTaskBody {
   beforeTaskId: number | null;
 }
 
+/** アクティビティ(タスクの活動履歴。M3 §5)。payload は種別ごとの付加情報。 */
+export type ActivityVerb = "CREATED" | "UPDATED" | "MOVED" | "COMMENTED";
+
+export interface Activity {
+  id: number;
+  taskId: number | null;
+  actorUserId: number;
+  actorName: string;
+  verb: ActivityVerb;
+  payload: Record<string, unknown> | null;
+  createdAt: string;
+}
+
 /** コマンドパレットの横断検索で返るタスク要約(M2 §5.5)。 */
 export interface TaskSearchResult {
   id: number;

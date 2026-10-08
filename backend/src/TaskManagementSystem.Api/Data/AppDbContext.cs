@@ -22,6 +22,7 @@ public class AppDbContext : DbContext
     public DbSet<TaskLabel> TaskLabels => Set<TaskLabel>();
     public DbSet<TaskChecklistItem> TaskChecklistItems => Set<TaskChecklistItem>();
     public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
+    public DbSet<Activity> Activities => Set<Activity>();
     public DbSet<SavedView> SavedViews => Set<SavedView>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<TaskStatusHistory> TaskStatusHistories => Set<TaskStatusHistory>();
@@ -204,6 +205,45 @@ public class AppDbContext : DbContext
             entity.ToTable(tb => tb.HasCheckConstraint(
                 "chk_task_dependencies_no_self",
                 "blocking_task_id <> blocked_task_id"));
+        });
+
+        // ============================================================
+        // Activities (Phase 2 M3 §5 アクティビティ)
+        // ============================================================
+        modelBuilder.Entity<Activity>(entity =>
+        {
+            entity.ToTable("activities");
+
+            entity.Property(e => e.Verb).HasMaxLength(30).IsRequired();
+            entity.Property(e => e.Payload).HasColumnType("jsonb");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => new { e.ProjectId, e.CreatedAt }).HasDatabaseName("idx_activities_project_created");
+            entity.HasIndex(e => new { e.TaskId, e.CreatedAt }).HasDatabaseName("idx_activities_task_created");
+
+            entity.HasOne(e => e.Project)
+                .WithMany()
+                .HasForeignKey(e => e.ProjectId)
+                .HasConstraintName("fk_activities_project")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // タスクが消えればそのタスクの活動も消す(プロジェクト直下の活動は TaskId=NULL)
+            entity.HasOne(e => e.Task)
+                .WithMany()
+                .HasForeignKey(e => e.TaskId)
+                .HasConstraintName("fk_activities_task")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // 実行者が消えても活動履歴は残す(監査性。audit_logs と同方針)
+            entity.HasOne(e => e.ActorUser)
+                .WithMany()
+                .HasForeignKey(e => e.ActorUserId)
+                .HasConstraintName("fk_activities_actor_user")
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.ToTable(tb => tb.HasCheckConstraint(
+                "chk_activities_verb",
+                "verb IN ('CREATED', 'UPDATED', 'MOVED', 'COMMENTED')"));
         });
 
         // ============================================================
