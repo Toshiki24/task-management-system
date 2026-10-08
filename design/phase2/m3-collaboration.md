@@ -275,7 +275,7 @@ erDiagram
 
 ## 16. 未決事項
 
-- **メール実送信**：本番で SES を使うか（ドメイン認証・サンドボックス解除・コスト）。当面はアプリ内通知のみ＋メールは `LoggingEmailSender` で動作確認、という段階案も可。
+- **メール実送信**：本番は **Amazon SES で実送信する方針に決定**（step6）。`IEmailSender` を差し替え、設定 `Email:FromAddress` があれば `SesEmailSender`（SESv2）、無ければ `LoggingEmailSender`（開発・テスト・E2E）。本文のタスクリンクは `App:BaseUrl` から組み立て、通知生成（§6）に相乗りして即時送信。送信失敗はログに記録しリクエストは失敗させない。運用準備（コード外）：① SES で送信ドメイン/アドレス検証 ② サンドボックス解除 ③ Lambda 実行ロールに `ses:SendEmail` 許可 ④ `Email:FromAddress`・`App:BaseUrl` を環境変数/Secrets で設定。未設定ならログ出力へ自動フォールバック。
 - **リアルタイム方式**：まず SSE/ポーリングで成立させ、WebSocket（API Gateway WebSocket）は必要性・運用コストを見てから。
 - **添付ファイル**：M3 に含めるか、M3 最終ステップ or M3 後に回すか。含める場合は S3 署名付き URL 直アップロードを採用。
 - **計画の単位**：プロジェクト単位を基本とする。ワークスペース横断スプリントの要望が出たら `workspace_id` 版を追加。
