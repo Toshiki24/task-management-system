@@ -1,3 +1,5 @@
+import { NotificationBell } from "@/components/layout/NotificationBell";
+
 interface HeaderProps {
   userName?: string;
   onOpenCommand?: () => void;
@@ -8,6 +10,7 @@ export function Header({ userName, onOpenCommand }: HeaderProps) {
     <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3">
       <span className="font-bold text-gray-900">案件・タスク管理システム</span>
       <div className="flex items-center gap-4">
+        <NotificationBell />
         {onOpenCommand && (
           <button
             type="button"

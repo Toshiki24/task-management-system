@@ -25,6 +25,7 @@ public class AppDbContext : DbContext
     public DbSet<Activity> Activities => Set<Activity>();
     public DbSet<CommentMention> CommentMentions => Set<CommentMention>();
     public DbSet<TaskWatcher> TaskWatchers => Set<TaskWatcher>();
+    public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<SavedView> SavedViews => Set<SavedView>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<TaskStatusHistory> TaskStatusHistories => Set<TaskStatusHistory>();
@@ -271,6 +272,46 @@ public class AppDbContext : DbContext
                 .HasForeignKey(e => e.UserId)
                 .HasConstraintName("fk_task_comments_user")
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ============================================================
+        // Notifications (Phase 2 M3 §6 アプリ内通知)
+        // ============================================================
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.ToTable("notifications");
+
+            entity.Property(e => e.Type).HasMaxLength(30).IsRequired();
+            entity.Property(e => e.Payload).HasColumnType("jsonb");
+            entity.Property(e => e.IsRead).HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => new { e.RecipientUserId, e.IsRead, e.CreatedAt })
+                .HasDatabaseName("idx_notifications_recipient");
+
+            // 受信者が消えたら通知も消す
+            entity.HasOne(e => e.RecipientUser)
+                .WithMany()
+                .HasForeignKey(e => e.RecipientUserId)
+                .HasConstraintName("fk_notifications_recipient_user")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // 対象タスク・実行者が消えても通知履歴は残す(SET NULL)
+            entity.HasOne(e => e.Task)
+                .WithMany()
+                .HasForeignKey(e => e.TaskId)
+                .HasConstraintName("fk_notifications_task")
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(e => e.ActorUser)
+                .WithMany()
+                .HasForeignKey(e => e.ActorUserId)
+                .HasConstraintName("fk_notifications_actor_user")
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.ToTable(tb => tb.HasCheckConstraint(
+                "chk_notifications_type",
+                "type IN ('MENTION', 'ASSIGNED', 'STATUS_CHANGED', 'COMMENT', 'DUE_SOON', 'DUE_OVERDUE')"));
         });
 
         // ============================================================
