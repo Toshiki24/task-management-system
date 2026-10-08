@@ -1,3 +1,8 @@
+export interface MentionUser {
+  userId: number;
+  name: string;
+}
+
 export interface Comment {
   id: number;
   taskId: number;
@@ -7,6 +12,8 @@ export interface Comment {
   comment: string | null;
   edited: boolean;
   isDeleted: boolean;
+  /** 本文から解決された被メンションユーザー(M3 §3)。 */
+  mentions: MentionUser[];
   createdAt: string;
 }
 

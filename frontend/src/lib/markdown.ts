@@ -20,7 +20,16 @@ function safeUrl(url: string): string | null {
   return /^https?:\/\//i.test(trimmed) ? trimmed : null;
 }
 
-export function renderMarkdownToHtml(source: string): string {
+/** 正規表現で使う特殊文字をエスケープする。 */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * コメントを限定 Markdown で HTML 化する(M3 §3)。
+ * mentionNames を渡すと、本文中の「@名前」をハイライト表示する(解決済みメンションのみ)。
+ */
+export function renderMarkdownToHtml(source: string, mentionNames: string[] = []): string {
   const tokens: string[] = [];
   const stash = (html: string): string => {
     tokens.push(html);
@@ -53,7 +62,18 @@ export function renderMarkdownToHtml(source: string): string {
   text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   text = text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
 
-  // 6. 改行 → <br>
+  // 6. @メンションのハイライト(解決済みの名前のみ。長い名前を優先して前方一致の誤検出を抑える)
+  const names = [...mentionNames].filter((n) => n).sort((a, b) => b.length - a.length);
+  for (const name of names) {
+    const escapedName = escapeHtml(name);
+    const pattern = new RegExp(`@${escapeRegExp(escapedName)}`, "g");
+    text = text.replace(
+      pattern,
+      `<span class="rounded bg-blue-50 px-1 font-medium text-blue-700">@${escapedName}</span>`,
+    );
+  }
+
+  // 7. 改行 → <br>
   text = text.replace(/\n/g, "<br>");
 
   // 7. 退避したコード片を戻す

@@ -16,8 +16,8 @@ test.describe("5.6 コメントAPI", () => {
 
     expect(response.status()).toBe(200);
     expect(await response.json()).toEqual([
-      { ...comment1, userName: owner.name, edited: false, isDeleted: false },
-      { ...comment2, userName: member.name, edited: false, isDeleted: false },
+      { ...comment1, userName: owner.name, edited: false, isDeleted: false, mentions: [] },
+      { ...comment2, userName: member.name, edited: false, isDeleted: false, mentions: [] },
     ]);
   });
 
@@ -162,5 +162,24 @@ test.describe("5.6 コメントAPI", () => {
     // owner はプロジェクト OWNER / WS Admin なので他人のコメントを削除できる
     const del = await api.delete(`/api/tasks/${task.id}/comments/${created.id}`, { headers: bearer(owner) });
     expect(del.status()).toBe(204);
+  });
+
+  test("API-2410 @メンションはプロジェクトメンバーに解決され、非メンバーは無視される (M3)", async ({ api, data }) => {
+    const owner = await data.createUser("オーナー");
+    const member = await data.createUser("担当メンバー");
+    const outsider = await data.createUser("部外者");
+    const project = await data.createProject(owner);
+    await data.addMember(project.id, owner, member);
+    const task = await data.createTask(project.id, owner);
+
+    await api.post(`/api/tasks/${task.id}/comments`, {
+      headers: bearer(owner),
+      data: { comment: `@${member.name} と @${outsider.name} を確認` },
+    });
+
+    const list = await (await api.get(`/api/tasks/${task.id}/comments`, { headers: bearer(owner) })).json();
+    const mentionIds = list[0].mentions.map((m: { userId: number }) => m.userId);
+    expect(mentionIds).toContain(member.id);
+    expect(mentionIds).not.toContain(outsider.id);
   });
 });

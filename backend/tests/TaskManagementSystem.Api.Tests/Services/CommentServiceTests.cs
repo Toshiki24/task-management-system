@@ -201,4 +201,54 @@ public class CommentServiceTests : IClassFixture<TestDatabaseFixture>
         // member は投稿者でも管理者でもないので削除不可
         Assert.Equal(DeleteCommentResult.Forbidden, await service.DeleteAsync(task.Id, created.Id, member.Id));
     }
+
+    [Fact(DisplayName = "M3 @メンションがプロジェクトメンバーに解決される")]
+    public async Task Mention_ResolvesProjectMember()
+    {
+        await using var ctx = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(ctx);
+        var member = await TestData.CreateUserAsync(ctx);
+        await TestData.AddMemberAsync(ctx, project.Id, member.Id, ProjectMemberRole.Member);
+        var task = await TestData.CreateTaskAsync(ctx, project.Id);
+        var service = new CommentService(ctx);
+
+        await service.CreateAsync(task.Id, owner.Id, new CommentRequest($"@{member.Name} 確認お願いします"));
+
+        var dto = Assert.Single((await service.GetByTaskAsync(task.Id, owner.Id))!);
+        Assert.Contains(dto.Mentions, m => m.UserId == member.Id);
+    }
+
+    [Fact(DisplayName = "M3 非メンバーの@名前は解決されない")]
+    public async Task Mention_IgnoresNonMember()
+    {
+        await using var ctx = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(ctx);
+        var outsider = await TestData.CreateUserAsync(ctx);
+        var task = await TestData.CreateTaskAsync(ctx, project.Id);
+        var service = new CommentService(ctx);
+
+        await service.CreateAsync(task.Id, owner.Id, new CommentRequest($"@{outsider.Name} さん"));
+
+        var dto = Assert.Single((await service.GetByTaskAsync(task.Id, owner.Id))!);
+        Assert.DoesNotContain(dto.Mentions, m => m.UserId == outsider.Id);
+    }
+
+    [Fact(DisplayName = "M3 編集でメンションが付け替わる")]
+    public async Task Mention_ReResolvedOnUpdate()
+    {
+        await using var ctx = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(ctx);
+        var member = await TestData.CreateUserAsync(ctx);
+        await TestData.AddMemberAsync(ctx, project.Id, member.Id, ProjectMemberRole.Member);
+        var task = await TestData.CreateTaskAsync(ctx, project.Id);
+        var service = new CommentService(ctx);
+        var created = (await service.CreateAsync(task.Id, owner.Id, new CommentRequest($"@{member.Name} 初回"))).Data!;
+
+        // owner へ付け替え(member への言及を外す)
+        await service.UpdateAsync(task.Id, created.Id, owner.Id, new CommentRequest($"@{owner.Name} に変更"));
+
+        var dto = Assert.Single((await service.GetByTaskAsync(task.Id, owner.Id))!);
+        Assert.Contains(dto.Mentions, m => m.UserId == owner.Id);
+        Assert.DoesNotContain(dto.Mentions, m => m.UserId == member.Id);
+    }
 }

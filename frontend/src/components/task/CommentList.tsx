@@ -4,23 +4,28 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/common/Button";
 import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
+import { MentionTextarea } from "@/components/task/MentionTextarea";
 import { apiFetch, formatApiErrorMessage } from "@/lib/api";
 import { fetchCurrentUser } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { renderMarkdownToHtml } from "@/lib/markdown";
 import type { Comment, CommentRequestBody } from "@/types/comment";
+import type { Member } from "@/types/member";
 
 interface CommentListProps {
   taskId: string | number;
+  /** メンション候補に使うプロジェクトメンバーを取得するためのプロジェクト ID。 */
+  projectId: string | number;
 }
 
-export function CommentList({ taskId }: CommentListProps) {
+export function CommentList({ taskId, projectId }: CommentListProps) {
   const [comments, setComments] = useState<Comment[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [newComment, setNewComment] = useState("");
   const [postError, setPostError] = useState<string | null>(null);
   const [isPosting, setIsPosting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingText, setEditingText] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
@@ -33,6 +38,14 @@ export function CommentList({ taskId }: CommentListProps) {
       .then((user) => setCurrentUserId(user?.id ?? null))
       .catch(() => setCurrentUserId(null));
   }, [taskId]);
+
+  useEffect(() => {
+    apiFetch<Member[]>(`/projects/${projectId}/members`)
+      .then(setMembers)
+      .catch(() => {
+        // メンバーが取れなくてもコメント表示・投稿は続行する(補完が出ないだけ)
+      });
+  }, [projectId]);
 
   async function reload() {
     setComments(await apiFetch<Comment[]>(`/tasks/${taskId}/comments`));
@@ -130,13 +143,11 @@ export function CommentList({ taskId }: CommentListProps) {
 
                 {editingId === comment.id ? (
                   <div className="mt-1 space-y-2">
-                    <textarea
-                      rows={2}
-                      maxLength={1000}
+                    <MentionTextarea
                       value={editingText}
-                      onChange={(e) => setEditingText(e.target.value)}
-                      aria-label="コメントを編集"
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      onChange={setEditingText}
+                      members={members}
+                      ariaLabel="コメントを編集"
                     />
                     <div className="flex justify-end gap-2">
                       <Button type="button" variant="secondary" onClick={() => setEditingId(null)}>
@@ -154,7 +165,12 @@ export function CommentList({ taskId }: CommentListProps) {
                     className="mt-1 break-words text-sm text-gray-700 [&_a]:break-all"
                     // 本文はサニタイズ済みの限定 Markdown(lib/markdown で全エスケープ後に限定タグのみ生成)。生の HTML は挿入されない
                     // eslint-disable-next-line react/no-danger
-                    dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(comment.comment ?? "") }}
+                    dangerouslySetInnerHTML={{
+                      __html: renderMarkdownToHtml(
+                        comment.comment ?? "",
+                        comment.mentions.map((m) => m.name),
+                      ),
+                    }}
                   />
                 )}
 
@@ -170,15 +186,15 @@ export function CommentList({ taskId }: CommentListProps) {
       )}
 
       <form onSubmit={handlePost} className="space-y-2">
-        <textarea
-          rows={2}
-          maxLength={1000}
+        <MentionTextarea
           value={newComment}
-          onChange={(event) => setNewComment(event.target.value)}
+          onChange={setNewComment}
+          members={members}
           placeholder="コメントを入力してください"
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
-        <p className="text-xs text-gray-400">Markdown(**太字**、*斜体*、`コード`、[リンク](https://...))が使えます。</p>
+        <p className="text-xs text-gray-400">
+          Markdown(**太字**、*斜体*、`コード`、[リンク](https://...))と @メンション が使えます。
+        </p>
         {postError && <ErrorMessage message={postError} />}
         <div className="flex justify-end">
           <Button type="submit" variant="primary" disabled={isPosting}>
