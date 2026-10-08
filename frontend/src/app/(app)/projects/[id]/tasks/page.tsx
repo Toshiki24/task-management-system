@@ -7,6 +7,7 @@ import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
 import { Modal } from "@/components/common/Modal";
 import { BulkActionBar } from "@/components/task/BulkActionBar";
+import { CyclePlanning } from "@/components/task/CyclePlanning";
 import { SavedViewBar } from "@/components/task/SavedViewBar";
 import { TaskBoard } from "@/components/task/TaskBoard";
 import { TaskFilterBar, EMPTY_FILTERS, buildTaskQuery, type TaskFilters } from "@/components/task/TaskFilterBar";
@@ -45,7 +46,7 @@ export default function ProjectTasksPage() {
   const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
-  const [view, setView] = useState<"list" | "board">("list");
+  const [view, setView] = useState<"list" | "board" | "cycle">("list");
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [bulkMode, setBulkMode] = useState(false);
@@ -141,9 +142,18 @@ export default function ProjectTasksPage() {
                 role="tab"
                 aria-selected={view === "board"}
                 onClick={() => setView("board")}
-                className={`rounded-r-md px-3 py-1.5 ${view === "board" ? "bg-blue-600 text-white" : "text-gray-600"}`}
+                className={`px-3 py-1.5 ${view === "board" ? "bg-blue-600 text-white" : "text-gray-600"}`}
               >
                 ボード
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "cycle"}
+                onClick={() => setView("cycle")}
+                className={`rounded-r-md px-3 py-1.5 ${view === "cycle" ? "bg-blue-600 text-white" : "text-gray-600"}`}
+              >
+                サイクル
               </button>
             </div>
           )}
@@ -221,6 +231,14 @@ export default function ProjectTasksPage() {
           states={states}
           members={members}
           onChanged={setTasks}
+        />
+      )}
+      {tasks && view === "cycle" && (
+        <CyclePlanning
+          projectId={projectId}
+          tasks={tasks}
+          statusLabels={statusLabelMap(states)}
+          onReloadTasks={reloadTasks}
         />
       )}
 

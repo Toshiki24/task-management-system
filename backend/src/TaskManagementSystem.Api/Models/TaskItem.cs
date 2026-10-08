@@ -37,6 +37,9 @@ public class TaskItem
     /// <summary>見積(ポイント)。任意(M2 §8.2)。</summary>
     public int? EstimatePoints { get; set; }
 
+    /// <summary>所属サイクル。NULL=バックログ(M3 §8)。</summary>
+    public long? CycleId { get; set; }
+
     public DateOnly? DueDate { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -50,4 +53,6 @@ public class TaskItem
 
     public TaskItem? ParentTask { get; set; }
     public ICollection<TaskItem> Subtasks { get; set; } = new List<TaskItem>();
+
+    public Cycle? Cycle { get; set; }
 }

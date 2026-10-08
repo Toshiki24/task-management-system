@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using TaskManagementSystem.Api.Dtos.Common;
+using TaskManagementSystem.Api.Dtos.Cycles;
 using TaskManagementSystem.Api.Dtos.Tasks;
 using TaskManagementSystem.Api.Extensions;
 using TaskManagementSystem.Api.Services;
@@ -11,10 +12,32 @@ namespace TaskManagementSystem.Api.Controllers;
 public class ProjectTasksController : ControllerBase
 {
     private readonly ITaskService _taskService;
+    private readonly ICycleService _cycleService;
 
-    public ProjectTasksController(ITaskService taskService)
+    public ProjectTasksController(ITaskService taskService, ICycleService cycleService)
     {
         _taskService = taskService;
+        _cycleService = cycleService;
+    }
+
+    [HttpPatch("{taskId}/cycle")]
+    public async Task<IActionResult> AssignCycle(long projectId, long taskId, AssignCycleRequest request)
+    {
+        var result = await _cycleService.AssignTaskAsync(projectId, taskId, request.CycleId, this.GetCurrentUserId());
+
+        return result switch
+        {
+            CycleResult.ProjectNotFound =>
+                NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。")),
+            CycleResult.Forbidden => this.ForbiddenError(),
+            CycleResult.InvalidTask =>
+                NotFound(new ErrorResponse("指定されたタスクが存在しません。")),
+            CycleResult.InvalidCycle =>
+                BadRequest(new ValidationErrorResponse(
+                    "入力内容に誤りがあります。",
+                    new[] { new ValidationErrorItem("cycleId", "指定されたサイクルが不正です。") })),
+            _ => NoContent(),
+        };
     }
 
     [HttpGet]

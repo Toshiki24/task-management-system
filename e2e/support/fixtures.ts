@@ -41,6 +41,7 @@ export interface Task {
   labels: { id: number; workspaceId: number; name: string; color: string | null }[];
   parentTaskId: number | null;
   subtaskProgress: { done: number; total: number };
+  cycleId: number | null;
 }
 
 export interface CreatedComment {
