@@ -34,6 +34,7 @@ public class CommentService : ICommentService
                 c.DeletedAt != null ? null : c.Comment,
                 c.Edited,
                 c.DeletedAt != null,
+                c.CommentMentions.Select(m => new MentionUserDto(m.UserId, m.User.Name)).ToList(),
                 c.CreatedAt))
             .ToListAsync();
     }
@@ -68,6 +69,9 @@ public class CommentService : ICommentService
         var excerpt = request.Comment.Length > 50 ? request.Comment[..50] : request.Comment;
         ActivityRecorder.Record(_dbContext, projectId, taskId, userId,
             ActivityVerb.Commented, new { commentId = comment.Id, excerpt });
+
+        // @メンションを解決して保存する(M3 §3)
+        await SyncMentionsAsync(projectId, comment.Id, request.Comment);
         await _dbContext.SaveChangesAsync();
 
         return new CreateCommentOutcome(
@@ -99,13 +103,24 @@ public class CommentService : ICommentService
 
         comment.Comment = request.Comment;
         comment.Edited = true;
+
+        // @メンションを再解決する(M3 §3)
+        var projectId = await _dbContext.Tasks
+            .Where(t => t.Id == taskId).Select(t => t.ProjectId).FirstAsync();
+        await SyncMentionsAsync(projectId, comment.Id, request.Comment);
+
         // UpdatedAt は SaveChanges 時に自動更新される
         await _dbContext.SaveChangesAsync();
 
         var name = await _dbContext.Users.Where(u => u.Id == comment.UserId).Select(u => u.Name).FirstAsync();
+        var mentions = await _dbContext.CommentMentions
+            .Where(m => m.CommentId == comment.Id)
+            .Select(m => new MentionUserDto(m.UserId, m.User.Name))
+            .ToListAsync();
         return new UpdateCommentOutcome(
             UpdateCommentResult.Success,
-            new CommentDto(comment.Id, comment.TaskId, comment.UserId, name, comment.Comment, comment.Edited, false, comment.CreatedAt));
+            new CommentDto(comment.Id, comment.TaskId, comment.UserId, name, comment.Comment,
+                comment.Edited, false, mentions, comment.CreatedAt));
     }
 
     public async Task<DeleteCommentResult> DeleteAsync(long taskId, long commentId, long currentUserId)
@@ -132,5 +147,65 @@ public class CommentService : ICommentService
         comment.DeletedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified);
         await _dbContext.SaveChangesAsync();
         return DeleteCommentResult.Success;
+    }
+
+    /// <summary>
+    /// 本文中の「@表示名」を解決し、comment_mentions を付け替える(M3 §3)。
+    /// 解決対象はそのプロジェクトのメンバーのみ(非メンバーは解決しない=存在を開示しない)。
+    /// </summary>
+    private async Task SyncMentionsAsync(long projectId, long commentId, string body)
+    {
+        var members = await _dbContext.ProjectMembers
+            .Where(pm => pm.ProjectId == projectId)
+            .Select(pm => new MemberName(pm.UserId, pm.User.Name))
+            .ToListAsync();
+
+        var mentionedIds = ResolveMentionedUserIds(body, members);
+
+        var existing = await _dbContext.CommentMentions.Where(m => m.CommentId == commentId).ToListAsync();
+        _dbContext.CommentMentions.RemoveRange(existing);
+        foreach (var userId in mentionedIds)
+        {
+            _dbContext.CommentMentions.Add(new CommentMention { CommentId = commentId, UserId = userId });
+        }
+    }
+
+    private readonly record struct MemberName(long UserId, string Name);
+
+    /// <summary>
+    /// 本文から被メンションのユーザー ID を解決する。「@名前」の直後が英数字でない(=名前の途中でない)ものを採用。
+    /// 長い名前を優先して前方一致の誤検出を抑える。
+    /// </summary>
+    private static HashSet<long> ResolveMentionedUserIds(string body, IEnumerable<MemberName> members)
+    {
+        var result = new HashSet<long>();
+        if (string.IsNullOrEmpty(body))
+        {
+            return result;
+        }
+
+        foreach (var member in members.OrderByDescending(m => m.Name.Length))
+        {
+            if (string.IsNullOrEmpty(member.Name))
+            {
+                continue;
+            }
+
+            var token = "@" + member.Name;
+            var idx = 0;
+            while ((idx = body.IndexOf(token, idx, StringComparison.Ordinal)) >= 0)
+            {
+                var after = idx + token.Length;
+                if (after >= body.Length || !char.IsLetterOrDigit(body[after]))
+                {
+                    result.Add(member.UserId);
+                    break;
+                }
+
+                idx = after;
+            }
+        }
+
+        return result;
     }
 }

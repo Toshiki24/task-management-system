@@ -18,4 +18,5 @@ public class TaskComment
 
     public TaskItem Task { get; set; } = null!;
     public User User { get; set; } = null!;
+    public ICollection<CommentMention> CommentMentions { get; set; } = new List<CommentMention>();
 }

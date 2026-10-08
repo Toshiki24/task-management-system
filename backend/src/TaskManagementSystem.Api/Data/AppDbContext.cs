@@ -23,6 +23,7 @@ public class AppDbContext : DbContext
     public DbSet<TaskChecklistItem> TaskChecklistItems => Set<TaskChecklistItem>();
     public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
     public DbSet<Activity> Activities => Set<Activity>();
+    public DbSet<CommentMention> CommentMentions => Set<CommentMention>();
     public DbSet<SavedView> SavedViews => Set<SavedView>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<TaskStatusHistory> TaskStatusHistories => Set<TaskStatusHistory>();
@@ -268,6 +269,29 @@ public class AppDbContext : DbContext
                 .WithMany(u => u.TaskComments)
                 .HasForeignKey(e => e.UserId)
                 .HasConstraintName("fk_task_comments_user")
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ============================================================
+        // CommentMentions (Phase 2 M3 §3 @メンション)
+        // ============================================================
+        modelBuilder.Entity<CommentMention>(entity =>
+        {
+            entity.ToTable("comment_mentions");
+
+            entity.HasKey(e => new { e.CommentId, e.UserId });
+            entity.HasIndex(e => e.UserId).HasDatabaseName("idx_comment_mentions_user_id");
+
+            entity.HasOne(e => e.Comment)
+                .WithMany(c => c.CommentMentions)
+                .HasForeignKey(e => e.CommentId)
+                .HasConstraintName("fk_comment_mentions_comment")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .HasConstraintName("fk_comment_mentions_user")
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

@@ -228,7 +228,7 @@ export default function TaskDetailPage() {
 
       <div className="rounded-lg bg-white p-6 shadow-sm">
         <h2 className="mb-4 text-base font-bold text-gray-900">コメント</h2>
-        <CommentList taskId={taskId} />
+        <CommentList taskId={taskId} projectId={task.projectId} />
       </div>
 
       <div className="rounded-lg bg-white p-6 shadow-sm">
