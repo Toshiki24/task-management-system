@@ -64,3 +64,8 @@ output "amplify_subdomain_dns_records" {
   description = "カスタムドメイン(tms.accent24.jp)の CNAME レコード。ムームーDNSに追加する(手順16)"
   value       = [for s in aws_amplify_domain_association.main.sub_domain : s.dns_record]
 }
+
+output "ses_dkim_cname_records" {
+  description = "SES(メール通知)の DKIM 用 CNAME レコード(3件)。ムームーDNSに追加するとドメインが検証済みになる(M3 step6)"
+  value       = local.ses_dkim_cname_records
+}
