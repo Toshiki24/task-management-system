@@ -318,6 +318,13 @@ public class TaskService : ITaskService
         // 作成をアクティビティに記録(M3 §5)
         ActivityRecorder.Record(_dbContext, projectId, task.Id, currentUserId,
             ActivityVerb.Created, new { title = task.Title });
+
+        // 担当者は自動でウォッチに追加する(M3 §4)
+        if (task.AssigneeId is { } assignee)
+        {
+            await WatcherRecorder.EnsureWatchingAsync(_dbContext, task.Id, new[] { assignee });
+        }
+
         await _dbContext.SaveChangesAsync();
 
         await LoadLabelsAsync(task);
@@ -422,6 +429,12 @@ public class TaskService : ITaskService
         {
             ActivityRecorder.Record(_dbContext, task.ProjectId, task.Id, currentUserId,
                 ActivityVerb.Updated, new { fields = changedFields });
+        }
+
+        // 新しい担当者を自動でウォッチに追加する(M3 §4)
+        if (request.AssigneeId is { } assignee)
+        {
+            await WatcherRecorder.EnsureWatchingAsync(_dbContext, task.Id, new[] { assignee });
         }
 
         await _dbContext.SaveChangesAsync();

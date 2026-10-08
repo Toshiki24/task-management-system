@@ -74,6 +74,17 @@ export interface Activity {
   createdAt: string;
 }
 
+/** ウォッチャー(フォロー。M3 §4)。 */
+export interface Watcher {
+  userId: number;
+  name: string;
+}
+
+export interface Watchers {
+  watchers: Watcher[];
+  watching: boolean;
+}
+
 /** コマンドパレットの横断検索で返るタスク要約(M2 §5.5)。 */
 export interface TaskSearchResult {
   id: number;
