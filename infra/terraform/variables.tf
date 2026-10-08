@@ -28,6 +28,12 @@ variable "app_domain" {
   default     = "tms.accent24.jp"
 }
 
+variable "ses_from_address" {
+  description = "通知メールの差出人アドレス(SES。送信ドメイン identity 配下のアドレスにする)"
+  type        = string
+  default     = "no-reply@tms.accent24.jp"
+}
+
 variable "alert_email" {
   description = "アラーム・予算超過の通知先メールアドレス。秘密ではないが個人情報のため terraform.tfvars で指定する(リポジトリには置かない)"
   type        = string

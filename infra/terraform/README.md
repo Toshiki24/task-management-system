@@ -59,6 +59,20 @@ terraform apply
 
 初回の `terraform init` で作成される `.terraform.lock.hcl`（プロバイダーのバージョンの固定）はコミットします。
 
+## apply 後の手動手順（AWS 仕様で Terraform では完結できないもの）
+
+`apply` だけでは完結しない作業がいくつかあります。これは設計上の割り切りです。
+
+1. **Secrets の値登録**：`Jwt:Key`・`SESSION_SECRET` 等を、作成済みの Secrets Manager の入れ物に手動登録する。
+2. **DNS（ムームーDNS）へのレコード登録**：`terraform output` に出る Amplify 用 CNAME／証明書検証レコードを登録する。
+3. **DB マイグレーション**：マイグレーション用 Lambda を実行して反映する。
+4. **SNS アラート購読の確認**：届く確認メールのリンクをクリックする。
+5. **メール通知（SES / M3 step6）**：
+   - `terraform output ses_dkim_cname_records` に出る **DKIM 用 CNAME（3件）をムームーDNS に登録**する → これで送信ドメイン（`tms.accent24.jp`）が検証済みになる。
+   - **SES サンドボックス解除（本番送信枠）を AWS サポートへ申請**する（Terraform 不可）。解除までは検証済みアドレス宛のみ送信可。
+   - 差出人は変数 `ses_from_address`（既定 `no-reply@tms.accent24.jp`）。API Lambda には `Email__FromAddress`・`App__BaseUrl` が渡り、`ses:SendEmail`（この identity 限定）が付与される。
+   - 上記が未完でも、アプリは送信失敗をログに記録して処理を継続する（アプリ内通知は保存済み）。
+
 ## CI
 
 プルリクエストごとに `terraform fmt -check` と `terraform validate` を実行します（AWS には接続しません。`.github/workflows/ci.yml`）。

@@ -41,6 +41,9 @@ resource "aws_lambda_function" "api" {
     variables = {
       APP_SECRET_ID          = aws_secretsmanager_secret.api.name
       ASPNETCORE_ENVIRONMENT = "Production"
+      # 通知メール(M3 step6)。FromAddress があればアプリは SES で実送信する(無ければログ出力)
+      Email__FromAddress = var.ses_from_address
+      App__BaseUrl       = "https://${var.app_domain}"
     }
   }
 
