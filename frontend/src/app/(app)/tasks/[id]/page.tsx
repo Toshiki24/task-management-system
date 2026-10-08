@@ -13,6 +13,7 @@ import { TaskDependencies } from "@/components/task/TaskDependencies";
 import { TaskDetail } from "@/components/task/TaskDetail";
 import { TaskForm } from "@/components/task/TaskForm";
 import { TaskSubtasks } from "@/components/task/TaskSubtasks";
+import { TaskWatchers } from "@/components/task/TaskWatchers";
 import { ApiError, apiFetch, formatApiErrorMessage } from "@/lib/api";
 import { statusLabelMap } from "@/lib/taskLabels";
 import type { Member } from "@/types/member";
@@ -212,6 +213,10 @@ export default function TaskDetailPage() {
           />
         </div>
       )}
+
+      <div className="rounded-lg bg-white p-6 shadow-sm">
+        <TaskWatchers taskId={taskId} />
+      </div>
 
       <div className="rounded-lg bg-white p-6 shadow-sm">
         <TaskDependencies

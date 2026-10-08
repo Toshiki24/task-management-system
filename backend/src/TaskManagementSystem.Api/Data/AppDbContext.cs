@@ -24,6 +24,7 @@ public class AppDbContext : DbContext
     public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
     public DbSet<Activity> Activities => Set<Activity>();
     public DbSet<CommentMention> CommentMentions => Set<CommentMention>();
+    public DbSet<TaskWatcher> TaskWatchers => Set<TaskWatcher>();
     public DbSet<SavedView> SavedViews => Set<SavedView>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<TaskStatusHistory> TaskStatusHistories => Set<TaskStatusHistory>();
@@ -269,6 +270,30 @@ public class AppDbContext : DbContext
                 .WithMany(u => u.TaskComments)
                 .HasForeignKey(e => e.UserId)
                 .HasConstraintName("fk_task_comments_user")
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ============================================================
+        // TaskWatchers (Phase 2 M3 §4 ウォッチャー)
+        // ============================================================
+        modelBuilder.Entity<TaskWatcher>(entity =>
+        {
+            entity.ToTable("task_watchers");
+
+            entity.HasKey(e => new { e.TaskId, e.UserId });
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => e.UserId).HasDatabaseName("idx_task_watchers_user_id");
+
+            entity.HasOne(e => e.Task)
+                .WithMany()
+                .HasForeignKey(e => e.TaskId)
+                .HasConstraintName("fk_task_watchers_task")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .HasConstraintName("fk_task_watchers_user")
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

@@ -71,7 +71,9 @@ public class CommentService : ICommentService
             ActivityVerb.Commented, new { commentId = comment.Id, excerpt });
 
         // @メンションを解決して保存する(M3 §3)
-        await SyncMentionsAsync(projectId, comment.Id, request.Comment);
+        var mentioned = await SyncMentionsAsync(projectId, comment.Id, request.Comment);
+        // 自動ウォッチ: コメント投稿者と被メンション者をウォッチに追加する(M3 §4)
+        await WatcherRecorder.EnsureWatchingAsync(_dbContext, taskId, mentioned.Append(userId));
         await _dbContext.SaveChangesAsync();
 
         return new CreateCommentOutcome(
@@ -107,7 +109,9 @@ public class CommentService : ICommentService
         // @メンションを再解決する(M3 §3)
         var projectId = await _dbContext.Tasks
             .Where(t => t.Id == taskId).Select(t => t.ProjectId).FirstAsync();
-        await SyncMentionsAsync(projectId, comment.Id, request.Comment);
+        var mentioned = await SyncMentionsAsync(projectId, comment.Id, request.Comment);
+        // 新たに言及された人を自動ウォッチに追加する(M3 §4)
+        await WatcherRecorder.EnsureWatchingAsync(_dbContext, taskId, mentioned);
 
         // UpdatedAt は SaveChanges 時に自動更新される
         await _dbContext.SaveChangesAsync();
@@ -153,7 +157,7 @@ public class CommentService : ICommentService
     /// 本文中の「@表示名」を解決し、comment_mentions を付け替える(M3 §3)。
     /// 解決対象はそのプロジェクトのメンバーのみ(非メンバーは解決しない=存在を開示しない)。
     /// </summary>
-    private async Task SyncMentionsAsync(long projectId, long commentId, string body)
+    private async Task<HashSet<long>> SyncMentionsAsync(long projectId, long commentId, string body)
     {
         var members = await _dbContext.ProjectMembers
             .Where(pm => pm.ProjectId == projectId)
@@ -168,6 +172,8 @@ public class CommentService : ICommentService
         {
             _dbContext.CommentMentions.Add(new CommentMention { CommentId = commentId, UserId = userId });
         }
+
+        return mentionedIds;
     }
 
     private readonly record struct MemberName(long UserId, string Name);
