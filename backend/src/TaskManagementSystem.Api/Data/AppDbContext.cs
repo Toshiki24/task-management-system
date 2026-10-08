@@ -253,6 +253,8 @@ public class AppDbContext : DbContext
         {
             entity.Property(e => e.Comment).IsRequired();
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.Edited).HasDefaultValue(false);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             entity.HasIndex(e => e.TaskId).HasDatabaseName("idx_task_comments_task_id");
 

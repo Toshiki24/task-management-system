@@ -16,8 +16,8 @@ test.describe("5.6 コメントAPI", () => {
 
     expect(response.status()).toBe(200);
     expect(await response.json()).toEqual([
-      { ...comment1, userName: owner.name },
-      { ...comment2, userName: member.name },
+      { ...comment1, userName: owner.name, edited: false, isDeleted: false },
+      { ...comment2, userName: member.name, edited: false, isDeleted: false },
     ]);
   });
 
@@ -101,5 +101,66 @@ test.describe("5.6 コメントAPI", () => {
 
     expect(response.status()).toBe(404);
     expect(await response.json()).toEqual(TASK_NOT_FOUND);
+  });
+
+  test("API-2406 投稿者はコメントを編集でき、edited=true になる (M3)", async ({ api, data }) => {
+    const user = await data.createUser();
+    const project = await data.createProject(user);
+    const task = await data.createTask(project.id, user);
+    const created = await data.createComment(task.id, user);
+
+    const response = await api.patch(`/api/tasks/${task.id}/comments/${created.id}`, {
+      headers: bearer(user),
+      data: { comment: "編集しました" },
+    });
+
+    expect(response.status()).toBe(200);
+    const body = await response.json();
+    expect(body.comment).toBe("編集しました");
+    expect(body.edited).toBe(true);
+  });
+
+  test("API-2407 他人のコメントは編集できない (403, M3)", async ({ api, data }) => {
+    const owner = await data.createUser("オーナー");
+    const member = await data.createUser("メンバー");
+    const project = await data.createProject(owner);
+    await data.addMember(project.id, owner, member);
+    const task = await data.createTask(project.id, owner);
+    const created = await data.createComment(task.id, owner);
+
+    const response = await api.patch(`/api/tasks/${task.id}/comments/${created.id}`, {
+      headers: bearer(member),
+      data: { comment: "横取り" },
+    });
+
+    expect(response.status()).toBe(403);
+  });
+
+  test("API-2408 投稿者は削除でき、一覧では本文が伏せられる (M3)", async ({ api, data }) => {
+    const user = await data.createUser();
+    const project = await data.createProject(user);
+    const task = await data.createTask(project.id, user);
+    const created = await data.createComment(task.id, user);
+
+    const del = await api.delete(`/api/tasks/${task.id}/comments/${created.id}`, { headers: bearer(user) });
+    expect(del.status()).toBe(204);
+
+    const list = await (await api.get(`/api/tasks/${task.id}/comments`, { headers: bearer(user) })).json();
+    expect(list).toHaveLength(1);
+    expect(list[0].isDeleted).toBe(true);
+    expect(list[0].comment).toBeNull();
+  });
+
+  test("API-2409 プロジェクト管理者は他人のコメントを削除できる (M3)", async ({ api, data }) => {
+    const owner = await data.createUser("オーナー");
+    const member = await data.createUser("メンバー");
+    const project = await data.createProject(owner);
+    await data.addMember(project.id, owner, member);
+    const task = await data.createTask(project.id, owner);
+    const created = await data.createComment(task.id, member);
+
+    // owner はプロジェクト OWNER / WS Admin なので他人のコメントを削除できる
+    const del = await api.delete(`/api/tasks/${task.id}/comments/${created.id}`, { headers: bearer(owner) });
+    expect(del.status()).toBe(204);
   });
 });

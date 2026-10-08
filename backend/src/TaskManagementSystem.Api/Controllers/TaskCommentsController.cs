@@ -46,4 +46,36 @@ public class TaskCommentsController : ControllerBase
             _ => CreatedAtAction(nameof(GetAll), new { taskId }, outcome.Data),
         };
     }
+
+    [HttpPatch("{commentId}")]
+    public async Task<ActionResult<CommentDto>> Update(long taskId, long commentId, CommentRequest request)
+    {
+        var outcome = await _commentService.UpdateAsync(taskId, commentId, this.GetCurrentUserId(), request);
+
+        return outcome.Result switch
+        {
+            UpdateCommentResult.NotFound =>
+                NotFound(new ErrorResponse("指定されたコメントが存在しません。")),
+
+            UpdateCommentResult.Forbidden => this.ForbiddenError(),
+
+            _ => Ok(outcome.Data),
+        };
+    }
+
+    [HttpDelete("{commentId}")]
+    public async Task<IActionResult> Delete(long taskId, long commentId)
+    {
+        var result = await _commentService.DeleteAsync(taskId, commentId, this.GetCurrentUserId());
+
+        return result switch
+        {
+            DeleteCommentResult.NotFound =>
+                NotFound(new ErrorResponse("指定されたコメントが存在しません。")),
+
+            DeleteCommentResult.Forbidden => this.ForbiddenError(),
+
+            _ => NoContent(),
+        };
+    }
 }

@@ -86,7 +86,10 @@ test.describe("7.6 SCR-007 タスク詳細画面", () => {
       .filter({ has: page.getByRole("heading", { name: "コメント" }) })
       .last();
     const item = commentsSection.getByRole("listitem").filter({ hasText: comment.comment });
-    await expect(item.locator("p")).toHaveText([user.name, comment.comment, /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/]);
+    // 本文は Markdown レンダリングのため div、投稿者名と日時は p で表示する
+    await expect(item.getByText(user.name)).toBeVisible();
+    await expect(item.getByText(comment.comment)).toBeVisible();
+    await expect(item.getByText(/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/)).toBeVisible();
   });
 
   test("SCR-007-05 コメントが0件の場合", async ({ page, data }) => {
