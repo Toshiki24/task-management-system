@@ -34,6 +34,12 @@ variable "ses_from_address" {
   default     = "no-reply@tms.accent24.jp"
 }
 
+variable "due_notification_schedule" {
+  description = "期限通知ジョブ(M3 §7)の EventBridge スケジュール(cron は UTC)。既定は毎日 23:00 UTC(= 08:00 JST)"
+  type        = string
+  default     = "cron(0 23 * * ? *)"
+}
+
 variable "alert_email" {
   description = "アラーム・予算超過の通知先メールアドレス。秘密ではないが個人情報のため terraform.tfvars で指定する(リポジトリには置かない)"
   type        = string
