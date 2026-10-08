@@ -27,6 +27,7 @@ public class AppDbContext : DbContext
     public DbSet<TaskWatcher> TaskWatchers => Set<TaskWatcher>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Cycle> Cycles => Set<Cycle>();
+    public DbSet<Milestone> Milestones => Set<Milestone>();
     public DbSet<SavedView> SavedViews => Set<SavedView>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<TaskStatusHistory> TaskStatusHistories => Set<TaskStatusHistory>();
@@ -153,6 +154,14 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.CycleId)
                 .HasConstraintName("fk_tasks_cycle")
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // 所属マイルストーン(M3 §8)。マイルストーン削除時はタスクを消さず未割り当て(NULL)へ戻す
+            entity.HasIndex(e => e.MilestoneId).HasDatabaseName("idx_tasks_milestone_id");
+            entity.HasOne(e => e.Milestone)
+                .WithMany()
+                .HasForeignKey(e => e.MilestoneId)
+                .HasConstraintName("fk_tasks_milestone")
                 .OnDelete(DeleteBehavior.SetNull);
 
             // status はワークスペースごとのワークフロー(workflow_states.key)を指す動的な値のため、
@@ -306,6 +315,31 @@ public class AppDbContext : DbContext
             entity.ToTable(tb => tb.HasCheckConstraint(
                 "chk_cycles_status",
                 "status IN ('PLANNED', 'ACTIVE', 'CLOSED')"));
+        });
+
+        // ============================================================
+        // Milestones (Phase 2 M3 §8 マイルストーン/リリース)
+        // ============================================================
+        modelBuilder.Entity<Milestone>(entity =>
+        {
+            entity.ToTable("milestones");
+
+            entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(20).IsRequired().HasDefaultValue(MilestoneStatus.Open);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.ProjectId).HasDatabaseName("idx_milestones_project_id");
+
+            entity.HasOne(e => e.Project)
+                .WithMany()
+                .HasForeignKey(e => e.ProjectId)
+                .HasConstraintName("fk_milestones_project")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(tb => tb.HasCheckConstraint(
+                "chk_milestones_status",
+                "status IN ('OPEN', 'CLOSED')"));
         });
 
         // ============================================================

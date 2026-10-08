@@ -772,7 +772,8 @@ public class TaskService : ITaskService
             .ToList(),
         task.ParentTaskId,
         progress,
-        task.CycleId);
+        task.CycleId,
+        task.MilestoneId);
 
     /// <summary>WS の「完了」とみなす状態キー(カテゴリが DONE/CANCELLED)を返す。</summary>
     private async Task<HashSet<string>> GetClosedStatusKeysAsync(long workspaceId)

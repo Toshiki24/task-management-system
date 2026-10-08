@@ -19,5 +19,6 @@ public record TaskDto(
     IReadOnlyList<LabelDto> Labels,
     long? ParentTaskId,
     SubtaskProgress SubtaskProgress,
-    long? CycleId
+    long? CycleId,
+    long? MilestoneId
 );

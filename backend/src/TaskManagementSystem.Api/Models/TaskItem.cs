@@ -40,6 +40,9 @@ public class TaskItem
     /// <summary>所属サイクル。NULL=バックログ(M3 §8)。</summary>
     public long? CycleId { get; set; }
 
+    /// <summary>所属マイルストーン。NULL=未割り当て(M3 §8)。</summary>
+    public long? MilestoneId { get; set; }
+
     public DateOnly? DueDate { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -55,4 +58,5 @@ public class TaskItem
     public ICollection<TaskItem> Subtasks { get; set; } = new List<TaskItem>();
 
     public Cycle? Cycle { get; set; }
+    public Milestone? Milestone { get; set; }
 }

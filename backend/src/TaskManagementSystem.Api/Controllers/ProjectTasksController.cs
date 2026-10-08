@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TaskManagementSystem.Api.Dtos.Common;
 using TaskManagementSystem.Api.Dtos.Cycles;
+using TaskManagementSystem.Api.Dtos.Milestones;
 using TaskManagementSystem.Api.Dtos.Tasks;
 using TaskManagementSystem.Api.Extensions;
 using TaskManagementSystem.Api.Services;
@@ -13,11 +14,13 @@ public class ProjectTasksController : ControllerBase
 {
     private readonly ITaskService _taskService;
     private readonly ICycleService _cycleService;
+    private readonly IMilestoneService _milestoneService;
 
-    public ProjectTasksController(ITaskService taskService, ICycleService cycleService)
+    public ProjectTasksController(ITaskService taskService, ICycleService cycleService, IMilestoneService milestoneService)
     {
         _taskService = taskService;
         _cycleService = cycleService;
+        _milestoneService = milestoneService;
     }
 
     [HttpPatch("{taskId}/cycle")]
@@ -36,6 +39,26 @@ public class ProjectTasksController : ControllerBase
                 BadRequest(new ValidationErrorResponse(
                     "入力内容に誤りがあります。",
                     new[] { new ValidationErrorItem("cycleId", "指定されたサイクルが不正です。") })),
+            _ => NoContent(),
+        };
+    }
+
+    [HttpPatch("{taskId}/milestone")]
+    public async Task<IActionResult> AssignMilestone(long projectId, long taskId, AssignMilestoneRequest request)
+    {
+        var result = await _milestoneService.AssignTaskAsync(projectId, taskId, request.MilestoneId, this.GetCurrentUserId());
+
+        return result switch
+        {
+            MilestoneResult.ProjectNotFound =>
+                NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。")),
+            MilestoneResult.Forbidden => this.ForbiddenError(),
+            MilestoneResult.InvalidTask =>
+                NotFound(new ErrorResponse("指定されたタスクが存在しません。")),
+            MilestoneResult.InvalidMilestone =>
+                BadRequest(new ValidationErrorResponse(
+                    "入力内容に誤りがあります。",
+                    new[] { new ValidationErrorItem("milestoneId", "指定されたマイルストーンが不正です。") })),
             _ => NoContent(),
         };
     }
