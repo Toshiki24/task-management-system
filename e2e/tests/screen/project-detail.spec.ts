@@ -3,7 +3,12 @@ import { bearer, expect, test, unique } from "../../support/fixtures";
 import { detailField as field, modal, signIn, tableRow } from "../../support/ui";
 
 function memberItems(page: Page) {
-  return page.getByRole("listitem");
+  // メンバーセクションに限定する(同じ画面の他セクションのリスト項目と混同しないため)
+  return page
+    .locator("div")
+    .filter({ has: page.getByRole("heading", { name: "メンバー" }) })
+    .last()
+    .getByRole("listitem");
 }
 
 test.describe("7.4 SCR-005 プロジェクト詳細画面", () => {

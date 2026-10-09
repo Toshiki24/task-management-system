@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using TaskManagementSystem.Api.Dtos.Common;
 using TaskManagementSystem.Api.Dtos.Git;
 using TaskManagementSystem.Api.Extensions;
+using TaskManagementSystem.Api.Models;
 using TaskManagementSystem.Api.Services;
 
 namespace TaskManagementSystem.Api.Controllers;
@@ -42,6 +43,24 @@ public class GitConnectionsController : ControllerBase
                 NotFound(new ErrorResponse("指定された接続が存在しません。")),
             GitConnectionResult.Forbidden => this.ForbiddenError(),
             _ => NoContent(),
+        };
+    }
+
+    [HttpPost("/api/git-connections/{connectionId}/test")]
+    public async Task<IActionResult> Test(long connectionId)
+    {
+        var result = await _service.TestAsync(connectionId, this.GetCurrentUserId());
+
+        return result switch
+        {
+            GitConnectionResult.ConnectionNotFound =>
+                NotFound(new ErrorResponse("指定された接続が存在しません。")),
+            GitConnectionResult.Forbidden => this.ForbiddenError(),
+            GitConnectionResult.ProviderUnavailable =>
+                BadRequest(new ErrorResponse("対応していないプロバイダです。")),
+            GitConnectionResult.TestFailed =>
+                Ok(new { status = GitConnectionStatus.Error }),
+            _ => Ok(new { status = GitConnectionStatus.Active }),
         };
     }
 }

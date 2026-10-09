@@ -10,6 +10,7 @@ import { Modal } from "@/components/common/Modal";
 import { ProjectForm } from "@/components/project/ProjectForm";
 import { ProjectMemberList } from "@/components/project/ProjectMemberList";
 import { RepositoryLinks } from "@/components/project/RepositoryLinks";
+import { TransitionRuleEditor } from "@/components/workspace/TransitionRuleEditor";
 import { apiFetch, formatApiErrorMessage } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { projectStatusLabel } from "@/lib/projectStatus";
@@ -148,6 +149,14 @@ export default function ProjectDetailPage() {
           このプロジェクトに紐づく Git リポジトリです。連携の追加・解除はプロジェクト OWNER / ワークスペース管理者が行えます。
         </p>
         <RepositoryLinks projectId={projectId} workspaceId={project.workspaceId} />
+      </div>
+
+      <div className="rounded-lg bg-white p-6 shadow-sm">
+        <h2 className="mb-1 text-base font-bold text-gray-900">Git 自動遷移ルール（プロジェクト個別）</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          設定するとワークスペース既定を上書きします。空（遷移しない）のみの場合はワークスペース既定が使われます。
+        </p>
+        <TransitionRuleEditor workspaceId={project.workspaceId} projectId={Number(projectId)} canManage={true} />
       </div>
 
       <div className="rounded-lg bg-white p-6 shadow-sm">

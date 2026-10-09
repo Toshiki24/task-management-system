@@ -13,8 +13,11 @@ import {
 import type { WorkflowState } from "@/types/workflow";
 
 interface TransitionRuleEditorProps {
+  /** ワークフロー状態の取得元ワークスペース。 */
   workspaceId: number;
-  /** 呼び出しユーザーがルールを編集できるか(WS Admin) */
+  /** 指定するとプロジェクト個別ルール(WS 既定の上書き)を編集する。未指定は WS 既定。 */
+  projectId?: number;
+  /** 呼び出しユーザーがルールを編集できるか(WS Admin / Project OWNER)。 */
   canManage: boolean;
 }
 
@@ -29,7 +32,7 @@ const EMPTY: RuleState = {
   MR_MERGED: { toStatusKey: "", enabled: false },
 };
 
-export function TransitionRuleEditor({ workspaceId, canManage }: TransitionRuleEditorProps) {
+export function TransitionRuleEditor({ workspaceId, projectId, canManage }: TransitionRuleEditorProps) {
   const [states, setStates] = useState<WorkflowState[]>([]);
   const [rules, setRules] = useState<RuleState>(EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -37,10 +40,13 @@ export function TransitionRuleEditor({ workspaceId, canManage }: TransitionRuleE
   const [isSaving, setIsSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  // プロジェクト指定時はプロジェクト個別ルール、未指定は WS 既定を対象にする
+  const rulesPath = projectId ? `/projects/${projectId}/transition-rules` : `/workspaces/${workspaceId}/transition-rules`;
+
   useEffect(() => {
     Promise.all([
       apiFetch<WorkflowState[]>(`/workspaces/${workspaceId}/workflow-states`),
-      apiFetch<TransitionRule[]>(`/workspaces/${workspaceId}/transition-rules`),
+      apiFetch<TransitionRule[]>(rulesPath),
     ])
       .then(([wsStates, wsRules]) => {
         setStates(wsStates);
@@ -52,7 +58,7 @@ export function TransitionRuleEditor({ workspaceId, canManage }: TransitionRuleE
         setLoaded(true);
       })
       .catch(() => setError("自動遷移ルールの取得に失敗しました。"));
-  }, [workspaceId]);
+  }, [workspaceId, rulesPath]);
 
   function update(trigger: TransitionTrigger, patch: Partial<{ toStatusKey: string; enabled: boolean }>) {
     setSaved(false);
@@ -71,7 +77,7 @@ export function TransitionRuleEditor({ workspaceId, canManage }: TransitionRuleE
           toStatusKey: rules[trigger].toStatusKey,
           enabled: rules[trigger].enabled,
         }));
-      await apiFetch(`/workspaces/${workspaceId}/transition-rules`, {
+      await apiFetch(rulesPath, {
         method: "PUT",
         body: JSON.stringify({ rules: payload }),
       });
@@ -127,7 +133,7 @@ export function TransitionRuleEditor({ workspaceId, canManage }: TransitionRuleE
 
       <div className="flex items-center gap-3">
         <Button type="button" variant="primary" onClick={handleSave} disabled={isSaving}>
-          {isSaving ? "保存中..." : "保存"}
+          {isSaving ? "更新中..." : "遷移ルールを更新"}
         </Button>
         {saved && <span className="text-sm text-green-600">保存しました。</span>}
       </div>
