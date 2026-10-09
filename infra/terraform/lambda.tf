@@ -39,7 +39,9 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      APP_SECRET_ID          = aws_secretsmanager_secret.api.name
+      APP_SECRET_ID = aws_secretsmanager_secret.api.name
+      # Git 連携(M4)。Webhook 署名シークレットや GitHub App 秘密鍵をここから読む
+      GIT_SECRET_ID          = aws_secretsmanager_secret.git.name
       ASPNETCORE_ENVIRONMENT = "Production"
       # 通知メール(M3 step6)。FromAddress があればアプリは SES で実送信する(無ければログ出力)
       Email__FromAddress = var.ses_from_address

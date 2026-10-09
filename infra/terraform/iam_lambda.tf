@@ -23,11 +23,14 @@ resource "aws_iam_role_policy_attachment" "api_lambda_vpc" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
-# API用シークレットの読み取りのみ(他のシークレット・サービスへはアクセスさせない)
+# API用シークレットと Git 連携用シークレットの読み取りのみ(他のシークレット・サービスへはアクセスさせない)
 data "aws_iam_policy_document" "api_lambda_secret" {
   statement {
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_secretsmanager_secret.api.arn]
+    actions = ["secretsmanager:GetSecretValue"]
+    resources = [
+      aws_secretsmanager_secret.api.arn,
+      aws_secretsmanager_secret.git.arn,
+    ]
   }
 }
 
