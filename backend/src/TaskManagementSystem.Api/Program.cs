@@ -116,6 +116,7 @@ builder.Services.AddScoped<IGitLinkService, GitLinkService>();
 builder.Services.AddScoped<IGitActionService, GitActionService>();
 builder.Services.AddScoped<IMetricsService, MetricsService>();
 builder.Services.AddScoped<ITaskExportService, TaskExportService>();
+builder.Services.AddScoped<ITaskImportService, TaskImportService>();
 builder.Services.AddScoped<IWebhookService, WebhookService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 

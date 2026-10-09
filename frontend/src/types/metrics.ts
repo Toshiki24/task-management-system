@@ -33,3 +33,13 @@ export interface DevMetrics {
   completedInPeriod: number;
   throughput: ThroughputPoint[];
 }
+
+export interface ImportRowError {
+  row: number;
+  message: string;
+}
+
+export interface ImportResult {
+  imported: number;
+  failed: ImportRowError[];
+}
