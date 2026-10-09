@@ -51,7 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen flex-col">
       <Header userName={authState.user?.name} onOpenCommand={() => setPaletteOpen(true)} />
       <div className="flex flex-1">
-        <Sidebar onLogout={handleLogout} />
+        <Sidebar onLogout={handleLogout} isSystemAdmin={authState.user?.isSystemAdmin ?? false} />
         <main className="flex-1 bg-gray-50 p-6">{children}</main>
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />

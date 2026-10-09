@@ -33,7 +33,10 @@ public class SystemAdminServiceTests : IClassFixture<TestDatabaseFixture>
         var service = new SystemAdminService(ctx);
 
         Assert.Null(await service.GetAdminsAsync(user.Id));
-        Assert.Null(await service.GetAuditLogsAsync(user.Id, 100));
+        Assert.Null(await service.GetAuditLogsAsync(user.Id, new AuditLogQuery()));
+        Assert.Null(await service.GetStatsAsync(user.Id));
+        Assert.Null(await service.GetWorkspacesAsync(user.Id));
+        Assert.Null(await service.GetUsersAsync(user.Id));
         Assert.Equal(GrantSystemAdminResult.Forbidden, await service.GrantAsync(target.Id, user.Id));
         Assert.Equal(RevokeSystemAdminResult.Forbidden, await service.RevokeAsync(target.Id, user.Id));
     }
@@ -109,10 +112,72 @@ public class SystemAdminServiceTests : IClassFixture<TestDatabaseFixture>
         var created = await new WorkspaceService(ctx).CreateAsync(new WorkspaceRequest("監査用WS", null), admin.Id);
         Assert.Equal(CreateWorkspaceResult.Success, created.Result);
 
-        var logs = await new SystemAdminService(ctx).GetAuditLogsAsync(admin.Id, 100);
+        var logs = await new SystemAdminService(ctx).GetAuditLogsAsync(admin.Id, new AuditLogQuery());
 
         Assert.NotNull(logs);
-        Assert.Contains(logs!, a =>
+        Assert.True(logs!.Total >= 1);
+        Assert.Contains(logs.Items, a =>
             a.Action == AuditActions.WorkspaceCreated && a.ActorUserId == admin.Id && a.ActorName == admin.Name);
+    }
+
+    [Fact(DisplayName = "監査ログはアクション・アクターでフィルタでき、総件数も返す")]
+    public async Task GetAuditLogsAsync_FiltersAndPaging()
+    {
+        await using var ctx = _db.CreateContext();
+        var admin = await CreateSystemAdminAsync(ctx);
+        var service = new SystemAdminService(ctx);
+
+        // 付与→剥奪で user.system_admin.granted / revoked を記録する(2人目を用意)
+        var target = await TestData.CreateUserAsync(ctx);
+        await service.GrantAsync(target.Id, admin.Id);
+        await service.RevokeAsync(target.Id, admin.Id);
+
+        var granted = await service.GetAuditLogsAsync(
+            admin.Id, new AuditLogQuery(Action: AuditActions.SystemAdminGranted));
+        Assert.NotNull(granted);
+        Assert.All(granted!.Items, a => Assert.Equal(AuditActions.SystemAdminGranted, a.Action));
+        Assert.Contains(granted.Items, a => a.TargetId == target.Id);
+
+        // アクター絞り込み
+        var byActor = await service.GetAuditLogsAsync(admin.Id, new AuditLogQuery(ActorUserId: admin.Id));
+        Assert.NotNull(byActor);
+        Assert.All(byActor!.Items, a => Assert.Equal(admin.Id, a.ActorUserId));
+
+        // limit=1 でも総件数は全件を表す
+        var firstPage = await service.GetAuditLogsAsync(
+            admin.Id, new AuditLogQuery(ActorUserId: admin.Id, Limit: 1));
+        Assert.NotNull(firstPage);
+        Assert.Single(firstPage!.Items);
+        Assert.True(firstPage.Total >= 2);
+    }
+
+    [Fact(DisplayName = "統計・全WS・全ユーザー一覧を System Admin が取得できる")]
+    public async Task GetStatsWorkspacesUsers_ReturnsData()
+    {
+        await using var ctx = _db.CreateContext();
+        var admin = await CreateSystemAdminAsync(ctx);
+        var member = await TestData.CreateUserAsync(ctx);
+        var service = new SystemAdminService(ctx);
+
+        var created = await new WorkspaceService(ctx).CreateAsync(new WorkspaceRequest("統計用WS", null), admin.Id);
+        Assert.Equal(CreateWorkspaceResult.Success, created.Result);
+
+        var stats = await service.GetStatsAsync(admin.Id);
+        Assert.NotNull(stats);
+        Assert.True(stats!.WorkspaceCount >= 1);
+        Assert.True(stats.UserCount >= 2);
+        Assert.True(stats.SystemAdminCount >= 1);
+
+        var workspaces = await service.GetWorkspacesAsync(admin.Id);
+        Assert.NotNull(workspaces);
+        var ws = Assert.Single(workspaces!, w => w.Id == created.Data!.Id);
+        Assert.Equal("統計用WS", ws.Name);
+        Assert.Equal(1, ws.MemberCount); // 作成者が ADMIN として1人
+        Assert.False(ws.IsArchived);
+
+        var users = await service.GetUsersAsync(admin.Id);
+        Assert.NotNull(users);
+        Assert.Contains(users!, u => u.Id == admin.Id && u.IsSystemAdmin);
+        Assert.Contains(users!, u => u.Id == member.Id && !u.IsSystemAdmin);
     }
 }
