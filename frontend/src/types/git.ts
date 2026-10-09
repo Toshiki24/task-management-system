@@ -36,6 +36,24 @@ export interface RepositoryLinkRequestBody {
   defaultBranch?: string | null;
 }
 
+export interface GitIdentity {
+  id: number;
+  workspaceId: number;
+  userId: number;
+  userName: string;
+  userEmail: string;
+  provider: GitProvider;
+  externalUserId: string;
+  externalUsername: string | null;
+}
+
+export interface GitIdentityRequestBody {
+  userId: number;
+  provider: GitProvider;
+  externalUserId: string;
+  externalUsername?: string | null;
+}
+
 export const GIT_PROVIDER_LABELS: Record<GitProvider, string> = {
   GITHUB: "GitHub",
   GITLAB: "GitLab",

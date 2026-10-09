@@ -110,6 +110,7 @@ builder.Services.AddScoped<ICycleService, CycleService>();
 builder.Services.AddScoped<IMilestoneService, MilestoneService>();
 builder.Services.AddScoped<IGitConnectionService, GitConnectionService>();
 builder.Services.AddScoped<IRepositoryLinkService, RepositoryLinkService>();
+builder.Services.AddScoped<IGitIdentityService, GitIdentityService>();
 builder.Services.AddScoped<IWebhookService, WebhookService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 
