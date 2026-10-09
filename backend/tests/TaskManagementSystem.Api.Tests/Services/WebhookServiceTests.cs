@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using TaskManagementSystem.Api.Models;
 using TaskManagementSystem.Api.Services;
 using TaskManagementSystem.Api.Services.Git;
@@ -26,7 +27,10 @@ public class WebhookServiceTests : IClassFixture<TestDatabaseFixture>
         });
         var gitLinks = new GitLinkService(
             ctx, new GitIdentityService(ctx), new TransitionRuleService(ctx), new TaskService(ctx));
-        return new WebhookService(ctx, resolver, new DevWebhookSecretResolver(), gitLinks);
+        // 参照そのものを秘密として扱う(allowRefAsSecret: true)ため、従来と同じ挙動
+        var secrets = new SecretStoreWebhookSecretResolver(
+            new ConfigSecretStore(new ConfigurationBuilder().Build(), allowRefAsSecret: true));
+        return new WebhookService(ctx, resolver, secrets, gitLinks);
     }
 
     /// <summary>

@@ -126,9 +126,21 @@ builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Git.IGitProvider
 builder.Services.AddSingleton<
     TaskManagementSystem.Api.Services.Git.IGitProviderResolver,
     TaskManagementSystem.Api.Services.Git.GitProviderResolver>();
+
+// シークレットストア(M4 §4)。本番は Secrets Manager の値を IConfiguration へ展開して引く。
+// 本番以外では参照そのものを秘密として扱う(ローカル・テストの簡便化)。
+var allowRefAsSecret = !builder.Environment.IsProduction();
+builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Git.ISecretStore>(
+    sp => new TaskManagementSystem.Api.Services.Git.ConfigSecretStore(
+        sp.GetRequiredService<IConfiguration>(), allowRefAsSecret));
 builder.Services.AddSingleton<
     TaskManagementSystem.Api.Services.Git.IWebhookSecretResolver,
-    TaskManagementSystem.Api.Services.Git.DevWebhookSecretResolver>();
+    TaskManagementSystem.Api.Services.Git.SecretStoreWebhookSecretResolver>();
+// GitHub App トークン発行(M4 §15 ステップ7)。本番で実アダプタが利用する
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<
+    TaskManagementSystem.Api.Services.Git.IGitHubAppTokenProvider,
+    TaskManagementSystem.Api.Services.Git.GitHubAppTokenProvider>();
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
 // 鍵が未設定・短すぎる場合は、起動時にエラーにして気付けるようにする(security-review.md SEC-07)

@@ -72,6 +72,12 @@ terraform apply
    - **SES サンドボックス解除（本番送信枠）を AWS サポートへ申請**する（Terraform 不可）。解除までは検証済みアドレス宛のみ送信可。
    - 差出人は変数 `ses_from_address`（既定 `no-reply@tms.accent24.jp`）。API Lambda には `Email__FromAddress`・`App__BaseUrl` が渡り、`ses:SendEmail`（この identity 限定）が付与される。
    - 上記が未完でも、アプリは送信失敗をログに記録して処理を継続する（アプリ内通知は保存済み）。
+6. **Git 連携（M4）**：
+   - 作成済みの Git 用シークレット（`<project>/<env>/git`）に、設定キーをそのままキーにしたフラット JSON を手動登録する。例：
+     `{"Git:Secrets:tms/git/acme":"<Webhook 署名シークレット>","Git:GitHub:AppId":"123456","Git:GitHub:PrivateKeyPem":"-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"}`
+   - アプリ内で登録する Git 接続の **シークレット参照（`secret_ref`）** は、この JSON のキー名（例 `tms/git/acme`）に合わせる。API Lambda は `GIT_SECRET_ID` からこの値を読み、`Git:Secrets:*` を署名検証に使う。
+   - **GitHub App の作成・インストール**、および Webhook 送信先（`https://<app_domain>/api/git/webhooks/github`）の設定は GitHub 側で行う（Terraform 不可）。GitHub App 推奨：インストール単位の短命トークン・最小権限・個人非依存。
+   - 未登録でも他機能に影響はない（Webhook は署名検証に失敗して 401、能動操作は未使用のまま）。
 
 ## CI
 
