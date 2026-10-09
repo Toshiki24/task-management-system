@@ -16,6 +16,7 @@ import { TaskForm } from "@/components/task/TaskForm";
 import { TaskList } from "@/components/task/TaskList";
 import { apiFetch } from "@/lib/api";
 import { fetchCurrentUser } from "@/lib/auth";
+import { useLiveRefresh } from "@/lib/useLiveRefresh";
 import { statusLabelMap } from "@/lib/taskLabels";
 import type { Label } from "@/types/label";
 import type { Member } from "@/types/member";
@@ -112,6 +113,10 @@ export default function ProjectTasksPage() {
   async function reloadTasks() {
     setTasks(await apiFetch<Task[]>(`/projects/${projectId}/tasks${buildTaskQuery(filters)}`));
   }
+
+  // 他者の変更を反映する軽量リアルタイム更新(M3 §7)。
+  // タスク作成モーダル表示中は、入力の裏で一覧が変わらないよう停止する。
+  useLiveRefresh(reloadTasks, { enabled: !isModalOpen });
 
   async function handleCreate(value: TaskRequestBody) {
     await apiFetch<Task>(`/projects/${projectId}/tasks`, {
