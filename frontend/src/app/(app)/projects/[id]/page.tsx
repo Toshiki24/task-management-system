@@ -169,6 +169,16 @@ export default function ProjectDetailPage() {
         </Link>
       </div>
 
+      <div className="rounded-lg bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-base font-bold text-gray-900">ダッシュボード</h2>
+        <Link
+          href={`/projects/${projectId}/metrics`}
+          className="text-sm font-semibold text-blue-600 hover:underline"
+        >
+          指標・ダッシュボードを見る
+        </Link>
+      </div>
+
       <Modal
         isOpen={isDeleteModalOpen}
         title="プロジェクト削除"
