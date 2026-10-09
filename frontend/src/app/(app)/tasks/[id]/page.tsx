@@ -11,6 +11,7 @@ import { TaskActivity } from "@/components/task/TaskActivity";
 import { TaskChecklist } from "@/components/task/TaskChecklist";
 import { TaskDependencies } from "@/components/task/TaskDependencies";
 import { TaskDetail } from "@/components/task/TaskDetail";
+import { TaskGitLinks } from "@/components/task/TaskGitLinks";
 import { TaskForm } from "@/components/task/TaskForm";
 import { TaskSubtasks } from "@/components/task/TaskSubtasks";
 import { TaskWatchers } from "@/components/task/TaskWatchers";
@@ -229,6 +230,10 @@ export default function TaskDetailPage() {
 
       <div className="rounded-lg bg-white p-6 shadow-sm">
         <TaskChecklist taskId={taskId} />
+      </div>
+
+      <div className="rounded-lg bg-white p-6 shadow-sm">
+        <TaskGitLinks taskId={taskId} />
       </div>
 
       <div className="rounded-lg bg-white p-6 shadow-sm">

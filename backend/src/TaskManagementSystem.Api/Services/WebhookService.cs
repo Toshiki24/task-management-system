@@ -16,12 +16,15 @@ public class WebhookService : IWebhookService
     private readonly AppDbContext _dbContext;
     private readonly IGitProviderResolver _providers;
     private readonly IWebhookSecretResolver _secrets;
+    private readonly IGitLinkService _gitLinks;
 
-    public WebhookService(AppDbContext dbContext, IGitProviderResolver providers, IWebhookSecretResolver secrets)
+    public WebhookService(
+        AppDbContext dbContext, IGitProviderResolver providers, IWebhookSecretResolver secrets, IGitLinkService gitLinks)
     {
         _dbContext = dbContext;
         _providers = providers;
         _secrets = secrets;
+        _gitLinks = gitLinks;
     }
 
     public async Task<WebhookIngestOutcome> IngestAsync(
@@ -48,19 +51,20 @@ public class WebhookService : IWebhookService
             return new WebhookIngestOutcome(WebhookIngestResult.Ignored);
         }
 
-        // 対象の接続を「連携済みリポジトリ」から特定する(署名検証はこの接続の秘密で行う)
-        var connection = await _dbContext.RepositoryLinks
+        // 対象の連携リポジトリを特定する(署名検証はその接続の秘密で行う)
+        var link = await _dbContext.RepositoryLinks
             .Where(r => r.ExternalRepoId == gitEvent.Repo.ExternalRepoId
                 && r.GitConnection.Provider == provider.Key
                 && r.GitConnection.Status == GitConnectionStatus.Active)
-            .Select(r => r.GitConnection)
+            .Select(r => new { RepositoryLinkId = r.Id, r.ProjectId, Connection = r.GitConnection })
             .FirstOrDefaultAsync(ct);
-        if (connection is null)
+        if (link is null)
         {
             // 連携されていないリポジトリの Webhook は対象外(記録しない)
             return new WebhookIngestOutcome(WebhookIngestResult.Ignored);
         }
 
+        var connection = link.Connection;
         var secret = await _secrets.ResolveSigningSecretAsync(connection, ct);
         var verified = !string.IsNullOrEmpty(secret) && provider.VerifySignature(request, secret);
 
@@ -95,8 +99,20 @@ public class WebhookService : IWebhookService
             return new WebhookIngestOutcome(WebhookIngestResult.Duplicate);
         }
 
-        return new WebhookIngestOutcome(
-            verified ? WebhookIngestResult.Accepted : WebhookIngestResult.InvalidSignature);
+        if (!verified)
+        {
+            return new WebhookIngestOutcome(WebhookIngestResult.InvalidSignature);
+        }
+
+        // 署名検証済みの新規イベントを取り込む(task_git_links 作成・タイムライン。遷移は後続ステップ)
+        await _gitLinks.ApplyEventAsync(
+            new GitLinkContext(link.RepositoryLinkId, link.ProjectId, connection.WorkspaceId, provider.Key), gitEvent, ct);
+
+        record.Status = WebhookEventStatus.Processed;
+        record.ProcessedAt = DateTime.Now;
+        await _dbContext.SaveChangesAsync(ct);
+
+        return new WebhookIngestOutcome(WebhookIngestResult.Accepted);
     }
 
     /// <summary>一意制約違反(冪等キーの競合)かどうか。PostgreSQL のエラーコード 23505。</summary>
