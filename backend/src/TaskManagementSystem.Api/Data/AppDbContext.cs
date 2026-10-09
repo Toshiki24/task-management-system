@@ -28,6 +28,12 @@ public class AppDbContext : DbContext
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Cycle> Cycles => Set<Cycle>();
     public DbSet<Milestone> Milestones => Set<Milestone>();
+    public DbSet<GitConnection> GitConnections => Set<GitConnection>();
+    public DbSet<RepositoryLink> RepositoryLinks => Set<RepositoryLink>();
+    public DbSet<GitIdentity> GitIdentities => Set<GitIdentity>();
+    public DbSet<TaskGitLink> TaskGitLinks => Set<TaskGitLink>();
+    public DbSet<WebhookEvent> WebhookEvents => Set<WebhookEvent>();
+    public DbSet<TransitionRule> TransitionRules => Set<TransitionRule>();
     public DbSet<SavedView> SavedViews => Set<SavedView>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<TaskStatusHistory> TaskStatusHistories => Set<TaskStatusHistory>();
@@ -340,6 +346,190 @@ public class AppDbContext : DbContext
             entity.ToTable(tb => tb.HasCheckConstraint(
                 "chk_milestones_status",
                 "status IN ('OPEN', 'CLOSED')"));
+        });
+
+        // ============================================================
+        // Git 連携 (Phase 2 M4)
+        // ============================================================
+        modelBuilder.Entity<GitConnection>(entity =>
+        {
+            entity.ToTable("git_connections");
+
+            entity.Property(e => e.Provider).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.BaseUrl).HasMaxLength(300);
+            entity.Property(e => e.AuthType).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.SecretRef).HasMaxLength(300);
+            entity.Property(e => e.ExternalAccount).HasMaxLength(200);
+            entity.Property(e => e.Status).HasMaxLength(20).IsRequired().HasDefaultValue(GitConnectionStatus.Active);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.WorkspaceId).HasDatabaseName("idx_git_connections_workspace_id");
+            entity.HasIndex(e => new { e.WorkspaceId, e.Provider, e.ExternalAccount })
+                .IsUnique().HasDatabaseName("uq_git_connections_workspace_provider_account");
+
+            entity.HasOne(e => e.Workspace)
+                .WithMany()
+                .HasForeignKey(e => e.WorkspaceId)
+                .HasConstraintName("fk_git_connections_workspace")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(tb =>
+            {
+                tb.HasCheckConstraint("chk_git_connections_provider", "provider IN ('GITHUB', 'GITLAB')");
+                tb.HasCheckConstraint("chk_git_connections_auth_type",
+                    "auth_type IN ('GITHUB_APP', 'OAUTH', 'PAT', 'GROUP_TOKEN')");
+                tb.HasCheckConstraint("chk_git_connections_status",
+                    "status IN ('ACTIVE', 'DISABLED', 'ERROR')");
+            });
+        });
+
+        modelBuilder.Entity<RepositoryLink>(entity =>
+        {
+            entity.ToTable("repository_links");
+
+            entity.Property(e => e.ExternalRepoId).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.RepoFullName).HasMaxLength(300).IsRequired();
+            entity.Property(e => e.DefaultBranch).HasMaxLength(200);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.ProjectId).HasDatabaseName("idx_repository_links_project_id");
+            entity.HasIndex(e => new { e.GitConnectionId, e.ExternalRepoId })
+                .IsUnique().HasDatabaseName("uq_repository_links_connection_repo");
+
+            entity.HasOne(e => e.Project)
+                .WithMany()
+                .HasForeignKey(e => e.ProjectId)
+                .HasConstraintName("fk_repository_links_project")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.GitConnection)
+                .WithMany()
+                .HasForeignKey(e => e.GitConnectionId)
+                .HasConstraintName("fk_repository_links_connection")
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GitIdentity>(entity =>
+        {
+            entity.ToTable("git_identities");
+
+            entity.Property(e => e.Provider).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.ExternalUserId).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.ExternalUsername).HasMaxLength(200);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.WorkspaceId).HasDatabaseName("idx_git_identities_workspace_id");
+            entity.HasIndex(e => new { e.WorkspaceId, e.Provider, e.ExternalUserId })
+                .IsUnique().HasDatabaseName("uq_git_identities_workspace_provider_user");
+
+            entity.HasOne(e => e.Workspace)
+                .WithMany()
+                .HasForeignKey(e => e.WorkspaceId)
+                .HasConstraintName("fk_git_identities_workspace")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .HasConstraintName("fk_git_identities_user")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(tb => tb.HasCheckConstraint(
+                "chk_git_identities_provider", "provider IN ('GITHUB', 'GITLAB')"));
+        });
+
+        modelBuilder.Entity<TaskGitLink>(entity =>
+        {
+            entity.ToTable("task_git_links");
+
+            entity.Property(e => e.LinkType).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.ExternalRef).HasMaxLength(300).IsRequired();
+            entity.Property(e => e.Url).HasMaxLength(500);
+            entity.Property(e => e.Title).HasMaxLength(500);
+            entity.Property(e => e.State).HasMaxLength(20);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.TaskId).HasDatabaseName("idx_task_git_links_task_id");
+            entity.HasIndex(e => new { e.RepositoryLinkId, e.LinkType, e.ExternalRef })
+                .IsUnique().HasDatabaseName("uq_task_git_links_repo_type_ref");
+
+            entity.HasOne(e => e.Task)
+                .WithMany()
+                .HasForeignKey(e => e.TaskId)
+                .HasConstraintName("fk_task_git_links_task")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.RepositoryLink)
+                .WithMany()
+                .HasForeignKey(e => e.RepositoryLinkId)
+                .HasConstraintName("fk_task_git_links_repository_link")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(tb =>
+            {
+                tb.HasCheckConstraint("chk_task_git_links_type", "link_type IN ('BRANCH', 'PR', 'MR', 'COMMIT')");
+                tb.HasCheckConstraint("chk_task_git_links_state",
+                    "state IS NULL OR state IN ('OPEN', 'MERGED', 'CLOSED')");
+            });
+        });
+
+        modelBuilder.Entity<WebhookEvent>(entity =>
+        {
+            entity.ToTable("webhook_events");
+
+            entity.Property(e => e.Provider).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.ExternalEventId).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.EventType).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(20).IsRequired().HasDefaultValue(WebhookEventStatus.Received);
+            entity.Property(e => e.ReceivedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            // 冪等キー: 同一接続・同一配信IDの重複受信を 1 件に抑える
+            entity.HasIndex(e => new { e.GitConnectionId, e.ExternalEventId })
+                .IsUnique().HasDatabaseName("uq_webhook_events_connection_event");
+            entity.HasIndex(e => e.ReceivedAt).HasDatabaseName("idx_webhook_events_received_at");
+
+            entity.HasOne(e => e.GitConnection)
+                .WithMany()
+                .HasForeignKey(e => e.GitConnectionId)
+                .HasConstraintName("fk_webhook_events_connection")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(tb => tb.HasCheckConstraint(
+                "chk_webhook_events_status", "status IN ('RECEIVED', 'PROCESSED', 'SKIPPED', 'FAILED')"));
+        });
+
+        modelBuilder.Entity<TransitionRule>(entity =>
+        {
+            entity.ToTable("transition_rules");
+
+            entity.Property(e => e.Trigger).HasMaxLength(30).IsRequired();
+            entity.Property(e => e.ToStatusKey).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Enabled).HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.WorkspaceId).HasDatabaseName("idx_transition_rules_workspace_id");
+            entity.HasIndex(e => e.ProjectId).HasDatabaseName("idx_transition_rules_project_id");
+
+            entity.HasOne(e => e.Workspace)
+                .WithMany()
+                .HasForeignKey(e => e.WorkspaceId)
+                .HasConstraintName("fk_transition_rules_workspace")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Project)
+                .WithMany()
+                .HasForeignKey(e => e.ProjectId)
+                .HasConstraintName("fk_transition_rules_project")
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(tb => tb.HasCheckConstraint(
+                "chk_transition_rules_trigger",
+                "trigger IN ('BRANCH_CREATED', 'PR_OPENED', 'MR_OPENED', 'PR_MERGED', 'MR_MERGED')"));
         });
 
         // ============================================================

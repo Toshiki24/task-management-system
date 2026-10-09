@@ -24,6 +24,11 @@ public static class AuditActions
     public const string LabelCreated = "workspace.label.created";
     public const string LabelUpdated = "workspace.label.updated";
     public const string LabelDeleted = "workspace.label.deleted";
+    public const string GitConnectionCreated = "workspace.git_connection.created";
+    public const string GitConnectionUpdated = "workspace.git_connection.updated";
+    public const string GitConnectionDeleted = "workspace.git_connection.deleted";
+    public const string RepositoryLinkCreated = "project.repository_link.created";
+    public const string RepositoryLinkDeleted = "project.repository_link.deleted";
 }
 
 /// <summary>監査ログの対象種別。</summary>
@@ -35,6 +40,8 @@ public static class AuditTargets
     public const string Invitation = "invitation";
     public const string WorkflowState = "workflow_state";
     public const string Label = "label";
+    public const string GitConnection = "git_connection";
+    public const string RepositoryLink = "repository_link";
 }
 
 /// <summary>

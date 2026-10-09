@@ -9,6 +9,7 @@ import { Loading } from "@/components/common/Loading";
 import { Modal } from "@/components/common/Modal";
 import { ProjectForm } from "@/components/project/ProjectForm";
 import { ProjectMemberList } from "@/components/project/ProjectMemberList";
+import { RepositoryLinks } from "@/components/project/RepositoryLinks";
 import { apiFetch, formatApiErrorMessage } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { projectStatusLabel } from "@/lib/projectStatus";
@@ -139,6 +140,14 @@ export default function ProjectDetailPage() {
       <div className="rounded-lg bg-white p-6 shadow-sm">
         <h2 className="mb-4 text-base font-bold text-gray-900">メンバー</h2>
         <ProjectMemberList projectId={projectId} />
+      </div>
+
+      <div className="rounded-lg bg-white p-6 shadow-sm">
+        <h2 className="mb-1 text-base font-bold text-gray-900">連携リポジトリ</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          このプロジェクトに紐づく Git リポジトリです。連携の追加・解除はプロジェクト OWNER / ワークスペース管理者が行えます。
+        </p>
+        <RepositoryLinks projectId={projectId} workspaceId={project.workspaceId} />
       </div>
 
       <div className="rounded-lg bg-white p-6 shadow-sm">
