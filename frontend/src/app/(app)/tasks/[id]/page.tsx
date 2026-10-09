@@ -233,7 +233,7 @@ export default function TaskDetailPage() {
       </div>
 
       <div className="rounded-lg bg-white p-6 shadow-sm">
-        <TaskGitLinks taskId={taskId} />
+        <TaskGitLinks taskId={taskId} projectId={task.projectId} />
       </div>
 
       <div className="rounded-lg bg-white p-6 shadow-sm">
