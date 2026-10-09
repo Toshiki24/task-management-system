@@ -68,14 +68,58 @@ public class SystemController : ControllerBase
     }
 
     [HttpGet("audit-logs")]
-    public async Task<ActionResult<List<AuditLogDto>>> GetAuditLogs([FromQuery] int limit = 100)
+    public async Task<ActionResult<AuditLogPageDto>> GetAuditLogs(
+        [FromQuery] long? actorUserId = null,
+        [FromQuery] string? action = null,
+        [FromQuery] string? targetType = null,
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null,
+        [FromQuery] int offset = 0,
+        [FromQuery] int limit = 50)
     {
-        var logs = await _systemAdminService.GetAuditLogsAsync(this.GetCurrentUserId(), limit);
+        var query = new AuditLogQuery(actorUserId, action, targetType, from, to, offset, limit);
+        var logs = await _systemAdminService.GetAuditLogsAsync(this.GetCurrentUserId(), query);
         if (logs is null)
         {
             return this.ForbiddenError();
         }
 
         return Ok(logs);
+    }
+
+    [HttpGet("stats")]
+    public async Task<ActionResult<SystemStatsDto>> GetStats()
+    {
+        var stats = await _systemAdminService.GetStatsAsync(this.GetCurrentUserId());
+        if (stats is null)
+        {
+            return this.ForbiddenError();
+        }
+
+        return Ok(stats);
+    }
+
+    [HttpGet("workspaces")]
+    public async Task<ActionResult<List<AdminWorkspaceDto>>> GetWorkspaces()
+    {
+        var workspaces = await _systemAdminService.GetWorkspacesAsync(this.GetCurrentUserId());
+        if (workspaces is null)
+        {
+            return this.ForbiddenError();
+        }
+
+        return Ok(workspaces);
+    }
+
+    [HttpGet("users")]
+    public async Task<ActionResult<List<AdminUserDto>>> GetUsers()
+    {
+        var users = await _systemAdminService.GetUsersAsync(this.GetCurrentUserId());
+        if (users is null)
+        {
+            return this.ForbiddenError();
+        }
+
+        return Ok(users);
     }
 }

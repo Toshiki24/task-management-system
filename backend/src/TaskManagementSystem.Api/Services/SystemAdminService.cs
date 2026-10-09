@@ -9,6 +9,9 @@ public class SystemAdminService : ISystemAdminService
     // 監査ログ取得の最大件数(過大な取得を防ぐ)
     public const int MaxAuditLogLimit = 200;
 
+    // 「直近のアクティビティ数」の集計期間(日)
+    public const int RecentActivityDays = 7;
+
     private readonly AppDbContext _dbContext;
 
     public SystemAdminService(AppDbContext dbContext)
@@ -90,17 +93,50 @@ public class SystemAdminService : ISystemAdminService
         return RevokeSystemAdminResult.Success;
     }
 
-    public async Task<List<AuditLogDto>?> GetAuditLogsAsync(long currentUserId, int limit)
+    public async Task<AuditLogPageDto?> GetAuditLogsAsync(long currentUserId, AuditLogQuery query)
     {
         if (!await _dbContext.IsSystemAdminAsync(currentUserId))
         {
             return null;
         }
 
-        var take = Math.Clamp(limit, 1, MaxAuditLogLimit);
+        var take = Math.Clamp(query.Limit, 1, MaxAuditLogLimit);
+        var skip = Math.Max(query.Offset, 0);
 
-        return await _dbContext.AuditLogs
+        var logs = _dbContext.AuditLogs.AsQueryable();
+
+        if (query.ActorUserId is { } actorUserId)
+        {
+            logs = logs.Where(a => a.ActorUserId == actorUserId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Action))
+        {
+            logs = logs.Where(a => a.Action == query.Action);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.TargetType))
+        {
+            logs = logs.Where(a => a.TargetType == query.TargetType);
+        }
+
+        if (query.From is { } from)
+        {
+            var fromValue = DateTime.SpecifyKind(from, DateTimeKind.Unspecified);
+            logs = logs.Where(a => a.CreatedAt >= fromValue);
+        }
+
+        if (query.To is { } to)
+        {
+            var toValue = DateTime.SpecifyKind(to, DateTimeKind.Unspecified);
+            logs = logs.Where(a => a.CreatedAt <= toValue);
+        }
+
+        var total = await logs.CountAsync();
+
+        var items = await logs
             .OrderByDescending(a => a.Id)
+            .Skip(skip)
             .Take(take)
             .Select(a => new AuditLogDto(
                 a.Id,
@@ -112,6 +148,60 @@ public class SystemAdminService : ISystemAdminService
                 a.WorkspaceId,
                 a.Metadata,
                 a.CreatedAt))
+            .ToListAsync();
+
+        return new AuditLogPageDto(items, total);
+    }
+
+    public async Task<SystemStatsDto?> GetStatsAsync(long currentUserId)
+    {
+        if (!await _dbContext.IsSystemAdminAsync(currentUserId))
+        {
+            return null;
+        }
+
+        // DB は timestamp without time zone のため、比較パラメータは Unspecified にして送る
+        var since = DateTime.SpecifyKind(
+            DateTime.UtcNow.AddDays(-RecentActivityDays), DateTimeKind.Unspecified);
+
+        return new SystemStatsDto(
+            WorkspaceCount: await _dbContext.Workspaces.CountAsync(),
+            ProjectCount: await _dbContext.Projects.CountAsync(),
+            TaskCount: await _dbContext.Tasks.CountAsync(),
+            UserCount: await _dbContext.Users.CountAsync(),
+            SystemAdminCount: await _dbContext.Users.CountAsync(u => u.IsSystemAdmin),
+            RecentActivityCount: await _dbContext.Activities.CountAsync(a => a.CreatedAt >= since));
+    }
+
+    public async Task<List<AdminWorkspaceDto>?> GetWorkspacesAsync(long currentUserId)
+    {
+        if (!await _dbContext.IsSystemAdminAsync(currentUserId))
+        {
+            return null;
+        }
+
+        return await _dbContext.Workspaces
+            .OrderByDescending(w => w.Id)
+            .Select(w => new AdminWorkspaceDto(
+                w.Id,
+                w.Name,
+                w.Members.Count,
+                w.Projects.Count,
+                w.ArchivedAt != null,
+                w.CreatedAt))
+            .ToListAsync();
+    }
+
+    public async Task<List<AdminUserDto>?> GetUsersAsync(long currentUserId)
+    {
+        if (!await _dbContext.IsSystemAdminAsync(currentUserId))
+        {
+            return null;
+        }
+
+        return await _dbContext.Users
+            .OrderByDescending(u => u.Id)
+            .Select(u => new AdminUserDto(u.Id, u.Name, u.Email, u.IsSystemAdmin, u.CreatedAt))
             .ToListAsync();
     }
 }
