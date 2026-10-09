@@ -28,4 +28,16 @@ public class ProjectMetricsController : ControllerBase
 
         return Ok(metrics);
     }
+
+    [HttpGet("dev")]
+    public async Task<ActionResult<DevMetricsDto>> GetDev(long projectId, [FromQuery] int days = 30)
+    {
+        var metrics = await _service.GetProjectDevMetricsAsync(projectId, this.GetCurrentUserId(), days);
+        if (metrics is null)
+        {
+            return NotFound(new ErrorResponse("指定されたプロジェクトが存在しません。"));
+        }
+
+        return Ok(metrics);
+    }
 }

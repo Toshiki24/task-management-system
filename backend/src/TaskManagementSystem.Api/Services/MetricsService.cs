@@ -85,6 +85,102 @@ public class MetricsService : IMetricsService
         return new MetricsDto(total, doneCount, completionRate, overdueCount, statusCounts, assigneeLoads);
     }
 
+    public async Task<DevMetricsDto?> GetProjectDevMetricsAsync(long projectId, long currentUserId, int days)
+    {
+        var access = await _dbContext.ResolveAccessAsync(projectId, currentUserId);
+        if (access is null || !access.Value.CanView)
+        {
+            return null;
+        }
+
+        days = Math.Clamp(days, 1, 90);
+        var workspaceId = await _dbContext.Projects
+            .Where(p => p.Id == projectId).Select(p => p.WorkspaceId).FirstAsync();
+
+        // 状態キー→カテゴリ
+        var categoryByKey = await _dbContext.WorkflowStates
+            .Where(s => s.WorkspaceId == workspaceId)
+            .ToDictionaryAsync(s => s.Key, s => s.Category);
+
+        // プロジェクトのタスク作成時刻
+        var tasks = await _dbContext.Tasks
+            .Where(t => t.ProjectId == projectId)
+            .Select(t => new { t.Id, t.CreatedAt })
+            .ToListAsync();
+        var createdById = tasks.ToDictionary(t => t.Id, t => t.CreatedAt);
+
+        // 状態遷移の履歴(古い順)。IN_PROGRESS/DONE に初めて入った時刻を取り出す
+        var histories = await _dbContext.TaskStatusHistories
+            .Where(h => h.Task.ProjectId == projectId)
+            .OrderBy(h => h.CreatedAt).ThenBy(h => h.Id)
+            .Select(h => new { h.TaskId, h.ToStatus, h.CreatedAt })
+            .ToListAsync();
+
+        var firstInProgress = new Dictionary<long, DateTime>();
+        var firstDone = new Dictionary<long, DateTime>();
+        foreach (var h in histories)
+        {
+            if (!categoryByKey.TryGetValue(h.ToStatus, out var category))
+            {
+                continue;
+            }
+
+            if (category == WorkflowStateCategory.InProgress && !firstInProgress.ContainsKey(h.TaskId))
+            {
+                firstInProgress[h.TaskId] = h.CreatedAt;
+            }
+            else if (category == WorkflowStateCategory.Done && !firstDone.ContainsKey(h.TaskId))
+            {
+                firstDone[h.TaskId] = h.CreatedAt;
+            }
+        }
+
+        var today = DateOnly.FromDateTime(JstNow());
+        var from = today.AddDays(-(days - 1));
+
+        var cycleSamples = new List<double>();
+        var leadSamples = new List<double>();
+        var completedByDay = new Dictionary<DateOnly, int>();
+
+        foreach (var (taskId, doneAt) in firstDone)
+        {
+            var doneDate = JstDate(doneAt);
+            if (doneDate < from || doneDate > today)
+            {
+                continue; // 期間内に完了したタスクのみを対象にする
+            }
+
+            completedByDay[doneDate] = completedByDay.GetValueOrDefault(doneDate, 0) + 1;
+
+            if (firstInProgress.TryGetValue(taskId, out var inProgressAt) && doneAt >= inProgressAt)
+            {
+                cycleSamples.Add((doneAt - inProgressAt).TotalHours);
+            }
+
+            if (createdById.TryGetValue(taskId, out var createdAt) && doneAt >= createdAt)
+            {
+                leadSamples.Add((doneAt - createdAt).TotalHours);
+            }
+        }
+
+        // 期間の全日を 0 埋めで並べる(グラフが連続するように)
+        var throughput = Enumerable.Range(0, days)
+            .Select(offset => from.AddDays(offset))
+            .Select(date => new ThroughputPointDto(date, completedByDay.GetValueOrDefault(date, 0)))
+            .ToList();
+
+        return new DevMetricsDto(
+            days,
+            cycleSamples.Count == 0 ? null : Math.Round(cycleSamples.Average(), 1),
+            leadSamples.Count == 0 ? null : Math.Round(leadSamples.Average(), 1),
+            completedByDay.Values.Sum(),
+            throughput);
+    }
+
+    /// <summary>保存時刻(UTC 相当)を JST の日付に変換する。</summary>
+    private static DateOnly JstDate(DateTime utc) =>
+        DateOnly.FromDateTime(DateTime.SpecifyKind(utc, DateTimeKind.Utc).AddHours(9));
+
     private static DateTime JstNow()
     {
         try

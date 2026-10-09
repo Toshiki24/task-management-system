@@ -20,3 +20,16 @@ export interface Metrics {
   statusCounts: StatusCount[];
   assigneeLoads: AssigneeLoad[];
 }
+
+export interface ThroughputPoint {
+  date: string;
+  count: number;
+}
+
+export interface DevMetrics {
+  days: number;
+  avgCycleTimeHours: number | null;
+  avgLeadTimeHours: number | null;
+  completedInPeriod: number;
+  throughput: ThroughputPoint[];
+}

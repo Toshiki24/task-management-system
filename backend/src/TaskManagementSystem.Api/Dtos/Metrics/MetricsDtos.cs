@@ -14,3 +14,17 @@ public record MetricsDto(
     int OverdueCount,
     IReadOnlyList<StatusCountDto> StatusCounts,
     IReadOnlyList<AssigneeLoadDto> AssigneeLoads);
+
+/// <summary>日次のスループット(その日に完了へ遷移した件数)。</summary>
+public record ThroughputPointDto(DateOnly Date, int Count);
+
+/// <summary>
+/// 開発指標(M5 §2)。状態履歴から算出する。サンプルが無ければ平均は null。
+/// サイクルタイム=初めて IN_PROGRESS→初めて DONE、リードタイム=作成→初めて DONE。
+/// </summary>
+public record DevMetricsDto(
+    int Days,
+    double? AvgCycleTimeHours,
+    double? AvgLeadTimeHours,
+    int CompletedInPeriod,
+    IReadOnlyList<ThroughputPointDto> Throughput);

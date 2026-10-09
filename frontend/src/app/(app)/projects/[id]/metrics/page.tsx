@@ -6,18 +6,31 @@ import { useParams } from "next/navigation";
 import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
 import { apiFetch } from "@/lib/api";
-import type { Metrics } from "@/types/metrics";
+import type { DevMetrics, Metrics } from "@/types/metrics";
+
+/** 時間(h)を読みやすく整形する(24h 以上は「日」表記)。 */
+function formatHours(hours: number | null): string {
+  if (hours === null) return "—";
+  if (hours >= 24) return `${(hours / 24).toFixed(1)}日`;
+  return `${hours.toFixed(1)}時間`;
+}
 
 export default function ProjectMetricsPage() {
   const params = useParams<{ id: string }>();
   const projectId = params.id;
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [dev, setDev] = useState<DevMetrics | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch<Metrics>(`/projects/${projectId}/metrics`)
       .then(setMetrics)
       .catch(() => setError("指標の取得に失敗しました。"));
+    apiFetch<DevMetrics>(`/projects/${projectId}/metrics/dev?days=30`)
+      .then(setDev)
+      .catch(() => {
+        // 開発指標が取れなくても基本指標は表示する
+      });
   }, [projectId]);
 
   if (error) return <ErrorMessage message={error} />;
@@ -96,6 +109,33 @@ export default function ProjectMetricsPage() {
           </ul>
         )}
       </section>
+
+      {/* 開発指標 */}
+      {dev && (
+        <section className="rounded-lg bg-white p-6 shadow-sm">
+          <h2 className="mb-1 text-base font-semibold text-gray-900">開発指標（直近{dev.days}日）</h2>
+          <p className="mb-4 text-xs text-gray-500">状態履歴から算出します（履歴のあるタスクが対象）。</p>
+          <div className="mb-4 grid grid-cols-3 gap-4">
+            <Stat label="平均サイクルタイム" value={formatHours(dev.avgCycleTimeHours)} />
+            <Stat label="平均リードタイム" value={formatHours(dev.avgLeadTimeHours)} />
+            <Stat label="完了（期間内）" value={dev.completedInPeriod} />
+          </div>
+          <h3 className="mb-2 text-sm font-medium text-gray-700">日次スループット（完了数）</h3>
+          <div className="flex h-24 items-end gap-0.5" role="img" aria-label={`直近${dev.days}日の日次完了数`}>
+            {(() => {
+              const max = Math.max(1, ...dev.throughput.map((p) => p.count));
+              return dev.throughput.map((p) => (
+                <div
+                  key={p.date}
+                  title={`${p.date}: ${p.count}件`}
+                  className="flex-1 rounded-t bg-blue-500"
+                  style={{ height: `${(p.count / max) * 100}%`, minHeight: p.count > 0 ? "2px" : "0" }}
+                />
+              ));
+            })()}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
