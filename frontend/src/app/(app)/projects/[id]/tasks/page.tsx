@@ -13,6 +13,7 @@ import { SavedViewBar } from "@/components/task/SavedViewBar";
 import { TaskBoard } from "@/components/task/TaskBoard";
 import { TaskFilterBar, EMPTY_FILTERS, buildTaskQuery, type TaskFilters } from "@/components/task/TaskFilterBar";
 import { TaskForm } from "@/components/task/TaskForm";
+import { TaskImportModal } from "@/components/task/TaskImportModal";
 import { TaskList } from "@/components/task/TaskList";
 import { apiFetch } from "@/lib/api";
 import { fetchCurrentUser } from "@/lib/auth";
@@ -51,6 +52,7 @@ export default function ProjectTasksPage() {
   const [view, setView] = useState<"list" | "board" | "cycle" | "milestone">("list");
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
@@ -192,6 +194,9 @@ export default function ProjectTasksPage() {
           >
             CSV エクスポート
           </a>
+          <Button type="button" variant="secondary" onClick={() => setIsImportOpen(true)}>
+            CSV インポート
+          </Button>
           <Button type="button" onClick={() => setIsModalOpen(true)}>
             ＋ タスク追加
           </Button>
@@ -271,6 +276,13 @@ export default function ProjectTasksPage() {
           onReloadTasks={reloadTasks}
         />
       )}
+
+      <TaskImportModal
+        projectId={projectId}
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onImported={reloadTasks}
+      />
 
       <Modal
         isOpen={isModalOpen}
