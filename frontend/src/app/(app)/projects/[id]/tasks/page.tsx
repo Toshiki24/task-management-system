@@ -185,6 +185,13 @@ export default function ProjectTasksPage() {
               {bulkMode ? "一括操作を終了" : "一括操作"}
             </Button>
           )}
+          <a
+            href={`/api/bff/projects/${projectId}/tasks/export.csv`}
+            download={`tasks-${projectId}.csv`}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+          >
+            CSV エクスポート
+          </a>
           <Button type="button" onClick={() => setIsModalOpen(true)}>
             ＋ タスク追加
           </Button>
