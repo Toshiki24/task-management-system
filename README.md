@@ -63,7 +63,7 @@ AWS 上に本番環境を構築し、公開しています。構成・設定値�
 Phase 1（MVP）の公開後、**チーム利用**に向けて Phase 2 を開発しています。中心となるのは **ワークスペース（チーム/部署）単位の可視性・権限分離** です。設計は「要件定義 → ADR（方式決定）→ 基本設計」の順に固め、実装は**小さな単位の Pull Request** に分け、各PRで単体テスト・E2Eテストをグリーンにしてからマージしています。
 
 - **方式**: 1 インスタンス = 1 組織とし、ワークスペースを**可視性・権限の境界**にする（マルチテナントは採用しない）。ロールは 3 スコープ（**System Admin** ／ ワークスペース **Admin・Member・Viewer** ／ プロジェクト **OWNER・MEMBER**）。
-- **関連ドキュメント**: [Phase 2 要件定義](docs/phase2/requirements.md) ／ [ADR 0001 ワークスペース方式](docs/phase2/adr/0001-workspace-model.md) ／ [M1 基本設計](design/phase2/m1-workspace.md) ／ [M2 基本設計](design/phase2/m2-daily-ux.md) ／ [M3 基本設計](design/phase2/m3-collaboration.md) ／ [M4 基本設計](design/phase2/m4-git-integration.md)
+- **関連ドキュメント**: [Phase 2 要件定義](docs/phase2/requirements.md) ／ [ADR 0001 ワークスペース方式](docs/phase2/adr/0001-workspace-model.md) ／ [M1 基本設計](design/phase2/m1-workspace.md) ／ [M2 基本設計](design/phase2/m2-daily-ux.md) ／ [M3 基本設計](design/phase2/m3-collaboration.md) ／ [M4 基本設計](design/phase2/m4-git-integration.md) ／ [M5 基本設計](design/phase2/m5-visibility-ops.md)
 
 Phase 2 は、それぞれ**単体で完成・デモ可能**なマイルストーン（M0〜M5）に分割して進めます。実装順は固定で、まず **M1（ワークスペース境界と認可）** を全体へ通してから、その上に UX・協働・Git 連携・見える化を積み上げます。
 
@@ -76,7 +76,7 @@ Phase 2 は、それぞれ**単体で完成・デモ可能**なマイルスト�
 | **M2** | 日常 UX（カンバン、検索/フィルタ、My Tasks、サブタスク ほか） | ✅ 完了（全10ステップを実装・テスト・マージ） |
 | **M3** | 協働・通知・リアルタイム・計画（メンション、通知、サイクル ほか） | ✅ 完了（全10ステップを実装・テスト・マージ） |
 | **M4** | Git 連携（GitHub/GitLab・オンプレ・Webhook・自動遷移 ほか） | ✅ 完了（全9ステップを実装・テスト・マージ） |
-| **M5** | 見える化・運用・エンタープライズ（指標、配布2系統、SSO/MFA ほか） | ⬜ 未着手 |
+| **M5** | 見える化・運用・エンタープライズ（指標、配布2系統、SSO/MFA ほか） | 🚧 基本設計完了（[M5 基本設計](design/phase2/m5-visibility-ops.md)。実装はこれから） |
 
 到達目標は **M1〜M4** で開発チームが実用的に使える一通りを揃えること（M5 は余力に応じて）。マイルストーンの定義は [Phase 2 要件定義 §10](docs/phase2/requirements.md) を参照。
 
@@ -286,6 +286,7 @@ npm test
 | [M2 基本設計](design/phase2/m2-daily-ux.md) | カスタムワークフロー・カンバン・検索/保存ビュー・My Tasks・サブタスク/依存・一括操作・コマンドパレット（✅ 完了） |
 | [M3 基本設計](design/phase2/m3-collaboration.md) | コメント拡張/@メンション・ウォッチャー・アクティビティ・通知（アプリ内/メール/期限）・リアルタイム・計画（サイクル/バックログ/マイルストーン）（✅ 完了） |
 | [M4 基本設計](design/phase2/m4-git-integration.md) | Git 連携：プロバイダ抽象化（GitHub/GitLab/オンプレ）・接続と資格情報管理・Webhook（署名検証/冪等）・identity マッピング・双方向リンク・タスク自動遷移（✅ 完了） |
+| [M5 基本設計](design/phase2/m5-visibility-ops.md) | 見える化・運用・エンタープライズ：開発指標ダッシュボード・インポート/エクスポート・管理コンソール・MFA・SSO・自己ホスト配布・可観測性（🚧 基本設計） |
 
 ---
 
@@ -321,4 +322,4 @@ npm test
   - [x] M2 日常 UX（カスタムWF・カンバン・検索/保存ビュー・My Tasks・サブタスク/依存・一括操作・コマンドパレット）… ✅ 完了
   - [x] M3 協働・通知・リアルタイム・計画（アクティビティ・コメント拡張・@メンション・ウォッチャー・通知（アプリ内/メール/期限）・リアルタイム更新・サイクル/マイルストーン）… ✅ 完了
   - [x] M4 Git 連携（プロバイダ抽象化・接続/資格情報管理・Webhook・identity マッピング・双方向リンク・タスク自動遷移）… ✅ 完了
-  - [ ] M5 見える化・運用・エンタープライズ
+  - [ ] M5 見える化・運用・エンタープライズ（指標ダッシュボード・インポート/エクスポート・管理コンソール・MFA・SSO・自己ホスト配布・可観測性）… 🚧 基本設計完了（[M5 基本設計](design/phase2/m5-visibility-ops.md)。実装はこれから）
