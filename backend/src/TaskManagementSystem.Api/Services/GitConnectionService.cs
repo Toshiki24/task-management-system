@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TaskManagementSystem.Api.Data;
 using TaskManagementSystem.Api.Dtos.Git;
 using TaskManagementSystem.Api.Models;
+using TaskManagementSystem.Api.Services.Git;
 
 namespace TaskManagementSystem.Api.Services;
 
@@ -12,10 +13,12 @@ namespace TaskManagementSystem.Api.Services;
 public class GitConnectionService : IGitConnectionService
 {
     private readonly AppDbContext _dbContext;
+    private readonly IGitProviderResolver _providers;
 
-    public GitConnectionService(AppDbContext dbContext)
+    public GitConnectionService(AppDbContext dbContext, IGitProviderResolver providers)
     {
         _dbContext = dbContext;
+        _providers = providers;
     }
 
     public async Task<List<GitConnectionDto>?> GetByWorkspaceAsync(long workspaceId, long currentUserId)
@@ -146,6 +149,48 @@ public class GitConnectionService : IGitConnectionService
             connection.WorkspaceId, new { connection.Provider });
 
         return GitConnectionResult.Success;
+    }
+
+    public async Task<GitConnectionResult> TestAsync(long connectionId, long currentUserId)
+    {
+        var connection = await _dbContext.GitConnections.FirstOrDefaultAsync(c => c.Id == connectionId);
+        if (connection is null)
+        {
+            return GitConnectionResult.ConnectionNotFound;
+        }
+
+        var access = await _dbContext.ResolveWorkspaceAccessAsync(connection.WorkspaceId, currentUserId);
+        if (access is null || !access.Value.CanView)
+        {
+            return GitConnectionResult.ConnectionNotFound;
+        }
+
+        if (!access.Value.IsAdmin)
+        {
+            return GitConnectionResult.Forbidden;
+        }
+
+        var provider = _providers.Resolve(connection.Provider);
+        if (provider is null)
+        {
+            return GitConnectionResult.ProviderUnavailable;
+        }
+
+        // 疎通確認: リポジトリ一覧の取得を試み、成否で接続状態を更新する(M4 §4)
+        try
+        {
+            await provider.ListRepositoriesAsync(
+                new GitConnectionRef(connection.Id, connection.BaseUrl, connection.SecretRef));
+            connection.Status = GitConnectionStatus.Active;
+            await _dbContext.SaveChangesAsync();
+            return GitConnectionResult.Success;
+        }
+        catch
+        {
+            connection.Status = GitConnectionStatus.Error;
+            await _dbContext.SaveChangesAsync();
+            return GitConnectionResult.TestFailed;
+        }
     }
 
     private static string? Normalize(string? value) =>

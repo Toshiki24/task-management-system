@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TaskManagementSystem.Api.Dtos.Git;
 using TaskManagementSystem.Api.Models;
 using TaskManagementSystem.Api.Services;
+using TaskManagementSystem.Api.Services.Git;
 using TaskManagementSystem.Api.Tests.Infrastructure;
 
 namespace TaskManagementSystem.Api.Tests.Services;
@@ -13,6 +14,16 @@ public class GitConnectionServiceTests : IClassFixture<TestDatabaseFixture>
     public GitConnectionServiceTests(TestDatabaseFixture db)
     {
         _db = db;
+    }
+
+    private static GitConnectionService NewService(TaskManagementSystem.Api.Data.AppDbContext ctx)
+    {
+        var resolver = new GitProviderResolver(new IGitProvider[]
+        {
+            new FakeGitProvider(GitProvider.GitHub),
+            new FakeGitProvider(GitProvider.GitLab),
+        });
+        return new GitConnectionService(ctx, resolver);
     }
 
     private static CreateGitConnectionRequest CreateReq(
@@ -28,7 +39,7 @@ public class GitConnectionServiceTests : IClassFixture<TestDatabaseFixture>
         var member = await TestData.CreateUserAsync(ctx);
         await TestData.AddWorkspaceMemberAsync(ctx, workspace.Id, admin.Id, WorkspaceMemberRole.Admin);
         await TestData.AddWorkspaceMemberAsync(ctx, workspace.Id, member.Id, WorkspaceMemberRole.Member);
-        var service = new GitConnectionService(ctx);
+        var service = NewService(ctx);
 
         // 作成はメンバー不可、Admin は可
         Assert.Equal(GitConnectionResult.Forbidden,
@@ -50,7 +61,7 @@ public class GitConnectionServiceTests : IClassFixture<TestDatabaseFixture>
         var workspace = await TestData.CreateWorkspaceAsync(ctx);
         var admin = await TestData.CreateUserAsync(ctx);
         await TestData.AddWorkspaceMemberAsync(ctx, workspace.Id, admin.Id, WorkspaceMemberRole.Admin);
-        var service = new GitConnectionService(ctx);
+        var service = NewService(ctx);
 
         var created = (await service.CreateAsync(workspace.Id, CreateReq(), admin.Id)).Data!;
 
@@ -68,7 +79,7 @@ public class GitConnectionServiceTests : IClassFixture<TestDatabaseFixture>
         var workspace = await TestData.CreateWorkspaceAsync(ctx);
         var admin = await TestData.CreateUserAsync(ctx);
         await TestData.AddWorkspaceMemberAsync(ctx, workspace.Id, admin.Id, WorkspaceMemberRole.Admin);
-        var service = new GitConnectionService(ctx);
+        var service = NewService(ctx);
 
         Assert.Equal(GitConnectionResult.Success, (await service.CreateAsync(workspace.Id, CreateReq(), admin.Id)).Result);
         Assert.Equal(GitConnectionResult.Duplicate, (await service.CreateAsync(workspace.Id, CreateReq(), admin.Id)).Result);
@@ -81,7 +92,7 @@ public class GitConnectionServiceTests : IClassFixture<TestDatabaseFixture>
         var workspace = await TestData.CreateWorkspaceAsync(ctx);
         var admin = await TestData.CreateUserAsync(ctx);
         await TestData.AddWorkspaceMemberAsync(ctx, workspace.Id, admin.Id, WorkspaceMemberRole.Admin);
-        var service = new GitConnectionService(ctx);
+        var service = NewService(ctx);
         var created = (await service.CreateAsync(workspace.Id, CreateReq(), admin.Id)).Data!;
 
         var updated = await service.UpdateAsync(created.Id,
@@ -103,7 +114,7 @@ public class GitConnectionServiceTests : IClassFixture<TestDatabaseFixture>
         {
             var (project, owner) = await TestData.CreateProjectWithOwnerAsync(ctx);
             var workspaceId = project.WorkspaceId;
-            var connService = new GitConnectionService(ctx);
+            var connService = NewService(ctx);
             var conn = (await connService.CreateAsync(workspaceId, CreateReq(), owner.Id)).Data!;
             var linkService = new RepositoryLinkService(ctx);
             var link = (await linkService.CreateAsync(project.Id,
@@ -128,6 +139,26 @@ public class GitConnectionServiceTests : IClassFixture<TestDatabaseFixture>
         var workspace = await TestData.CreateWorkspaceAsync(ctx);
         var outsider = await TestData.CreateUserAsync(ctx);
 
-        Assert.Null(await new GitConnectionService(ctx).GetByWorkspaceAsync(workspace.Id, outsider.Id));
+        Assert.Null(await NewService(ctx).GetByWorkspaceAsync(workspace.Id, outsider.Id));
+    }
+
+    [Fact(DisplayName = "M4 疎通確認は WS Admin のみ、成功で状態が ACTIVE になる")]
+    public async Task Test_RequiresAdmin_UpdatesStatus()
+    {
+        await using var ctx = _db.CreateContext();
+        var workspace = await TestData.CreateWorkspaceAsync(ctx);
+        var admin = await TestData.CreateUserAsync(ctx);
+        var member = await TestData.CreateUserAsync(ctx);
+        await TestData.AddWorkspaceMemberAsync(ctx, workspace.Id, admin.Id, WorkspaceMemberRole.Admin);
+        await TestData.AddWorkspaceMemberAsync(ctx, workspace.Id, member.Id, WorkspaceMemberRole.Member);
+        var service = NewService(ctx);
+        var created = (await service.CreateAsync(workspace.Id, CreateReq(), admin.Id)).Data!;
+
+        Assert.Equal(GitConnectionResult.Forbidden, await service.TestAsync(created.Id, member.Id));
+
+        // Fake プロバイダはリポジトリ一覧を返すため疎通成功 → ACTIVE
+        Assert.Equal(GitConnectionResult.Success, await service.TestAsync(created.Id, admin.Id));
+        ctx.ChangeTracker.Clear();
+        Assert.Equal(GitConnectionStatus.Active, (await ctx.GitConnections.FindAsync(created.Id))!.Status);
     }
 }

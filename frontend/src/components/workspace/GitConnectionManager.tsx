@@ -37,6 +37,21 @@ export function GitConnectionManager({ workspaceId, canManage }: GitConnectionMa
   const [deleteTarget, setDeleteTarget] = useState<GitConnection | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [testingId, setTestingId] = useState<number | null>(null);
+
+  async function handleTest(connectionId: number) {
+    setError(null);
+    setTestingId(connectionId);
+    try {
+      await apiFetch(`/git-connections/${connectionId}/test`, { method: "POST" });
+      await reload();
+    } catch (err) {
+      setError(formatApiErrorMessage(err, "疎通確認に失敗しました。"));
+    } finally {
+      setTestingId(null);
+    }
+  }
+
   useEffect(() => {
     // 接続は WS Admin のみ参照できる。権限がなければ取得しない
     if (!canManage) {
@@ -120,14 +135,25 @@ export function GitConnectionManager({ workspaceId, canManage }: GitConnectionMa
                 </span>
                 {c.baseUrl && <span className="ml-2 truncate text-xs text-gray-400">{c.baseUrl}</span>}
               </div>
-              <button
-                type="button"
-                aria-label={`${GIT_PROVIDER_LABELS[c.provider]} ${c.externalAccount ?? ""} を削除`}
-                onClick={() => setDeleteTarget(c)}
-                className="shrink-0 text-red-600 hover:underline"
-              >
-                削除
-              </button>
+              <div className="flex shrink-0 items-center gap-3">
+                <button
+                  type="button"
+                  aria-label={`${GIT_PROVIDER_LABELS[c.provider]} ${c.externalAccount ?? ""} の疎通確認`}
+                  onClick={() => handleTest(c.id)}
+                  disabled={testingId === c.id}
+                  className="text-blue-600 hover:underline disabled:opacity-50"
+                >
+                  {testingId === c.id ? "確認中..." : "疎通確認"}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`${GIT_PROVIDER_LABELS[c.provider]} ${c.externalAccount ?? ""} を削除`}
+                  onClick={() => setDeleteTarget(c)}
+                  className="text-red-600 hover:underline"
+                >
+                  削除
+                </button>
+              </div>
             </li>
           ))}
         </ul>
