@@ -110,7 +110,21 @@ builder.Services.AddScoped<ICycleService, CycleService>();
 builder.Services.AddScoped<IMilestoneService, MilestoneService>();
 builder.Services.AddScoped<IGitConnectionService, GitConnectionService>();
 builder.Services.AddScoped<IRepositoryLinkService, RepositoryLinkService>();
+builder.Services.AddScoped<IWebhookService, WebhookService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
+
+// Git プロバイダ(M4)。本番用の GitHub/GitLab アダプタは §15 ステップ7/8 で差し替える。
+// 現状はテスト/ローカル用の FakeGitProvider を両プロバイダに割り当てる。
+builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Git.IGitProvider>(
+    _ => new TaskManagementSystem.Api.Services.Git.FakeGitProvider(TaskManagementSystem.Api.Models.GitProvider.GitHub));
+builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Git.IGitProvider>(
+    _ => new TaskManagementSystem.Api.Services.Git.FakeGitProvider(TaskManagementSystem.Api.Models.GitProvider.GitLab));
+builder.Services.AddSingleton<
+    TaskManagementSystem.Api.Services.Git.IGitProviderResolver,
+    TaskManagementSystem.Api.Services.Git.GitProviderResolver>();
+builder.Services.AddSingleton<
+    TaskManagementSystem.Api.Services.Git.IWebhookSecretResolver,
+    TaskManagementSystem.Api.Services.Git.DevWebhookSecretResolver>();
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
 // 鍵が未設定・短すぎる場合は、起動時にエラーにして気付けるようにする(security-review.md SEC-07)
@@ -246,8 +260,10 @@ if (originVerifySecrets.Count > 0)
 {
     app.Use(async (context, next) =>
     {
-        // 開発時の Swagger UI はブラウザから直接読み込むため対象外とする
-        if (!context.Request.Path.StartsWithSegments("/swagger"))
+        // 開発時の Swagger UI と、外部プロバイダが直接叩く Git Webhook は対象外とする。
+        // Webhook は BFF を経由せず署名で正当性を担保する(M4 §5)
+        if (!context.Request.Path.StartsWithSegments("/swagger")
+            && !context.Request.Path.StartsWithSegments("/api/git/webhooks"))
         {
             var provided = context.Request.Headers[OriginVerify.HeaderName].ToString();
             if (!OriginVerify.IsValid(provided, originVerifySecrets))

@@ -65,6 +65,9 @@ public interface IGitProvider
     /// <summary>Webhook の署名を検証する(方式はプロバイダごとに異なる)。</summary>
     bool VerifySignature(GitWebhookRequest request, string signingSecret);
 
+    /// <summary>Webhook の配信 ID(冪等キー)を取り出す。取得できなければ null。</summary>
+    string? GetDeliveryId(GitWebhookRequest request);
+
     /// <summary>Webhook ペイロードを共通イベントへ正規化する。対象外イベントは null。</summary>
     GitEvent? ParseEvent(GitWebhookRequest request);
 
