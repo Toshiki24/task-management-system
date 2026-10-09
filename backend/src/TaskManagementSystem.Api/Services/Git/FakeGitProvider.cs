@@ -48,6 +48,10 @@ public class FakeGitProvider : IGitProvider
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
+    /// <summary>ヘッダ "x-delivery-id" を冪等キーとして使う。</summary>
+    public string? GetDeliveryId(GitWebhookRequest request) =>
+        request.Headers.TryGetValue("x-delivery-id", out var id) && !string.IsNullOrWhiteSpace(id) ? id : null;
+
     public GitEvent? ParseEvent(GitWebhookRequest request)
     {
         JsonElement root;
