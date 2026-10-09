@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TaskManagementSystem.Api.Data;
 using TaskManagementSystem.Api.Dtos.Git;
+using TaskManagementSystem.Api.Dtos.Tasks;
 using TaskManagementSystem.Api.Models;
 using TaskManagementSystem.Api.Services.Git;
 
@@ -15,11 +16,19 @@ public class GitLinkService : IGitLinkService
 {
     private readonly AppDbContext _dbContext;
     private readonly IGitIdentityService _identities;
+    private readonly ITransitionRuleService _transitions;
+    private readonly ITaskService _tasks;
 
-    public GitLinkService(AppDbContext dbContext, IGitIdentityService identities)
+    public GitLinkService(
+        AppDbContext dbContext,
+        IGitIdentityService identities,
+        ITransitionRuleService transitions,
+        ITaskService tasks)
     {
         _dbContext = dbContext;
         _identities = identities;
+        _transitions = transitions;
+        _tasks = tasks;
     }
 
     public async Task<List<TaskGitLinkDto>?> GetByTaskAsync(long taskId, long currentUserId)
@@ -46,7 +55,7 @@ public class GitLinkService : IGitLinkService
             return 0;
         }
 
-        var (linkType, state, verb) = mapping.Value;
+        var (linkType, state, verb, trigger) = mapping.Value;
 
         // 参照(#123 / TASK-123)で指定されたタスクのうち、この連携リポジトリと同じプロジェクトのものだけを対象にする
         var hintedIds = gitEvent.TaskHints
@@ -111,20 +120,44 @@ public class GitLinkService : IGitLinkService
         }
 
         await _dbContext.SaveChangesAsync(ct);
+
+        // 自動遷移(M4 §8): actor が解決でき、トリガに対するルールがあれば状態を移す。
+        // 既存の Move を再利用し、履歴・アクティビティ・通知の副作用もそのまま効かせる。
+        if (actorUserId is { } actorForMove && trigger is not null)
+        {
+            var toStatus = await _transitions.ResolveToStatusAsync(context.ProjectId, context.WorkspaceId, trigger);
+            if (!string.IsNullOrEmpty(toStatus))
+            {
+                foreach (var taskId in taskIds)
+                {
+                    // 既に目的状態なら Move は何もしない(冪等)。権限が無ければ Move 側で弾かれる
+                    await _tasks.MoveAsync(taskId, new MoveTaskRequest(toStatus, null), actorForMove);
+                }
+            }
+        }
+
         return taskIds.Count;
     }
 
-    /// <summary>イベント種別→(リンク種別, PR/MR 状態, アクティビティ verb)。対象外は null。</summary>
-    private static (string LinkType, string? State, string Verb)? MapEvent(GitEventType type) => type switch
+    /// <summary>イベント種別→(リンク種別, PR/MR 状態, アクティビティ verb, 遷移トリガ)。対象外は null。</summary>
+    private static (string LinkType, string? State, string Verb, string? Trigger)? MapEvent(GitEventType type) => type switch
     {
-        GitEventType.BranchCreated => (GitLinkType.Branch, null, ActivityVerb.GitBranchCreated),
-        GitEventType.PrOpened => (GitLinkType.PullRequest, GitLinkState.Open, ActivityVerb.GitPrOpened),
-        GitEventType.PrMerged => (GitLinkType.PullRequest, GitLinkState.Merged, ActivityVerb.GitPrMerged),
-        GitEventType.PrClosed => (GitLinkType.PullRequest, GitLinkState.Closed, ActivityVerb.GitPrClosed),
-        GitEventType.MrOpened => (GitLinkType.MergeRequest, GitLinkState.Open, ActivityVerb.GitPrOpened),
-        GitEventType.MrMerged => (GitLinkType.MergeRequest, GitLinkState.Merged, ActivityVerb.GitPrMerged),
-        GitEventType.MrClosed => (GitLinkType.MergeRequest, GitLinkState.Closed, ActivityVerb.GitPrClosed),
-        GitEventType.Push => (GitLinkType.Commit, null, ActivityVerb.GitCommitLinked),
+        GitEventType.BranchCreated =>
+            (GitLinkType.Branch, null, ActivityVerb.GitBranchCreated, TransitionTrigger.BranchCreated),
+        GitEventType.PrOpened =>
+            (GitLinkType.PullRequest, GitLinkState.Open, ActivityVerb.GitPrOpened, TransitionTrigger.PrOpened),
+        GitEventType.PrMerged =>
+            (GitLinkType.PullRequest, GitLinkState.Merged, ActivityVerb.GitPrMerged, TransitionTrigger.PrMerged),
+        GitEventType.PrClosed =>
+            (GitLinkType.PullRequest, GitLinkState.Closed, ActivityVerb.GitPrClosed, null),
+        GitEventType.MrOpened =>
+            (GitLinkType.MergeRequest, GitLinkState.Open, ActivityVerb.GitPrOpened, TransitionTrigger.MrOpened),
+        GitEventType.MrMerged =>
+            (GitLinkType.MergeRequest, GitLinkState.Merged, ActivityVerb.GitPrMerged, TransitionTrigger.MrMerged),
+        GitEventType.MrClosed =>
+            (GitLinkType.MergeRequest, GitLinkState.Closed, ActivityVerb.GitPrClosed, null),
+        GitEventType.Push =>
+            (GitLinkType.Commit, null, ActivityVerb.GitCommitLinked, null),
         _ => null,
     };
 }

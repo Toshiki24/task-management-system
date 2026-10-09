@@ -6,6 +6,7 @@ import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
 import { GitConnectionManager } from "@/components/workspace/GitConnectionManager";
 import { GitIdentityManager } from "@/components/workspace/GitIdentityManager";
+import { TransitionRuleEditor } from "@/components/workspace/TransitionRuleEditor";
 import { LabelManager } from "@/components/workspace/LabelManager";
 import { WorkflowStates } from "@/components/workspace/WorkflowStates";
 import { WorkspaceInvite } from "@/components/workspace/WorkspaceInvite";
@@ -100,6 +101,14 @@ export default function WorkspaceSettingsPage({
           Git のユーザーをメンバーに対応付けると、Git の操作が正しい担当者に紐づきます。{canManage ? "追加・削除ができます。" : "変更はワークスペース管理者(ADMIN)のみ可能です。"}
         </p>
         <GitIdentityManager workspaceId={workspaceId} canManage={canManage} />
+      </section>
+
+      <section className="mt-6 rounded-lg bg-white p-6 shadow-sm">
+        <h2 className="mb-1 text-base font-semibold text-gray-900">Git 自動遷移ルール</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          Git の操作（ブランチ作成・PR/MR 作成やマージ）でタスクの状態を自動的に変更します。{canManage ? "トリガごとに遷移先を設定してください。" : "変更はワークスペース管理者(ADMIN)のみ可能です。"}
+        </p>
+        <TransitionRuleEditor workspaceId={workspaceId} canManage={canManage} />
       </section>
     </div>
   );

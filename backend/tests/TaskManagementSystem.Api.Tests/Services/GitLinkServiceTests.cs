@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TaskManagementSystem.Api.Dtos.Git;
 using TaskManagementSystem.Api.Models;
 using TaskManagementSystem.Api.Services;
 using TaskManagementSystem.Api.Services.Git;
@@ -16,7 +17,7 @@ public class GitLinkServiceTests : IClassFixture<TestDatabaseFixture>
     }
 
     private static GitLinkService NewService(TaskManagementSystem.Api.Data.AppDbContext ctx) =>
-        new(ctx, new GitIdentityService(ctx));
+        new(ctx, new GitIdentityService(ctx), new TransitionRuleService(ctx), new TaskService(ctx));
 
     private static async Task<(long repoLinkId, long projectId, long workspaceId, TaskItem task, User owner)>
         SetupAsync(TaskManagementSystem.Api.Data.AppDbContext ctx)
@@ -133,6 +134,48 @@ public class GitLinkServiceTests : IClassFixture<TestDatabaseFixture>
 
         Assert.True(await ctx.TaskGitLinks.AnyAsync(l => l.TaskId == task.Id));
         Assert.False(await ctx.Activities.AnyAsync(a => a.TaskId == task.Id && a.Verb == ActivityVerb.GitPrMerged));
+    }
+
+    [Fact(DisplayName = "M4 自動遷移: ルールと actor があれば PR マージでタスクが完了へ移る")]
+    public async Task ApplyEvent_TransitionsTaskWhenRuleAndActor()
+    {
+        await using var ctx = _db.CreateContext();
+        var (repoLinkId, projectId, workspaceId, task, owner) = await SetupAsync(ctx);
+        ctx.GitIdentities.Add(new GitIdentity
+        {
+            WorkspaceId = workspaceId, UserId = owner.Id, Provider = GitProvider.GitHub, ExternalUserId = "gh-1",
+        });
+        await ctx.SaveChangesAsync();
+        // PR マージ → DONE の WS 既定ルール
+        await new TransitionRuleService(ctx).ReplaceWorkspaceAsync(workspaceId,
+            new PutTransitionRulesRequest(new() { new TransitionRuleInput(TransitionTrigger.PrMerged, "DONE", true) }),
+            owner.Id);
+        var service = NewService(ctx);
+
+        await service.ApplyEventAsync(
+            new GitLinkContext(repoLinkId, projectId, workspaceId, GitProvider.GitHub),
+            Event(GitEventType.PrMerged, "42", new[] { task.Id.ToString() }, new GitActor("gh-1", "octocat")));
+
+        ctx.ChangeTracker.Clear();
+        Assert.Equal("DONE", (await ctx.Tasks.FindAsync(task.Id))!.Status);
+    }
+
+    [Fact(DisplayName = "M4 自動遷移: actor 未マッピングなら遷移しない(状態は変わらない)")]
+    public async Task ApplyEvent_NoTransitionWhenActorUnmapped()
+    {
+        await using var ctx = _db.CreateContext();
+        var (repoLinkId, projectId, workspaceId, task, owner) = await SetupAsync(ctx);
+        await new TransitionRuleService(ctx).ReplaceWorkspaceAsync(workspaceId,
+            new PutTransitionRulesRequest(new() { new TransitionRuleInput(TransitionTrigger.PrMerged, "DONE", true) }),
+            owner.Id);
+        var service = NewService(ctx);
+
+        await service.ApplyEventAsync(
+            new GitLinkContext(repoLinkId, projectId, workspaceId, GitProvider.GitHub),
+            Event(GitEventType.PrMerged, "42", new[] { task.Id.ToString() }, new GitActor("unmapped", "ghost")));
+
+        ctx.ChangeTracker.Clear();
+        Assert.Equal("TODO", (await ctx.Tasks.FindAsync(task.Id))!.Status);
     }
 
     [Fact(DisplayName = "M4 リンク一覧は CanView、非所属は null")]
