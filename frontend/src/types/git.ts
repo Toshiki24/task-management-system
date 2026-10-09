@@ -54,6 +54,32 @@ export interface GitIdentityRequestBody {
   externalUsername?: string | null;
 }
 
+export type GitLinkType = "BRANCH" | "PR" | "MR" | "COMMIT";
+export type GitLinkState = "OPEN" | "MERGED" | "CLOSED";
+
+export interface TaskGitLink {
+  id: number;
+  taskId: number;
+  linkType: GitLinkType;
+  externalRef: string;
+  url: string | null;
+  title: string | null;
+  state: GitLinkState | null;
+}
+
+export const GIT_LINK_TYPE_LABELS: Record<GitLinkType, string> = {
+  BRANCH: "ブランチ",
+  PR: "プルリクエスト",
+  MR: "マージリクエスト",
+  COMMIT: "コミット",
+};
+
+export const GIT_LINK_STATE_LABELS: Record<GitLinkState, string> = {
+  OPEN: "オープン",
+  MERGED: "マージ済み",
+  CLOSED: "クローズ",
+};
+
 export const GIT_PROVIDER_LABELS: Record<GitProvider, string> = {
   GITHUB: "GitHub",
   GITLAB: "GitLab",

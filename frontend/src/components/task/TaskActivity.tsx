@@ -37,6 +37,16 @@ export function TaskActivity({ taskId, statusLabels = {} }: TaskActivityProps) {
       }
       case "COMMENTED":
         return "がコメントしました";
+      case "GIT_BRANCH_CREATED":
+        return `がブランチ ${(p.ref as string) ?? ""} を作成しました`;
+      case "GIT_PR_OPENED":
+        return "が PR/MR を作成しました";
+      case "GIT_PR_MERGED":
+        return "が PR/MR をマージしました";
+      case "GIT_PR_CLOSED":
+        return "が PR/MR をクローズしました";
+      case "GIT_COMMIT_LINKED":
+        return "がコミットを紐づけました";
       default:
         return "が操作しました";
     }

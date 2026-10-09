@@ -270,7 +270,8 @@ public class AppDbContext : DbContext
 
             entity.ToTable(tb => tb.HasCheckConstraint(
                 "chk_activities_verb",
-                "verb IN ('CREATED', 'UPDATED', 'MOVED', 'COMMENTED')"));
+                "verb IN ('CREATED', 'UPDATED', 'MOVED', 'COMMENTED', " +
+                "'GIT_BRANCH_CREATED', 'GIT_PR_OPENED', 'GIT_PR_MERGED', 'GIT_PR_CLOSED', 'GIT_COMMIT_LINKED')"));
         });
 
         // ============================================================

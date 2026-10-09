@@ -24,7 +24,8 @@ public class WebhookServiceTests : IClassFixture<TestDatabaseFixture>
             new FakeGitProvider(GitProvider.GitHub),
             new FakeGitProvider(GitProvider.GitLab),
         });
-        return new WebhookService(ctx, resolver, new DevWebhookSecretResolver());
+        var gitLinks = new GitLinkService(ctx, new GitIdentityService(ctx));
+        return new WebhookService(ctx, resolver, new DevWebhookSecretResolver(), gitLinks);
     }
 
     /// <summary>
@@ -83,7 +84,8 @@ public class WebhookServiceTests : IClassFixture<TestDatabaseFixture>
         Assert.Equal(WebhookIngestResult.Accepted, outcome.Result);
         var ev = await ctx.WebhookEvents.SingleAsync(e => e.GitConnectionId == conn.Id);
         Assert.True(ev.SignatureVerified);
-        Assert.Equal(WebhookEventStatus.Received, ev.Status);
+        // 取り込み処理まで完了するため PROCESSED(M4 §7)
+        Assert.Equal(WebhookEventStatus.Processed, ev.Status);
         Assert.Equal("d-1", ev.ExternalEventId);
     }
 

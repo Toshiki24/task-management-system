@@ -7,6 +7,12 @@ public static class ActivityVerb
     public const string Updated = "UPDATED";
     public const string Moved = "MOVED";
     public const string Commented = "COMMENTED";
+    // Git 連携(Phase 2 M4 §7)
+    public const string GitBranchCreated = "GIT_BRANCH_CREATED";
+    public const string GitPrOpened = "GIT_PR_OPENED";
+    public const string GitPrMerged = "GIT_PR_MERGED";
+    public const string GitPrClosed = "GIT_PR_CLOSED";
+    public const string GitCommitLinked = "GIT_COMMIT_LINKED";
 }
 
 /// <summary>

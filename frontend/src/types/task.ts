@@ -64,7 +64,16 @@ export interface MoveTaskBody {
 }
 
 /** アクティビティ(タスクの活動履歴。M3 §5)。payload は種別ごとの付加情報。 */
-export type ActivityVerb = "CREATED" | "UPDATED" | "MOVED" | "COMMENTED";
+export type ActivityVerb =
+  | "CREATED"
+  | "UPDATED"
+  | "MOVED"
+  | "COMMENTED"
+  | "GIT_BRANCH_CREATED"
+  | "GIT_PR_OPENED"
+  | "GIT_PR_MERGED"
+  | "GIT_PR_CLOSED"
+  | "GIT_COMMIT_LINKED";
 
 export interface Activity {
   id: number;
