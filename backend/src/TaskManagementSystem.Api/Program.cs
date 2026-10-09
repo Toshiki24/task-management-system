@@ -108,6 +108,8 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IDueNotificationService, DueNotificationService>();
 builder.Services.AddScoped<ICycleService, CycleService>();
 builder.Services.AddScoped<IMilestoneService, MilestoneService>();
+builder.Services.AddScoped<IGitConnectionService, GitConnectionService>();
+builder.Services.AddScoped<IRepositoryLinkService, RepositoryLinkService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
