@@ -17,5 +17,7 @@ test.describe("7.35 SCR-035 ダッシュボード (M5)", () => {
     await expect(page.getByText("50%")).toBeVisible();
     await expect(page.getByRole("heading", { name: "状態別の件数" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "担当別の負荷" })).toBeVisible();
+    // 開発指標セクション(直近30日)
+    await expect(page.getByRole("heading", { name: "開発指標（直近30日）" })).toBeVisible();
   });
 });

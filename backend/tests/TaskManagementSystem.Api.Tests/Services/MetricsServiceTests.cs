@@ -97,4 +97,66 @@ public class MetricsServiceTests : IClassFixture<TestDatabaseFixture>
 
         Assert.Null(await new MetricsService(ctx).GetProjectMetricsAsync(project.Id, outsider.Id));
     }
+
+    private static void AddHistory(
+        TaskManagementSystem.Api.Data.AppDbContext ctx, long taskId, long changedBy, string toStatus, DateTime at)
+    {
+        ctx.TaskStatusHistories.Add(new TaskStatusHistory
+        {
+            TaskId = taskId,
+            ChangedBy = changedBy,
+            ToStatus = toStatus,
+            CreatedAt = at, // Kind=Unspecified(timestamp without time zone)
+        });
+    }
+
+    [Fact(DisplayName = "M5 開発指標: 履歴からサイクル/リードタイムとスループットを算出する")]
+    public async Task DevMetrics_FromHistory()
+    {
+        await using var ctx = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(ctx);
+        // 直近に完了したタスク。作成→+4h で着手→+12h で完了(サイクル8h・リード12h)
+        var baseAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(-20), DateTimeKind.Unspecified);
+        var task = new TaskItem { ProjectId = project.Id, Title = TestData.Unique("task"), Status = "DONE", CreatedAt = baseAt };
+        ctx.Tasks.Add(task);
+        await ctx.SaveChangesAsync();
+        AddHistory(ctx, task.Id, owner.Id, "IN_PROGRESS", baseAt.AddHours(4));
+        AddHistory(ctx, task.Id, owner.Id, "DONE", baseAt.AddHours(12));
+        await ctx.SaveChangesAsync();
+
+        var m = await new MetricsService(ctx).GetProjectDevMetricsAsync(project.Id, owner.Id, 30);
+
+        Assert.NotNull(m);
+        Assert.Equal(30, m!.Days);
+        Assert.Equal(8.0, m.AvgCycleTimeHours);
+        Assert.Equal(12.0, m.AvgLeadTimeHours);
+        Assert.Equal(1, m.CompletedInPeriod);
+        Assert.Equal(30, m.Throughput.Count); // 期間の全日が 0 埋めで並ぶ
+        Assert.Equal(1, m.Throughput.Sum(p => p.Count));
+    }
+
+    [Fact(DisplayName = "M5 開発指標: 履歴が無ければ平均は null・スループットは 0")]
+    public async Task DevMetrics_NoHistory()
+    {
+        await using var ctx = _db.CreateContext();
+        var (project, owner) = await TestData.CreateProjectWithOwnerAsync(ctx);
+        await AddTaskAsync(ctx, project.Id, "TODO");
+
+        var m = await new MetricsService(ctx).GetProjectDevMetricsAsync(project.Id, owner.Id, 14);
+
+        Assert.Null(m!.AvgCycleTimeHours);
+        Assert.Null(m.AvgLeadTimeHours);
+        Assert.Equal(0, m.CompletedInPeriod);
+        Assert.Equal(14, m.Throughput.Count);
+    }
+
+    [Fact(DisplayName = "M5 開発指標: 非所属ユーザーには開示しない(null)")]
+    public async Task DevMetrics_NonMember_Null()
+    {
+        await using var ctx = _db.CreateContext();
+        var (project, _) = await TestData.CreateProjectWithOwnerAsync(ctx);
+        var outsider = await TestData.CreateUserAsync(ctx);
+
+        Assert.Null(await new MetricsService(ctx).GetProjectDevMetricsAsync(project.Id, outsider.Id, 30));
+    }
 }
