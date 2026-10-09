@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { Loading } from "@/components/common/Loading";
 import { GitConnectionManager } from "@/components/workspace/GitConnectionManager";
+import { GitIdentityManager } from "@/components/workspace/GitIdentityManager";
 import { LabelManager } from "@/components/workspace/LabelManager";
 import { WorkflowStates } from "@/components/workspace/WorkflowStates";
 import { WorkspaceInvite } from "@/components/workspace/WorkspaceInvite";
@@ -91,6 +92,14 @@ export default function WorkspaceSettingsPage({
           GitHub / GitLab への接続です。{canManage ? "追加・削除ができます。資格情報はシークレットストアの参照のみを登録します。" : "変更はワークスペース管理者(ADMIN)のみ可能です。"}
         </p>
         <GitConnectionManager workspaceId={workspaceId} canManage={canManage} />
+      </section>
+
+      <section className="mt-6 rounded-lg bg-white p-6 shadow-sm">
+        <h2 className="mb-1 text-base font-semibold text-gray-900">Git ユーザー対応付け</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          Git のユーザーをメンバーに対応付けると、Git の操作が正しい担当者に紐づきます。{canManage ? "追加・削除ができます。" : "変更はワークスペース管理者(ADMIN)のみ可能です。"}
+        </p>
+        <GitIdentityManager workspaceId={workspaceId} canManage={canManage} />
       </section>
     </div>
   );
