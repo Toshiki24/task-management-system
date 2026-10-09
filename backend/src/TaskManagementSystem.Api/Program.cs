@@ -117,12 +117,22 @@ builder.Services.AddScoped<IGitActionService, GitActionService>();
 builder.Services.AddScoped<IWebhookService, WebhookService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 
-// Git プロバイダ(M4)。本番用の GitHub/GitLab アダプタは §15 ステップ7/8 で差し替える。
-// 現状はテスト/ローカル用の FakeGitProvider を両プロバイダに割り当てる。
-builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Git.IGitProvider>(
-    _ => new TaskManagementSystem.Api.Services.Git.FakeGitProvider(TaskManagementSystem.Api.Models.GitProvider.GitHub));
-builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Git.IGitProvider>(
-    _ => new TaskManagementSystem.Api.Services.Git.FakeGitProvider(TaskManagementSystem.Api.Models.GitProvider.GitLab));
+// Git プロバイダ(M4)。本番は実アダプタ(GitHub/GitLab)、本番以外はネットワークに出ない
+// FakeGitProvider を使う(ローカル・E2E はこちら)。self-managed GitLab はベース URL で切り替える(§15 ステップ8)。
+if (builder.Environment.IsProduction())
+{
+    builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Git.IGitProvider,
+        TaskManagementSystem.Api.Services.Git.GitHubProvider>();
+    builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Git.IGitProvider,
+        TaskManagementSystem.Api.Services.Git.GitLabProvider>();
+}
+else
+{
+    builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Git.IGitProvider>(
+        _ => new TaskManagementSystem.Api.Services.Git.FakeGitProvider(TaskManagementSystem.Api.Models.GitProvider.GitHub));
+    builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Git.IGitProvider>(
+        _ => new TaskManagementSystem.Api.Services.Git.FakeGitProvider(TaskManagementSystem.Api.Models.GitProvider.GitLab));
+}
 builder.Services.AddSingleton<
     TaskManagementSystem.Api.Services.Git.IGitProviderResolver,
     TaskManagementSystem.Api.Services.Git.GitProviderResolver>();
