@@ -24,7 +24,8 @@ public class WebhookServiceTests : IClassFixture<TestDatabaseFixture>
             new FakeGitProvider(GitProvider.GitHub),
             new FakeGitProvider(GitProvider.GitLab),
         });
-        var gitLinks = new GitLinkService(ctx, new GitIdentityService(ctx));
+        var gitLinks = new GitLinkService(
+            ctx, new GitIdentityService(ctx), new TransitionRuleService(ctx), new TaskService(ctx));
         return new WebhookService(ctx, resolver, new DevWebhookSecretResolver(), gitLinks);
     }
 

@@ -54,6 +54,30 @@ export interface GitIdentityRequestBody {
   externalUsername?: string | null;
 }
 
+export type TransitionTrigger = "BRANCH_CREATED" | "PR_OPENED" | "MR_OPENED" | "PR_MERGED" | "MR_MERGED";
+
+export interface TransitionRule {
+  id: number;
+  trigger: TransitionTrigger;
+  toStatusKey: string;
+  enabled: boolean;
+}
+
+export interface TransitionRuleInput {
+  trigger: TransitionTrigger;
+  toStatusKey: string;
+  enabled: boolean;
+}
+
+/** 表示順を兼ねたトリガの一覧とラベル。 */
+export const TRANSITION_TRIGGERS: { trigger: TransitionTrigger; label: string }[] = [
+  { trigger: "BRANCH_CREATED", label: "ブランチ作成時" },
+  { trigger: "PR_OPENED", label: "PR 作成時" },
+  { trigger: "PR_MERGED", label: "PR マージ時" },
+  { trigger: "MR_OPENED", label: "MR 作成時" },
+  { trigger: "MR_MERGED", label: "MR マージ時" },
+];
+
 export type GitLinkType = "BRANCH" | "PR" | "MR" | "COMMIT";
 export type GitLinkState = "OPEN" | "MERGED" | "CLOSED";
 
