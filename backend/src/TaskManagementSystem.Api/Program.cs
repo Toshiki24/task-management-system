@@ -235,6 +235,26 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 
 var app = builder.Build();
 
+// 自己ホスト配布(Docker Compose 等。M5 §8)向け: 起動時にEFマイグレーションを適用する(opt-in)。
+// AWS 本番では専用のマイグレーション Lambda を使うため既定では無効。EF マイグレーションは再実行しても安全。
+if (SelfHostStartup.ShouldRunMigrationsOnStartup(builder.Configuration))
+{
+    using var migrationScope = app.Services.CreateScope();
+    var migrationDb = migrationScope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await migrationDb.Database.MigrateAsync();
+
+    // 新規インストール向けに、設定されていれば初期 System Admin を冪等に投入する(M5 §8)。
+    // 自己ホストには登録APIが無いため、最初の管理者をここで用意する。以降のユーザー追加は招待フロー(M1)で行う。
+    var initialAdmin = SelfHostStartup.GetInitialAdmin(builder.Configuration);
+    if (initialAdmin is not null)
+    {
+        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
+        var admins = new[] { initialAdmin };
+        await DatabaseSeeder.SeedUsersAsync(connectionString, admins);
+        await DatabaseSeeder.SetupInitialOrganizationAsync(connectionString, admins);
+    }
+}
+
 // すべてのレスポンス(エラーを含む)にセキュリティヘッダーを付ける(security-review.md 5.5)。
 // 例外ハンドラーはレスポンスヘッダーを消去するため、送信直前(OnStarting)に設定する
 app.Use(async (context, next) =>
@@ -295,10 +315,12 @@ if (originVerifySecrets.Count > 0)
 {
     app.Use(async (context, next) =>
     {
-        // 開発時の Swagger UI と、外部プロバイダが直接叩く Git Webhook は対象外とする。
-        // Webhook は BFF を経由せず署名で正当性を担保する(M4 §5)
+        // 開発時の Swagger UI、外部プロバイダが直接叩く Git Webhook、ヘルスチェックは対象外とする。
+        // Webhook は BFF を経由せず署名で正当性を担保する(M4 §5)。
+        // /health はロードバランサ/コンテナのヘルスチェック用で秘密情報を返さない(M5 §8)
         if (!context.Request.Path.StartsWithSegments("/swagger")
-            && !context.Request.Path.StartsWithSegments("/api/git/webhooks"))
+            && !context.Request.Path.StartsWithSegments("/api/git/webhooks")
+            && !context.Request.Path.StartsWithSegments("/health"))
         {
             var provided = context.Request.Headers[OriginVerify.HeaderName].ToString();
             if (!OriginVerify.IsValid(provided, originVerifySecrets))
@@ -318,6 +340,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// ヘルスチェック(M5 §8)。認証・オリジン検証なしで到達でき、秘密情報は返さない。
+// コンテナ/ロードバランサの死活監視に使う。
+app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
 app.Run();
 

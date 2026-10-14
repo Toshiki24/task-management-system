@@ -1,0 +1,34 @@
+# 自己ホスト(Docker Compose など、AWS 非依存。M5 §8)向けの API イメージ。
+# Lambda 用の backend/Dockerfile とは異なり、Kestrel で直接 HTTP を待ち受ける通常の ASP.NET Core サーバーとして動かす。
+# ビルド: backend ディレクトリで `docker build -f Dockerfile.selfhost -t task-management-api:selfhost .`
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# 依存復元を先に行い、ソースだけ変えた場合はレイヤーキャッシュを使えるようにする
+COPY src/TaskManagementSystem.Api/TaskManagementSystem.Api.csproj src/TaskManagementSystem.Api/
+RUN dotnet restore src/TaskManagementSystem.Api/TaskManagementSystem.Api.csproj
+
+COPY src/TaskManagementSystem.Api/ src/TaskManagementSystem.Api/
+RUN dotnet publish src/TaskManagementSystem.Api/TaskManagementSystem.Api.csproj \
+    --configuration Release \
+    --no-restore \
+    --output /app/publish
+
+# 実行用はランタイムのみの軽量イメージ(SDK を含めない)
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+# コンテナのヘルスチェック(/health)用に curl を入れる
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /app/publish ./
+
+# コンテナ内では HTTP で待ち受け、TLS はリバースプロキシで終端する想定(自己ホスト手順書を参照)
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+
+# 非 root ユーザーで実行する
+USER $APP_UID
+
+ENTRYPOINT ["dotnet", "TaskManagementSystem.Api.dll"]

@@ -1,0 +1,84 @@
+# 自己ホスト配布(AWS 非依存。M5 §8)。
+# API + フロント/BFF + PostgreSQL を 1 コマンドで起動する構成。
+#
+#   cp .env.selfhost.example .env.selfhost
+#   # .env.selfhost の秘密情報(32文字以上)を設定してから:
+#   docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml up -d --build
+#
+# TLS はこの構成の前段に置くリバースプロキシ(Caddy/nginx/Traefik 等)で終端する想定。
+# セッション Cookie は本番で Secure 属性が付くため、web は HTTPS 経由で公開すること(手順書 docs/self-hosting.md 参照)。
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD を設定してください}
+      POSTGRES_DB: ${POSTGRES_DB:-task_management}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-task_management}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.selfhost
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # アプリ用DB接続。自己ホストでは単一ユーザーで運用する
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=${POSTGRES_DB:-task_management};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD}"
+      # 署名鍵・暗号鍵(32文字以上のランダム文字列)。Mfa__Key 未設定時は Jwt__Key を流用する
+      Jwt__Key: ${JWT_KEY:?JWT_KEY を設定してください}
+      Mfa__Key: ${MFA_KEY:-}
+      # BFF からの呼び出しを確認する共有シークレット(web 側の ORIGIN_VERIFY_SECRET と同じ値)
+      OriginVerify__Secret: ${ORIGIN_VERIFY_SECRET:?ORIGIN_VERIFY_SECRET を設定してください}
+      # 起動時にマイグレーションを適用する(自己ホスト向け。再実行しても安全)
+      RUN_MIGRATIONS_ON_STARTUP: "true"
+      # 初回起動時の初期 System Admin(任意。両方設定したときだけ冪等に作成)。
+      # 作成後はこの2つを外してよい。以降のユーザー追加は管理者による招待フロー(M1)で行う。
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      # BFF からバックエンドAPIへの内部URL(/api まで含める)
+      API_BASE_URL: "http://api:8080/api"
+      # セッション暗号化キー(32文字以上)
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET を設定してください}
+      # API と共有するオリジン検証シークレット
+      ORIGIN_VERIFY_SECRET: ${ORIGIN_VERIFY_SECRET}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  db_data:

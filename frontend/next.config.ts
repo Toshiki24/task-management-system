@@ -16,6 +16,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // 自己ホスト(Docker。M5 §8)向けに、依存を同梱した standalone 出力を任意で有効化する。
+  // Amplify などでは従来どおりの出力を使うため、環境変数での opt-in とする。
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   // E2Eテストでは開発サーバー(.next)と衝突しないよう、別の出力先でビルド・起動する
   distDir: process.env.NEXT_DIST_DIR || ".next",
   // 使用しているフレームワーク(X-Powered-By: Next.js)を外部に知らせない
