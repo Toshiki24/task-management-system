@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { formatApiErrorMessage } from "@/lib/api";
 import { login, verifyMfa } from "@/lib/auth";
+import { getSetupStatus } from "@/lib/setup";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,6 +15,19 @@ export default function LoginPage() {
   // MFA 有効ユーザーは、パスワード認証後にコード入力ステップへ進む
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [mfaCode, setMfaCode] = useState("");
+
+  // 初回セットアップ(管理者未作成)の場合はセットアップ画面へ誘導する(M5 §8)
+  useEffect(() => {
+    let cancelled = false;
+    getSetupStatus().then((status) => {
+      if (!cancelled && status === "required") {
+        router.replace("/setup");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
