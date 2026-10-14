@@ -13,8 +13,8 @@
     "report": "playwright show-report"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
-    "@types/node": "^26.6.4",
+    "@playwright/test": "^1.64.0",
+    "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",
     "bcryptjs": "^3.0.3",
     "pg": "^8.23.1",
