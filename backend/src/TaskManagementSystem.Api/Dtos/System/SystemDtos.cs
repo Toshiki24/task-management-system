@@ -39,11 +39,12 @@ public record AdminWorkspaceDto(
     DateTime CreatedAt
 );
 
-/// <summary>管理コンソールの全ユーザー一覧の 1 件。MFA は M5 §6 で追加予定。</summary>
+/// <summary>管理コンソールの全ユーザー一覧の 1 件。</summary>
 public record AdminUserDto(
     long Id,
     string Name,
     string Email,
     bool IsSystemAdmin,
+    bool IsMfaEnabled,
     DateTime CreatedAt
 );

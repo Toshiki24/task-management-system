@@ -41,9 +41,28 @@ public class AuthController : ControllerBase
                     StatusCodes.Status429TooManyRequests,
                     new ErrorResponse("ログインの試行回数が上限に達しました。しばらくしてから再度お試しください。"));
 
+            case LoginResult.MfaRequired:
+                // パスワード認証のみ成功。セッションはまだ発行せず、MFA 検証ステップへ誘導する
+                return Ok(new MfaChallengeResponse(true, outcome.MfaToken!));
+
             default:
                 return Ok(outcome.Data);
         }
+    }
+
+    /// <summary>ログインの MFA 検証ステップ。成功すると通常ログインと同じトークンを返す。</summary>
+    [HttpPost("mfa/verify")]
+    public async Task<ActionResult<LoginResponse>> VerifyMfa(MfaVerifyRequest request)
+    {
+        var outcome = await _authService.VerifyMfaAsync(request);
+        return outcome.Result switch
+        {
+            MfaVerifyResult.InvalidToken =>
+                Unauthorized(new ErrorResponse("認証の有効期限が切れました。もう一度ログインしてください。")),
+            MfaVerifyResult.InvalidCode =>
+                Unauthorized(new ErrorResponse("コードが正しくありません。")),
+            _ => Ok(outcome.Data),
+        };
     }
 
     /// <summary>リフレッシュトークンでアクセストークンを再発行する(リフレッシュトークンも新しいものに置き換わる)</summary>

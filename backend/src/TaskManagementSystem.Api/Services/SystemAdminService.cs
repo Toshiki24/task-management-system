@@ -201,7 +201,13 @@ public class SystemAdminService : ISystemAdminService
 
         return await _dbContext.Users
             .OrderByDescending(u => u.Id)
-            .Select(u => new AdminUserDto(u.Id, u.Name, u.Email, u.IsSystemAdmin, u.CreatedAt))
+            .Select(u => new AdminUserDto(
+                u.Id,
+                u.Name,
+                u.Email,
+                u.IsSystemAdmin,
+                _dbContext.UserMfas.Any(m => m.UserId == u.Id && m.IsEnabled),
+                u.CreatedAt))
             .ToListAsync();
     }
 }

@@ -477,6 +477,44 @@ namespace TaskManagementSystem.Api.Data.Migrations
                     b.ToTable("labels", (string)null);
                 });
 
+            modelBuilder.Entity("TaskManagementSystem.Api.Models.MfaRecoveryCode", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("code_hash");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("used_at");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_mfa_recovery_codes");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("idx_mfa_recovery_codes_user_id");
+
+                    b.ToTable("mfa_recovery_codes", (string)null);
+                });
+
             modelBuilder.Entity("TaskManagementSystem.Api.Models.Milestone", b =>
                 {
                     b.Property<long>("Id")
@@ -1431,6 +1469,46 @@ namespace TaskManagementSystem.Api.Data.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("TaskManagementSystem.Api.Models.UserMfa", b =>
+                {
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTime?>("ConfirmedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("confirmed_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_enabled");
+
+                    b.Property<string>("SecretCiphertext")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("secret_ciphertext");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("UserId")
+                        .HasName("pk_user_mfa");
+
+                    b.ToTable("user_mfa", (string)null);
+                });
+
             modelBuilder.Entity("TaskManagementSystem.Api.Models.WebhookEvent", b =>
                 {
                     b.Property<long>("Id")
@@ -1804,6 +1882,18 @@ namespace TaskManagementSystem.Api.Data.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("TaskManagementSystem.Api.Models.MfaRecoveryCode", b =>
+                {
+                    b.HasOne("TaskManagementSystem.Api.Models.UserMfa", "UserMfa")
+                        .WithMany("RecoveryCodes")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_mfa_recovery_codes_user_mfa");
+
+                    b.Navigation("UserMfa");
+                });
+
             modelBuilder.Entity("TaskManagementSystem.Api.Models.Milestone", b =>
                 {
                     b.HasOne("TaskManagementSystem.Api.Models.Project", "Project")
@@ -2133,6 +2223,18 @@ namespace TaskManagementSystem.Api.Data.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("TaskManagementSystem.Api.Models.UserMfa", b =>
+                {
+                    b.HasOne("TaskManagementSystem.Api.Models.User", "User")
+                        .WithOne()
+                        .HasForeignKey("TaskManagementSystem.Api.Models.UserMfa", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_user_mfa_user");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("TaskManagementSystem.Api.Models.WebhookEvent", b =>
                 {
                     b.HasOne("TaskManagementSystem.Api.Models.GitConnection", "GitConnection")
@@ -2221,6 +2323,11 @@ namespace TaskManagementSystem.Api.Data.Migrations
                     b.Navigation("TaskStatusHistories");
 
                     b.Navigation("WorkspaceMemberships");
+                });
+
+            modelBuilder.Entity("TaskManagementSystem.Api.Models.UserMfa", b =>
+                {
+                    b.Navigation("RecoveryCodes");
                 });
 
             modelBuilder.Entity("TaskManagementSystem.Api.Models.Workspace", b =>

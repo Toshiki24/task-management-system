@@ -21,6 +21,12 @@ export function Sidebar({ onLogout, isSystemAdmin = false }: SidebarProps) {
       >
         マイタスク
       </Link>
+      <Link
+        href="/me/security"
+        className="block rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+      >
+        セキュリティ設定
+      </Link>
       {isSystemAdmin && (
         <Link
           href="/admin"

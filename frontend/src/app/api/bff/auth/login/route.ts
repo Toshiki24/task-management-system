@@ -39,9 +39,17 @@ export async function POST(request: NextRequest) {
     return relayBackendResponse(response);
   }
 
-  const tokens: BackendTokenResponse = await response.json();
+  const body = (await response.json()) as BackendTokenResponse | { mfaRequired: true; mfaToken: string };
+
+  // MFA 有効ユーザーは、まだセッション(トークン)を発行しない。
+  // ブラウザには MFA 検証用の短命トークンだけを返し、コード入力ステップへ進ませる。
+  if ("mfaRequired" in body && body.mfaRequired) {
+    return NextResponse.json({ mfaRequired: true, mfaToken: body.mfaToken });
+  }
+
+  const tokens = body as BackendTokenResponse;
   const session = await getSession();
   await saveTokens(session, tokens);
 
-  return NextResponse.json({ user: tokens.user });
+  return NextResponse.json({ mfaRequired: false, user: tokens.user });
 }

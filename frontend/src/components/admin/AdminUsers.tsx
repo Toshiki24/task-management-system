@@ -52,6 +52,7 @@ export function AdminUsers({ currentUserId }: AdminUsersProps) {
               <th className="py-2 pr-3">名前</th>
               <th className="py-2 pr-3">メール</th>
               <th className="py-2 pr-3">権限</th>
+              <th className="py-2 pr-3">MFA</th>
               <th className="py-2 pr-3">登録日</th>
               <th className="py-2 pr-3">操作</th>
             </tr>
@@ -68,6 +69,13 @@ export function AdminUsers({ currentUserId }: AdminUsersProps) {
                     </span>
                   ) : (
                     <span className="text-xs text-gray-500">一般</span>
+                  )}
+                </td>
+                <td className="py-2 pr-3">
+                  {user.isMfaEnabled ? (
+                    <span className="text-xs text-green-700">有効</span>
+                  ) : (
+                    <span className="text-xs text-gray-400">無効</span>
                   )}
                 </td>
                 <td className="py-2 pr-3 text-gray-700">{formatDate(user.createdAt)}</td>
