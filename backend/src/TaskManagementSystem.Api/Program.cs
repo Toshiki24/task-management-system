@@ -94,6 +94,7 @@ builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
 builder.Services.AddScoped<IWorkspaceMemberService, WorkspaceMemberService>();
 builder.Services.AddScoped<IInvitationService, InvitationService>();
 builder.Services.AddScoped<ISystemAdminService, SystemAdminService>();
+builder.Services.AddScoped<ISetupService, SetupService>();
 builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Mfa.IMfaSecretProtector,
     TaskManagementSystem.Api.Services.Mfa.MfaSecretProtector>();
 builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Mfa.IMfaChallengeTokenService,
@@ -242,17 +243,7 @@ if (SelfHostStartup.ShouldRunMigrationsOnStartup(builder.Configuration))
     using var migrationScope = app.Services.CreateScope();
     var migrationDb = migrationScope.ServiceProvider.GetRequiredService<AppDbContext>();
     await migrationDb.Database.MigrateAsync();
-
-    // 新規インストール向けに、設定されていれば初期 System Admin を冪等に投入する(M5 §8)。
-    // 自己ホストには登録APIが無いため、最初の管理者をここで用意する。以降のユーザー追加は招待フロー(M1)で行う。
-    var initialAdmin = SelfHostStartup.GetInitialAdmin(builder.Configuration);
-    if (initialAdmin is not null)
-    {
-        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
-        var admins = new[] { initialAdmin };
-        await DatabaseSeeder.SeedUsersAsync(connectionString, admins);
-        await DatabaseSeeder.SetupInitialOrganizationAsync(connectionString, admins);
-    }
+    // 初回管理者はスキーマ適用とは分離し、セットアップ画面(SELF_HOST_SETUP=true)から作成する。
 }
 
 // すべてのレスポンス(エラーを含む)にセキュリティヘッダーを付ける(security-review.md 5.5)。

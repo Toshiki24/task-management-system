@@ -23,35 +23,18 @@ public class SelfHostStartupTests
         Assert.Equal(expected, SelfHostStartup.ShouldRunMigrationsOnStartup(config));
     }
 
-    [Fact(DisplayName = "SEED_ADMIN は EMAIL と PASSWORD の両方が揃ったときだけ返る")]
-    public void GetInitialAdmin_RequiresEmailAndPassword()
+    [Fact(DisplayName = "SELF_HOST_SETUP 未設定なら無効(既定 false)")]
+    public void IsSetupEnabled_DefaultsToFalse()
     {
-        Assert.Null(SelfHostStartup.GetInitialAdmin(Config(new())));
-        Assert.Null(SelfHostStartup.GetInitialAdmin(Config(new() { ["SEED_ADMIN_EMAIL"] = "a@example.com" })));
-        Assert.Null(SelfHostStartup.GetInitialAdmin(Config(new() { ["SEED_ADMIN_PASSWORD"] = "pw" })));
+        Assert.False(SelfHostStartup.IsSetupEnabled(Config(new())));
     }
 
-    [Fact(DisplayName = "SEED_ADMIN は System Admin として作られ、名前は既定値を補う")]
-    public void GetInitialAdmin_BuildsSystemAdmin()
+    [Theory(DisplayName = "SELF_HOST_SETUP は true のときだけ有効")]
+    [InlineData("true", true)]
+    [InlineData("false", false)]
+    public void IsSetupEnabled_ParsesValue(string value, bool expected)
     {
-        var admin = SelfHostStartup.GetInitialAdmin(Config(new()
-        {
-            ["SEED_ADMIN_EMAIL"] = "admin@example.com",
-            ["SEED_ADMIN_PASSWORD"] = "strong-password",
-        }));
-
-        Assert.NotNull(admin);
-        Assert.Equal("admin@example.com", admin!.Email);
-        Assert.Equal("strong-password", admin.Password);
-        Assert.True(admin.IsSystemAdmin);
-        Assert.False(string.IsNullOrWhiteSpace(admin.Name)); // 既定名で補完
-
-        var named = SelfHostStartup.GetInitialAdmin(Config(new()
-        {
-            ["SEED_ADMIN_EMAIL"] = "admin@example.com",
-            ["SEED_ADMIN_PASSWORD"] = "strong-password",
-            ["SEED_ADMIN_NAME"] = "管理者",
-        }));
-        Assert.Equal("管理者", named!.Name);
+        var config = Config(new() { ["SELF_HOST_SETUP"] = value });
+        Assert.Equal(expected, SelfHostStartup.IsSetupEnabled(config));
     }
 }

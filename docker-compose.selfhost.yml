@@ -43,11 +43,9 @@ services:
       OriginVerify__Secret: ${ORIGIN_VERIFY_SECRET:?ORIGIN_VERIFY_SECRET を設定してください}
       # 起動時にマイグレーションを適用する(自己ホスト向け。再実行しても安全)
       RUN_MIGRATIONS_ON_STARTUP: "true"
-      # 初回起動時の初期 System Admin(任意。両方設定したときだけ冪等に作成)。
-      # 作成後はこの2つを外してよい。以降のユーザー追加は管理者による招待フロー(M1)で行う。
-      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
-      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-}
+      # 初回セットアップ(初回管理者をセットアップ画面から作成)を有効化する。
+      # AWS 本番ではこのフラグを設定しないため、セットアップ用エンドポイントは無効(404)。
+      SELF_HOST_SETUP: "true"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
       interval: 10s
@@ -72,7 +70,9 @@ services:
       # API と共有するオリジン検証シークレット
       ORIGIN_VERIFY_SECRET: ${ORIGIN_VERIFY_SECRET}
     ports:
-      - "${WEB_PORT:-3000}:3000"
+      # 既定ではローカルホストのみに公開する。外部公開はリバースプロキシ(TLS終端)経由で行う。
+      # 初回セットアップ(管理者作成)が完了するまでは外部に公開しないこと(手順書参照)。
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 10s
