@@ -70,15 +70,22 @@ docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml ps
 > セットアップは「ユーザーが1人も居ないとき」だけ有効で、作成後は `/setup` を開いても何も作成できません（サーバー側で保証）。
 > `SELF_HOST_SETUP` は compose 側で有効化済みです。AWS 本番ではこのフラグを設定しないため、セットアップ機能は無効になります。
 
-## 5. ヘルスチェック
+## 5. ヘルスチェック・可観測性
 
-- API: `GET /health` が `{"status":"ok"}` を返します（認証・オリジン検証なしで到達可能、秘密情報なし）。
-- Compose の healthcheck で `api`（curl）と `web`（Node fetch で `/login`）の死活を監視します。
+- API: `GET /health` は**DB 接続とマイグレーション状態**を確認し、JSON で状態を返します（認証・オリジン検証なしで到達可能、秘密情報なし）。正常なら 200、異常なら 503。
 
-```bash
-# コンテナ内から
-docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml exec api curl -fsS http://localhost:8080/health
-```
+  ```json
+  { "status": "ok", "checks": { "database": { "status": "ok", "data": { "pendingMigrations": 0 } } } }
+  ```
+
+- Compose の healthcheck で `api`（curl で `/health`）と `web`（Node fetch で `/login`）の死活を監視します。
+
+  ```bash
+  docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml exec api curl -fsS http://localhost:8080/health
+  ```
+
+- **構造化ログ**: 本番/自己ホスト（非 Development）では、API がリクエストごとに JSON ログを標準出力に出します（相関 ID `X-Request-Id`・HTTP メソッド・パス・ステータス・所要時間・ユーザー ID を含み、トークンや本文・クエリ文字列は出しません）。`docker compose ... logs api` で確認でき、CloudWatch 等ではこれらのフィールドから件数・エラー率・レイテンシを集計できます。相関 ID はレスポンスヘッダー `X-Request-Id` にも返り、クライアントが指定すれば引き継がれます。
+- **運用の一次情報**: 重要操作は監査ログ（`audit_logs`、管理コンソールから閲覧）、タスクの動きは活動（`activities`）に記録されます。
 
 ## 6. バックアップ / リストア
 

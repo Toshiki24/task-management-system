@@ -30,6 +30,14 @@ if (DueNotificationBootstrap.IsDueNotificationJob)
     return;
 }
 
+// 構造化ログ(M5 §9)。本番/自己ホスト(非 Development)では JSON で標準出力に出し、
+// CloudWatch 等が構造化フィールド(RequestId・StatusCode・ElapsedMs 等)で集計できるようにする。
+if (!builder.Environment.IsDevelopment())
+{
+    builder.Logging.ClearProviders();
+    builder.Logging.AddJsonConsole();
+}
+
 // AWS Lambda の実行環境(環境変数 AWS_LAMBDA_FUNCTION_NAME がある場合)で動いているか
 var runningOnLambda = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME"));
 
@@ -95,6 +103,11 @@ builder.Services.AddScoped<IWorkspaceMemberService, WorkspaceMemberService>();
 builder.Services.AddScoped<IInvitationService, InvitationService>();
 builder.Services.AddScoped<ISystemAdminService, SystemAdminService>();
 builder.Services.AddScoped<ISetupService, SetupService>();
+
+// ヘルスチェック(M5 §9): DB 接続・マイグレーション状態を確認する
+builder.Services.AddScoped<TaskManagementSystem.Api.Observability.DatabaseHealthCheck>();
+builder.Services.AddHealthChecks()
+    .AddCheck<TaskManagementSystem.Api.Observability.DatabaseHealthCheck>("database");
 builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Mfa.IMfaSecretProtector,
     TaskManagementSystem.Api.Services.Mfa.MfaSecretProtector>();
 builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Mfa.IMfaChallengeTokenService,
@@ -246,6 +259,9 @@ if (SelfHostStartup.ShouldRunMigrationsOnStartup(builder.Configuration))
     // 初回管理者はスキーマ適用とは分離し、セットアップ画面(SELF_HOST_SETUP=true)から作成する。
 }
 
+// 相関 ID の付与と構造化アクセスログ(M5 §9)。最初に通し、全リクエストを計測・記録する
+app.UseMiddleware<TaskManagementSystem.Api.Observability.RequestContextMiddleware>();
+
 // すべてのレスポンス(エラーを含む)にセキュリティヘッダーを付ける(security-review.md 5.5)。
 // 例外ハンドラーはレスポンスヘッダーを消去するため、送信直前(OnStarting)に設定する
 app.Use(async (context, next) =>
@@ -332,9 +348,12 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// ヘルスチェック(M5 §8)。認証・オリジン検証なしで到達でき、秘密情報は返さない。
-// コンテナ/ロードバランサの死活監視に使う。
-app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+// ヘルスチェック(M5 §8/§9)。認証・オリジン検証なしで到達でき、秘密情報は返さない。
+// DB 接続・マイグレーション状態を確認し、JSON で状態を返す(異常時は 503)。
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    ResponseWriter = TaskManagementSystem.Api.Observability.HealthResponseWriter.WriteAsync,
+}).AllowAnonymous();
 
 app.Run();
 
