@@ -38,6 +38,8 @@ public class AppDbContext : DbContext
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<TaskStatusHistory> TaskStatusHistories => Set<TaskStatusHistory>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<UserMfa> UserMfas => Set<UserMfa>();
+    public DbSet<MfaRecoveryCode> MfaRecoveryCodes => Set<MfaRecoveryCode>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -876,6 +878,40 @@ public class AppDbContext : DbContext
                 .HasForeignKey(e => e.ActorUserId)
                 .HasConstraintName("fk_audit_logs_actor_user")
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<UserMfa>(entity =>
+        {
+            entity.ToTable("user_mfa");
+
+            entity.HasKey(e => e.UserId);
+            entity.Property(e => e.UserId).ValueGeneratedNever();
+            entity.Property(e => e.SecretCiphertext).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.IsEnabled).HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(e => e.User)
+                .WithOne()
+                .HasForeignKey<UserMfa>(e => e.UserId)
+                .HasConstraintName("fk_user_mfa_user")
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MfaRecoveryCode>(entity =>
+        {
+            entity.ToTable("mfa_recovery_codes");
+
+            entity.Property(e => e.CodeHash).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.UserId).HasDatabaseName("idx_mfa_recovery_codes_user_id");
+
+            entity.HasOne(e => e.UserMfa)
+                .WithMany(m => m.RecoveryCodes)
+                .HasForeignKey(e => e.UserId)
+                .HasConstraintName("fk_mfa_recovery_codes_user_mfa")
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // FK結合用に自動生成される索引に、DDLの命名規則に沿った名前を明示的に付与する

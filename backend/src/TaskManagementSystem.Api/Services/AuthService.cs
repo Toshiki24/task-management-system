@@ -3,6 +3,7 @@ using TaskManagementSystem.Api.Data;
 using TaskManagementSystem.Api.Dtos.Auth;
 using TaskManagementSystem.Api.Dtos.Common;
 using TaskManagementSystem.Api.Models;
+using TaskManagementSystem.Api.Services.Mfa;
 
 namespace TaskManagementSystem.Api.Services;
 
@@ -16,17 +17,23 @@ public class AuthService : IAuthService
     private readonly IJwtTokenService _jwtTokenService;
     private readonly ILoginAttemptLimiter _loginAttemptLimiter;
     private readonly IRefreshTokenService _refreshTokenService;
+    private readonly IMfaService _mfaService;
+    private readonly IMfaChallengeTokenService _mfaChallengeTokenService;
 
     public AuthService(
         AppDbContext dbContext,
         IJwtTokenService jwtTokenService,
         ILoginAttemptLimiter loginAttemptLimiter,
-        IRefreshTokenService refreshTokenService)
+        IRefreshTokenService refreshTokenService,
+        IMfaService mfaService,
+        IMfaChallengeTokenService mfaChallengeTokenService)
     {
         _dbContext = dbContext;
         _jwtTokenService = jwtTokenService;
         _loginAttemptLimiter = loginAttemptLimiter;
         _refreshTokenService = refreshTokenService;
+        _mfaService = mfaService;
+        _mfaChallengeTokenService = mfaChallengeTokenService;
     }
 
     public async Task<LoginOutcome> LoginAsync(LoginRequest request, string? clientIp = null)
@@ -52,8 +59,38 @@ public class AuthService : IAuthService
 
         _loginAttemptLimiter.Reset(request.Email);
 
+        // MFA 有効ユーザーは、パスワード認証だけではセッションを発行せず、TOTP 検証ステップへ誘導する
+        if (await _mfaService.IsEnabledAsync(user.Id))
+        {
+            var mfaToken = _mfaChallengeTokenService.Issue(user.Id);
+            return new LoginOutcome(LoginResult.MfaRequired, MfaToken: mfaToken);
+        }
+
         var refreshToken = await _refreshTokenService.IssueAsync(user.Id);
         return new LoginOutcome(LoginResult.Success, CreateResponse(user, refreshToken));
+    }
+
+    public async Task<MfaVerifyOutcome> VerifyMfaAsync(MfaVerifyRequest request)
+    {
+        var userId = _mfaChallengeTokenService.Validate(request.MfaToken);
+        if (userId is null)
+        {
+            return new MfaVerifyOutcome(MfaVerifyResult.InvalidToken);
+        }
+
+        if (!await _mfaService.VerifyForLoginAsync(userId.Value, request.Code))
+        {
+            return new MfaVerifyOutcome(MfaVerifyResult.InvalidCode);
+        }
+
+        var user = await _dbContext.Users.SingleOrDefaultAsync(u => u.Id == userId.Value);
+        if (user is null)
+        {
+            return new MfaVerifyOutcome(MfaVerifyResult.InvalidToken);
+        }
+
+        var refreshToken = await _refreshTokenService.IssueAsync(user.Id);
+        return new MfaVerifyOutcome(MfaVerifyResult.Success, CreateResponse(user, refreshToken));
     }
 
     public async Task<LoginResponse?> RefreshAsync(RefreshTokenRequest request)

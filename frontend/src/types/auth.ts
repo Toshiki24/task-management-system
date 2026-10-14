@@ -14,3 +14,11 @@ export interface CurrentUser {
 export interface LoginResponse {
   user: CurrentUser;
 }
+
+/**
+ * ログイン一次認証の結果(M5 §6)。
+ * MFA 無効なら user が返りログイン完了、有効なら mfaToken が返りコード入力へ進む。
+ */
+export type LoginStepResult =
+  | { mfaRequired: false; user: CurrentUser }
+  | { mfaRequired: true; mfaToken: string };

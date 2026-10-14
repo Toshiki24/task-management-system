@@ -23,6 +23,7 @@ export interface AdminUser {
   name: string;
   email: string;
   isSystemAdmin: boolean;
+  isMfaEnabled: boolean;
   createdAt: string;
 }
 

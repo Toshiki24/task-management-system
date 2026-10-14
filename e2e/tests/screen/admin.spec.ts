@@ -14,9 +14,9 @@ test.describe("7.38 SCR-038 管理コンソール (M5)", () => {
     await expect(page).toHaveURL("/admin");
     await expect(page.getByRole("heading", { name: "管理コンソール" })).toBeVisible();
 
-    // 統計カードが表示される
+    // 統計カードが表示される(「ワークスペース」は統計ラベルと見出しの両方に出るため、見出しで判定する)
     await expect(page.getByText("システム統計")).toBeVisible();
-    await expect(page.getByText("ワークスペース", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "ワークスペース" })).toBeVisible();
 
     // 対象ユーザーに System Admin 権限を付与する
     const row = page.locator(`[data-testid="user-row-${target.id}"]`);

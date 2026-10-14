@@ -16,12 +16,18 @@ public class AuthServiceTests : IClassFixture<TestDatabaseFixture>
 
     private readonly ManualTimeProvider _time = new();
 
-    private AuthService CreateService(Api.Data.AppDbContext context, ILoginAttemptLimiter? limiter = null) =>
-        new(
+    private AuthService CreateService(Api.Data.AppDbContext context, ILoginAttemptLimiter? limiter = null)
+    {
+        var config = JwtTestConfiguration.Create();
+        var protector = new Api.Services.Mfa.MfaSecretProtector(config);
+        return new(
             context,
-            new JwtTokenService(JwtTestConfiguration.Create()),
+            new JwtTokenService(config),
             limiter ?? new LoginAttemptLimiter(LoginAttemptLimiterTests.CreateConfiguration(), _time),
-            new RefreshTokenService(context, _time, RefreshTokenServiceTests.CreateConfiguration()));
+            new RefreshTokenService(context, _time, RefreshTokenServiceTests.CreateConfiguration()),
+            new Api.Services.Mfa.MfaService(context, protector, _time, config),
+            new Api.Services.Mfa.MfaChallengeTokenService(config, _time));
+    }
 
     [Fact(DisplayName = "UT-101 正しいメール・パスワードでログイン成功")]
     public async Task LoginAsync_ReturnsTokenAndUser_WhenCredentialsAreValid()
@@ -160,6 +166,69 @@ public class AuthServiceTests : IClassFixture<TestDatabaseFixture>
         var refreshed = await CreateService(context).RefreshAsync(new RefreshTokenRequest(login.RefreshToken));
 
         Assert.Null(refreshed);
+    }
+
+    /// <summary>対象ユーザーの MFA を有効化し、現在時刻の TOTP コードを返す。</summary>
+    private async Task<string> EnableMfaAsync(Api.Data.AppDbContext context, long userId)
+    {
+        var config = JwtTestConfiguration.Create();
+        var mfa = new Api.Services.Mfa.MfaService(
+            context, new Api.Services.Mfa.MfaSecretProtector(config), _time, config);
+        var begin = await mfa.BeginEnrollmentAsync(userId);
+        await mfa.ConfirmEnrollmentAsync(userId, Api.Services.Mfa.Totp.Compute(begin.Data!.Secret, _time.GetUtcNow()));
+        return begin.Data!.Secret;
+    }
+
+    [Fact(DisplayName = "UT-108 MFA 有効ユーザーはログインで MfaRequired となりセッションを発行しない")]
+    public async Task LoginAsync_ReturnsMfaRequired_WhenMfaEnabled()
+    {
+        await using var arrange = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(arrange);
+        await EnableMfaAsync(arrange, user.Id);
+
+        await using var context = _db.CreateContext();
+        var outcome = await CreateService(context).LoginAsync(new LoginRequest(user.Email, TestData.DefaultPassword));
+
+        Assert.Equal(LoginResult.MfaRequired, outcome.Result);
+        Assert.Null(outcome.Data);
+        Assert.False(string.IsNullOrWhiteSpace(outcome.MfaToken));
+    }
+
+    [Fact(DisplayName = "UT-109 MFA 検証ステップで正しいコードならセッションを発行する")]
+    public async Task VerifyMfaAsync_IssuesSession_WithValidCode()
+    {
+        await using var arrange = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(arrange);
+        var secret = await EnableMfaAsync(arrange, user.Id);
+
+        await using var context = _db.CreateContext();
+        var service = CreateService(context);
+        var login = await service.LoginAsync(new LoginRequest(user.Email, TestData.DefaultPassword));
+        var code = Api.Services.Mfa.Totp.Compute(secret, _time.GetUtcNow());
+
+        var verified = await service.VerifyMfaAsync(new MfaVerifyRequest(login.MfaToken!, code));
+
+        Assert.Equal(MfaVerifyResult.Success, verified.Result);
+        Assert.NotNull(verified.Data);
+        Assert.False(string.IsNullOrWhiteSpace(verified.Data!.RefreshToken));
+        Assert.Equal(user.Id, verified.Data.User.Id);
+    }
+
+    [Fact(DisplayName = "UT-110 MFA 検証は誤コード・不正トークンを拒否する")]
+    public async Task VerifyMfaAsync_RejectsBadCodeAndToken()
+    {
+        await using var arrange = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(arrange);
+        await EnableMfaAsync(arrange, user.Id);
+
+        await using var context = _db.CreateContext();
+        var service = CreateService(context);
+        var login = await service.LoginAsync(new LoginRequest(user.Email, TestData.DefaultPassword));
+
+        Assert.Equal(MfaVerifyResult.InvalidCode,
+            (await service.VerifyMfaAsync(new MfaVerifyRequest(login.MfaToken!, "000000"))).Result);
+        Assert.Equal(MfaVerifyResult.InvalidToken,
+            (await service.VerifyMfaAsync(new MfaVerifyRequest("not-a-valid-token", "000000"))).Result);
     }
 }
 
