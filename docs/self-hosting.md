@@ -70,15 +70,22 @@ docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml ps
 > セットアップは「ユーザーが1人も居ないとき」だけ有効で、作成後は `/setup` を開いても何も作成できません（サーバー側で保証）。
 > `SELF_HOST_SETUP` は compose 側で有効化済みです。AWS 本番ではこのフラグを設定しないため、セットアップ機能は無効になります。
 
-## 5. ヘルスチェック
+## 5. ヘルスチェック・可観測性
 
-- API: `GET /health` が `{"status":"ok"}` を返します（認証・オリジン検証なしで到達可能、秘密情報なし）。
-- Compose の healthcheck で `api`（curl）と `web`（Node fetch で `/login`）の死活を監視します。
+- API: `GET /health` は**DB 接続とマイグレーション状態**を確認し、JSON で状態を返します（認証・オリジン検証なしで到達可能、秘密情報なし）。正常なら 200、異常なら 503。
 
-```bash
-# コンテナ内から
-docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml exec api curl -fsS http://localhost:8080/health
-```
+  ```json
+  { "status": "ok", "checks": { "database": { "status": "ok", "data": { "pendingMigrations": 0 } } } }
+  ```
+
+- Compose の healthcheck で `api`（curl で `/health`）と `web`（Node fetch で `/login`）の死活を監視します。
+
+  ```bash
+  docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml exec api curl -fsS http://localhost:8080/health
+  ```
+
+- **構造化ログ**: 本番/自己ホスト（非 Development）では、API がリクエストごとに JSON ログを標準出力に出します（相関 ID `X-Request-Id`・HTTP メソッド・パス・ステータス・所要時間・ユーザー ID を含み、トークンや本文・クエリ文字列は出しません）。`docker compose ... logs api` で確認でき、CloudWatch 等ではこれらのフィールドから件数・エラー率・レイテンシを集計できます。相関 ID はレスポンスヘッダー `X-Request-Id` にも返り、クライアントが指定すれば引き継がれます。
+- **運用の一次情報**: 重要操作は監査ログ（`audit_logs`、管理コンソールから閲覧）、タスクの動きは活動（`activities`）に記録されます。
 
 ## 6. バックアップ / リストア
 
@@ -127,4 +134,12 @@ docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml down -v
 
 - **ログインしても戻される**: HTTP で直接アクセスしている可能性があります。HTTPS（リバースプロキシ）経由でアクセスしてください（`Secure` Cookie）。
 - **api が unhealthy**: `docker compose ... logs api` を確認。`JWT_KEY` が32文字未満だと起動時に失敗します。
+- **api 起動時に `28P01: password authentication failed for user "postgres"`**: PostgreSQL は**データディレクトリが空の初回起動時のみ** `POSTGRES_PASSWORD` を適用します。以前 `up` して作られたボリューム `db_data` が残っている状態で `.env.selfhost` のパスワードを変えても、**DB 側の実パスワードは以前のまま**のため認証に失敗します（api と db は同じ `${POSTGRES_PASSWORD}` を参照するので、食い違う原因はこの古いボリュームです）。まだ保持すべきデータが無ければ、ボリュームごと作り直して現在のパスワードで初期化します:
+
+  ```bash
+  docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml down -v
+  docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml up -d --build
+  ```
+
+  既存データを残したままパスワードだけ変えたい場合は、`down -v` せずに DB 内で `ALTER USER postgres PASSWORD '...'` を実行し、`.env.selfhost` を同じ値に合わせてください。なお、パスワードに `;`・引用符・前後の空白を含めると接続文字列の解析で別の不具合になり得ます（`openssl rand -base64 36` 由来の `+ / =` は問題ありません）。
 - **403（アクセスが拒否されました）**: `ORIGIN_VERIFY_SECRET` が api と web で一致しているか確認してください。
