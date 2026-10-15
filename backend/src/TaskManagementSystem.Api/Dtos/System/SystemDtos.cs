@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace TaskManagementSystem.Api.Dtos.System;
 
 /// <summary>System Admin 権限を持つユーザー。</summary>
@@ -47,4 +49,30 @@ public record AdminUserDto(
     bool IsSystemAdmin,
     bool IsMfaEnabled,
     DateTime CreatedAt
+);
+
+/// <summary>
+/// System Admin による手動ユーザー作成(M5 §8 / メール招待が使えない運用向け)。
+/// メール・パスワードで作成し、指定ワークスペースにロール付きで追加する。名前は任意(未指定ならメール名を使う)。
+/// </summary>
+public record CreateManagedUserRequest(
+    [Required(ErrorMessage = "メールアドレスは必須です。")]
+    [EmailAddress(ErrorMessage = "メールアドレスの形式が正しくありません。")]
+    [MaxLength(255, ErrorMessage = "メールアドレスは255文字以内で入力してください。")]
+    string Email,
+
+    [Required(ErrorMessage = "パスワードは必須です。")]
+    [MinLength(8, ErrorMessage = "パスワードは8文字以上で入力してください。")]
+    [MaxLength(200, ErrorMessage = "パスワードは200文字以内で入力してください。")]
+    string Password,
+
+    [MaxLength(100, ErrorMessage = "名前は100文字以内で入力してください。")]
+    string? Name,
+
+    [Required(ErrorMessage = "ワークスペースは必須です。")]
+    long WorkspaceId,
+
+    [Required(ErrorMessage = "ロールは必須です。")]
+    [AllowedValues("ADMIN", "MEMBER", "VIEWER", ErrorMessage = "ロールが不正です。")]
+    string Role
 );

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using TaskManagementSystem.Api.Data;
 using TaskManagementSystem.Api.Dtos.System;
+using TaskManagementSystem.Api.Models;
 
 namespace TaskManagementSystem.Api.Services;
 
@@ -209,5 +211,78 @@ public class SystemAdminService : ISystemAdminService
                 _dbContext.UserMfas.Any(m => m.UserId == u.Id && m.IsEnabled),
                 u.CreatedAt))
             .ToListAsync();
+    }
+
+    public async Task<CreateManagedUserOutcome> CreateUserAsync(long currentUserId, CreateManagedUserRequest request)
+    {
+        if (!await _dbContext.IsSystemAdminAsync(currentUserId))
+        {
+            return new CreateManagedUserOutcome(CreateManagedUserResult.Forbidden);
+        }
+
+        var email = request.Email.Trim();
+
+        if (!await _dbContext.Workspaces.AnyAsync(w => w.Id == request.WorkspaceId))
+        {
+            return new CreateManagedUserOutcome(CreateManagedUserResult.WorkspaceNotFound);
+        }
+
+        // 既存メールは拒否する(既存ユーザーの WS 追加は通常のメンバー管理で行う)
+        if (await _dbContext.Users.AnyAsync(u => u.Email == email))
+        {
+            return new CreateManagedUserOutcome(CreateManagedUserResult.EmailTaken);
+        }
+
+        // 名前は任意。未指定ならメールのローカル部を使う
+        var name = string.IsNullOrWhiteSpace(request.Name) ? email.Split('@')[0] : request.Name.Trim();
+
+        var user = new User
+        {
+            Name = name,
+            Email = email,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+            IsSystemAdmin = false,
+        };
+
+        try
+        {
+            await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+            _dbContext.Users.Add(user);
+            await _dbContext.SaveChangesAsync();
+
+            _dbContext.WorkspaceMembers.Add(new WorkspaceMember
+            {
+                WorkspaceId = request.WorkspaceId,
+                UserId = user.Id,
+                Role = request.Role,
+            });
+            await _dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            // メールの同時登録など
+            return new CreateManagedUserOutcome(CreateManagedUserResult.EmailTaken);
+        }
+
+        // 監査: ワークスペースにメンバーを追加したものとして記録(作成者・対象・WSを残す)
+        await _dbContext.RecordAuditAsync(
+            currentUserId, AuditActions.MemberAdded, AuditTargets.User, user.Id, request.WorkspaceId);
+
+        return new CreateManagedUserOutcome(
+            CreateManagedUserResult.Success, new SystemAdminDto(user.Id, user.Name, user.Email));
+    }
+
+    private static bool IsUniqueViolation(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException { SqlState: "23505" })
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

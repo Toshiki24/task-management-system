@@ -9,10 +9,12 @@ import type { AdminUser } from "@/types/admin";
 interface AdminUsersProps {
   /** ログイン中ユーザーの ID(自分自身の剥奪を抑止する)。 */
   currentUserId: number;
+  /** 値が変わると一覧を再取得する(手動作成後の反映用)。 */
+  refreshKey?: number;
 }
 
 /** 全ユーザー一覧と System Admin 権限の付与/剥奪(M5 §5)。 */
-export function AdminUsers({ currentUserId }: AdminUsersProps) {
+export function AdminUsers({ currentUserId, refreshKey = 0 }: AdminUsersProps) {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -23,7 +25,7 @@ export function AdminUsers({ currentUserId }: AdminUsersProps) {
 
   useEffect(() => {
     reload().catch(() => setError("ユーザー一覧の取得に失敗しました。"));
-  }, []);
+  }, [refreshKey]);
 
   async function toggleAdmin(user: AdminUser) {
     setError(null);

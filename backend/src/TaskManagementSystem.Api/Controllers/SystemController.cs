@@ -122,4 +122,20 @@ public class SystemController : ControllerBase
 
         return Ok(users);
     }
+
+    /// <summary>System Admin が手動でユーザーを作成し、指定ワークスペースに追加する(メール招待の代替)。</summary>
+    [HttpPost("users")]
+    public async Task<ActionResult<SystemAdminDto>> CreateUser(CreateManagedUserRequest request)
+    {
+        var outcome = await _systemAdminService.CreateUserAsync(this.GetCurrentUserId(), request);
+        return outcome.Result switch
+        {
+            CreateManagedUserResult.Forbidden => this.ForbiddenError(),
+            CreateManagedUserResult.WorkspaceNotFound =>
+                NotFound(new ErrorResponse("指定されたワークスペースが存在しません。")),
+            CreateManagedUserResult.EmailTaken =>
+                Conflict(new ErrorResponse("このメールアドレスは既に使われています。")),
+            _ => StatusCode(StatusCodes.Status201Created, outcome.Data),
+        };
+    }
 }

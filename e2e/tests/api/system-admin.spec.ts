@@ -57,4 +57,60 @@ test.describe("5.38 管理コンソールAPI (M5)", () => {
     users = await (await api.get("/api/system/users", { headers: bearer(admin) })).json();
     expect(users.find((u: { id: number }) => u.id === target.id).isSystemAdmin).toBe(false);
   });
+
+  test("API-4804 System Admin はメール/パスワードでユーザーを作成し、WSに追加できる(作成後ログイン可能)", async ({ data, api }) => {
+    const admin = await data.createUser("管理者");
+    await data.makeSystemAdmin(admin);
+    const workspaceId = await data.createWorkspace(admin, "ADMIN");
+
+    const email = `manual-${Date.now()}@example.test`;
+    const create = await api.post("/api/system/users", {
+      headers: bearer(admin),
+      data: { email, password: "manual-password", name: null, workspaceId, role: "MEMBER" },
+    });
+    expect(create.status()).toBe(201);
+    const created = await create.json();
+    expect(created.email).toBe(email);
+
+    // 作成したユーザーで実際にログインできる
+    const login = await api.post("/api/auth/login", { data: { email, password: "manual-password" } });
+    expect(login.status()).toBe(200);
+
+    // 全ユーザー一覧に現れ、指定WSのメンバーになっている
+    const users = await (await api.get("/api/system/users", { headers: bearer(admin) })).json();
+    expect(users.some((u: { email: string }) => u.email === email)).toBe(true);
+    const workspaces = await (await api.get("/api/system/workspaces", { headers: bearer(admin) })).json();
+    expect(workspaces.find((w: { id: number }) => w.id === workspaceId).memberCount).toBeGreaterThanOrEqual(2);
+  });
+
+  test("API-4805 System Admin 以外はユーザーを作成できない(403)", async ({ data, api }) => {
+    const user = await data.createUser("一般");
+    const workspaceId = await data.createWorkspace(user, "ADMIN");
+
+    const res = await api.post("/api/system/users", {
+      headers: bearer(user),
+      data: { email: `x-${Date.now()}@example.test`, password: "password12", workspaceId, role: "MEMBER" },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("API-4806 既存メールは409、存在しないWSは404", async ({ data, api }) => {
+    const admin = await data.createUser("管理者");
+    await data.makeSystemAdmin(admin);
+    const workspaceId = await data.createWorkspace(admin, "ADMIN");
+
+    // 既存メール(管理者自身のメール)で重複 → 409
+    const dup = await api.post("/api/system/users", {
+      headers: bearer(admin),
+      data: { email: admin.email, password: "password12", workspaceId, role: "MEMBER" },
+    });
+    expect(dup.status()).toBe(409);
+
+    // 存在しないワークスペース → 404
+    const noWs = await api.post("/api/system/users", {
+      headers: bearer(admin),
+      data: { email: `new-${Date.now()}@example.test`, password: "password12", workspaceId: 999999999, role: "MEMBER" },
+    });
+    expect(noWs.status()).toBe(404);
+  });
 });
