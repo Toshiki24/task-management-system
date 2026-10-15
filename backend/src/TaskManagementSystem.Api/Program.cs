@@ -126,6 +126,7 @@ else
 {
     builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 }
+builder.Services.AddScoped<INotificationEmailService, NotificationEmailService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IWorkflowStateService, WorkflowStateService>();
 builder.Services.AddScoped<ILabelService, LabelService>();

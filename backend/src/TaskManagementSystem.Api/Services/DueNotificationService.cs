@@ -12,10 +12,12 @@ namespace TaskManagementSystem.Api.Services;
 public class DueNotificationService : IDueNotificationService
 {
     private readonly AppDbContext _dbContext;
+    private readonly INotificationEmailService _notificationEmail;
 
-    public DueNotificationService(AppDbContext dbContext)
+    public DueNotificationService(AppDbContext dbContext, INotificationEmailService? notificationEmail = null)
     {
         _dbContext = dbContext;
+        _notificationEmail = notificationEmail ?? NullNotificationEmailService.Instance;
     }
 
     public async Task<int> GenerateAsync(DateOnly today, int dueSoonWithinDays)
@@ -76,6 +78,7 @@ public class DueNotificationService : IDueNotificationService
             .ToHashSet();
 
         var created = 0;
+        var newNotifications = new List<Notification>();
         foreach (var target in targets)
         {
             var recipients = new HashSet<long>();
@@ -99,14 +102,16 @@ public class DueNotificationService : IDueNotificationService
                     continue; // 同一日・同一種別の重複
                 }
 
-                _dbContext.Notifications.Add(new Notification
+                var notification = new Notification
                 {
                     RecipientUserId = recipientId,
                     Type = target.Type!,
                     TaskId = target.Id,
                     ActorUserId = null, // システムによる通知
                     Payload = System.Text.Json.JsonSerializer.Serialize(new { dueDate = target.DueDate }),
-                });
+                };
+                _dbContext.Notifications.Add(notification);
+                newNotifications.Add(notification);
                 created++;
             }
         }
@@ -114,6 +119,7 @@ public class DueNotificationService : IDueNotificationService
         if (created > 0)
         {
             await _dbContext.SaveChangesAsync();
+            await _notificationEmail.SendAsync(newNotifications);
         }
 
         return created;

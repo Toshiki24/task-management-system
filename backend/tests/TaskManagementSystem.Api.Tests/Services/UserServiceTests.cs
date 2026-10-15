@@ -53,4 +53,36 @@ public class UserServiceTests : IClassFixture<TestDatabaseFixture>
 
         Assert.Null(result);
     }
+
+    [Fact(DisplayName = "メール通知設定: 既定は有効で、更新すると反映される")]
+    public async Task NotificationSettings_DefaultsEnabledAndCanBeToggled()
+    {
+        await using var arrange = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(arrange);
+
+        await using var context = _db.CreateContext();
+        var service = new UserService(context);
+
+        // 既定は有効
+        var initial = await service.GetNotificationSettingsAsync(user.Id);
+        Assert.NotNull(initial);
+        Assert.True(initial!.EmailEnabled);
+
+        // 無効化
+        Assert.True(await service.UpdateNotificationSettingsAsync(user.Id, false));
+
+        await using var assert = _db.CreateContext();
+        var updated = await new UserService(assert).GetNotificationSettingsAsync(user.Id);
+        Assert.False(updated!.EmailEnabled);
+    }
+
+    [Fact(DisplayName = "メール通知設定: 存在しないユーザーは null / false")]
+    public async Task NotificationSettings_MissingUser()
+    {
+        await using var context = _db.CreateContext();
+        var service = new UserService(context);
+
+        Assert.Null(await service.GetNotificationSettingsAsync(TestData.NonExistentId));
+        Assert.False(await service.UpdateNotificationSettingsAsync(TestData.NonExistentId, false));
+    }
 }
