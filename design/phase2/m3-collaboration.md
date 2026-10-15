@@ -5,7 +5,7 @@ Phase 2 のマイルストーン M3 の基本設計。M1 のワークスペー�
 - 関連: [Phase 2 要件定義](../../docs/phase2/requirements.md)（§5.6 コラボレーション・§5.7 計画・§10） / [M1 基本設計](./m1-workspace.md) / [M2 基本設計](./m2-daily-ux.md) / [ADR 0001 ワークスペース方式](../../docs/phase2/adr/0001-workspace-model.md)
 - 前提（M1/M2 で確定済み）: 可視性・認可はワークスペース所属で決まる（非所属は 404）。認可集約点は `ProjectAccess.ResolveAccessAsync` / `WorkspaceAccess.ResolveWorkspaceAccessAsync`、一覧は `WhereVisibleTo` で SQL 段階から絞る。データアクセスは**生 SQL を使わず EF Core LINQ**。状態変更は `task_status_histories` に履歴を残す。スキーマ変更はマージ後にマイグレーション用 Lambda を手動実行。
 
-> **ステータス: 📝 基本設計（実装はこれから）**。本書で方針を固め、M2 と同じく §15 のステップを PR 単位（各 PR で UT/E2E グリーン）で実装する。
+> **ステータス: ✅ 実装完了**。§15 のステップを PR 単位（各 PR で UT/E2E グリーン）ですべて実装・マージ済み（アクティビティ・コメント拡張・@メンション・ウォッチャー・通知（アプリ内／メール／期限）・リアルタイム更新・計画（サイクル/マイルストーン））。データアクセスはユーザー方針により **EF Core LINQ**（生 SQL 不使用）。
 
 ---
 
