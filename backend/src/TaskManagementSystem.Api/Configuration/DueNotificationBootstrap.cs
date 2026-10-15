@@ -3,6 +3,7 @@ using Amazon.Lambda.Core;
 using Amazon.Lambda.RuntimeSupport;
 using Amazon.Lambda.Serialization.SystemTextJson;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using TaskManagementSystem.Api.Data;
 using TaskManagementSystem.Api.Services;
 
@@ -27,6 +28,12 @@ public static class DueNotificationBootstrap
             ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection が設定されていません。");
         var withinDays = configuration.GetValue("Notifications:DueSoonWithinDays", 3);
 
+        // SMTP(Smtp:Host)が設定されていれば期限通知もメール送信、無ければログ出力に留める
+        var smtpOptions = configuration.GetSection(SmtpOptions.SectionName).Get<SmtpOptions>() ?? new SmtpOptions();
+        IEmailSender emailSender = smtpOptions.IsConfigured
+            ? new SmtpEmailSender(smtpOptions, NullLogger<SmtpEmailSender>.Instance)
+            : new LoggingEmailSender(NullLogger<LoggingEmailSender>.Instance);
+
         var handler = async (JsonElement _, ILambdaContext context) =>
         {
             await using var dbContext = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
@@ -35,7 +42,9 @@ public static class DueNotificationBootstrap
                 .Options);
 
             var today = DateOnly.FromDateTime(JstNow());
-            var service = new DueNotificationService(dbContext);
+            var emailService = new NotificationEmailService(
+                dbContext, emailSender, NullLogger<NotificationEmailService>.Instance);
+            var service = new DueNotificationService(dbContext, emailService);
             var created = await service.GenerateAsync(today, withinDays);
 
             context.Logger.LogInformation($"期限通知ジョブ完了: 基準日={today:yyyy-MM-dd} 生成={created} 件");

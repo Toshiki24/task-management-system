@@ -10,6 +10,12 @@ public class User
     /// <summary>インスタンス全体の管理者(System Admin)。全ワークスペースを横断できる(Phase 2 M1 §5)。</summary>
     public bool IsSystemAdmin { get; set; }
 
+    /// <summary>
+    /// メール通知を受け取るか(Phase 2 M5 §8)。既定は有効。
+    /// 無効にすると、本人宛のアプリ内通知はそのまま残しつつメール送信のみ停止する。
+    /// </summary>
+    public bool EmailNotificationsEnabled { get; set; } = true;
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

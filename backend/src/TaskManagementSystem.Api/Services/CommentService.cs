@@ -8,10 +8,12 @@ namespace TaskManagementSystem.Api.Services;
 public class CommentService : ICommentService
 {
     private readonly AppDbContext _dbContext;
+    private readonly INotificationEmailService _notificationEmail;
 
-    public CommentService(AppDbContext dbContext)
+    public CommentService(AppDbContext dbContext, INotificationEmailService? notificationEmail = null)
     {
         _dbContext = dbContext;
+        _notificationEmail = notificationEmail ?? NullNotificationEmailService.Instance;
     }
 
     public async Task<List<CommentDto>?> GetByTaskAsync(long taskId, long currentUserId)
@@ -78,16 +80,20 @@ public class CommentService : ICommentService
         // 通知生成(M3 §6)。自分の操作では自分に通知しない。
         // 被メンション者には MENTION を、それ以外の既存ウォッチャーには COMMENT を送る(二重送信を避ける)。
         var mentionTargets = mentioned.Where(id => id != userId).ToList();
-        NotificationRecorder.AddMany(_dbContext, mentionTargets, NotificationType.Mention, taskId, userId,
-            new { commentId = comment.Id });
+        var notifications = new List<Notification>();
+        notifications.AddRange(NotificationRecorder.AddMany(
+            _dbContext, mentionTargets, NotificationType.Mention, taskId, userId, new { commentId = comment.Id }));
 
         var watcherIds = await _dbContext.TaskWatchers
             .Where(w => w.TaskId == taskId).Select(w => w.UserId).ToListAsync();
         var commentTargets = watcherIds.Where(id => id != userId && !mentioned.Contains(id)).ToList();
-        NotificationRecorder.AddMany(_dbContext, commentTargets, NotificationType.Comment, taskId, userId,
-            new { commentId = comment.Id });
+        notifications.AddRange(NotificationRecorder.AddMany(
+            _dbContext, commentTargets, NotificationType.Comment, taskId, userId, new { commentId = comment.Id }));
 
         await _dbContext.SaveChangesAsync();
+
+        // 保存後にメール通知を送る(有効な受信者のみ・ベストエフォート)
+        await _notificationEmail.SendAsync(notifications);
 
         return new CreateCommentOutcome(
             CreateCommentResult.Success,

@@ -10,10 +10,12 @@ namespace TaskManagementSystem.Api.Services;
 public class TaskService : ITaskService
 {
     private readonly AppDbContext _dbContext;
+    private readonly INotificationEmailService _notificationEmail;
 
-    public TaskService(AppDbContext dbContext)
+    public TaskService(AppDbContext dbContext, INotificationEmailService? notificationEmail = null)
     {
         _dbContext = dbContext;
+        _notificationEmail = notificationEmail ?? NullNotificationEmailService.Instance;
     }
 
     public async Task<List<TaskDto>?> GetByProjectAsync(long projectId, long currentUserId, TaskListQuery? query = null)
@@ -320,16 +322,19 @@ public class TaskService : ITaskService
             ActivityVerb.Created, new { title = task.Title });
 
         // 担当者は自動でウォッチに追加し、本人以外なら担当通知を送る(M3 §4/§6)
+        var notifications = new List<Notification>();
         if (task.AssigneeId is { } assignee)
         {
             await WatcherRecorder.EnsureWatchingAsync(_dbContext, task.Id, new[] { assignee });
             if (assignee != currentUserId)
             {
-                NotificationRecorder.Add(_dbContext, assignee, NotificationType.Assigned, task.Id, currentUserId);
+                notifications.Add(
+                    NotificationRecorder.Add(_dbContext, assignee, NotificationType.Assigned, task.Id, currentUserId));
             }
         }
 
         await _dbContext.SaveChangesAsync();
+        await _notificationEmail.SendAsync(notifications);
 
         await LoadLabelsAsync(task);
         // 作成直後は子タスクが無いため進捗は 0/0
@@ -441,12 +446,14 @@ public class TaskService : ITaskService
         }
 
         // 新しい担当者を自動でウォッチに追加し、本人以外なら担当通知を送る(M3 §4/§6)
+        var notifications = new List<Notification>();
         if (request.AssigneeId is { } assignee)
         {
             await WatcherRecorder.EnsureWatchingAsync(_dbContext, task.Id, new[] { assignee });
             if (assigneeChanged && assignee != currentUserId)
             {
-                NotificationRecorder.Add(_dbContext, assignee, NotificationType.Assigned, task.Id, currentUserId);
+                notifications.Add(
+                    NotificationRecorder.Add(_dbContext, assignee, NotificationType.Assigned, task.Id, currentUserId));
             }
         }
 
@@ -457,11 +464,12 @@ public class TaskService : ITaskService
                 .Where(w => w.TaskId == task.Id && w.UserId != currentUserId)
                 .Select(w => w.UserId)
                 .ToListAsync();
-            NotificationRecorder.AddMany(_dbContext, watcherIds, NotificationType.StatusChanged, task.Id,
-                currentUserId, new { from = oldStatus, to = request.Status });
+            notifications.AddRange(NotificationRecorder.AddMany(_dbContext, watcherIds, NotificationType.StatusChanged,
+                task.Id, currentUserId, new { from = oldStatus, to = request.Status }));
         }
 
         await _dbContext.SaveChangesAsync();
+        await _notificationEmail.SendAsync(notifications);
 
         await LoadLabelsAsync(task);
         return new UpdateTaskOutcome(UpdateTaskResult.Success, ToDto(task, await SubtaskProgressAsync(task)));
@@ -525,6 +533,7 @@ public class TaskService : ITaskService
         }
 
         // 状態が変わるなら履歴に記録する(既存の task_status_histories を使う。M2 §4.2)
+        var notifications = new List<Notification>();
         if (request.ToStatus != task.Status)
         {
             RecordStatusHistory(task, task.Status, request.ToStatus, currentUserId);
@@ -536,14 +545,15 @@ public class TaskService : ITaskService
                 .Where(w => w.TaskId == task.Id && w.UserId != currentUserId)
                 .Select(w => w.UserId)
                 .ToListAsync();
-            NotificationRecorder.AddMany(_dbContext, watcherIds, NotificationType.StatusChanged, task.Id,
-                currentUserId, new { from = task.Status, to = request.ToStatus });
+            notifications.AddRange(NotificationRecorder.AddMany(_dbContext, watcherIds, NotificationType.StatusChanged,
+                task.Id, currentUserId, new { from = task.Status, to = request.ToStatus }));
             task.Status = request.ToStatus;
         }
 
         task.BoardPosition = await ResolveBoardPositionAsync(task, request.BeforeTaskId);
 
         await _dbContext.SaveChangesAsync();
+        await _notificationEmail.SendAsync(notifications);
 
         await LoadLabelsAsync(task);
         return new MoveTaskOutcome(MoveTaskResult.Success, ToDto(task, await SubtaskProgressAsync(task)));
