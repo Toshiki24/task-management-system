@@ -87,7 +87,32 @@ docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml ps
 - **構造化ログ**: 本番/自己ホスト（非 Development）では、API がリクエストごとに JSON ログを標準出力に出します（相関 ID `X-Request-Id`・HTTP メソッド・パス・ステータス・所要時間・ユーザー ID を含み、トークンや本文・クエリ文字列は出しません）。`docker compose ... logs api` で確認でき、CloudWatch 等ではこれらのフィールドから件数・エラー率・レイテンシを集計できます。相関 ID はレスポンスヘッダー `X-Request-Id` にも返り、クライアントが指定すれば引き継がれます。
 - **運用の一次情報**: 重要操作は監査ログ（`audit_logs`、管理コンソールから閲覧）、タスクの動きは活動（`activities`）に記録されます。
 
-## 6. バックアップ / リストア
+## 6. メール送信（SMTP / 招待メール）
+
+招待メールなどは、**`SMTP_HOST` を設定すると実送信**、未設定なら送信内容をログに出力するだけ（招待リンクはログで確認）になります。標準的な SMTP（25 / 587 STARTTLS + 認証）に対応し、Gmail・Amazon SES(SMTP)・SendGrid・Mailgun・Office365・さくら等、どのプロバイダでも使えます。
+
+`.env.selfhost` の設定例:
+
+```bash
+# 共通
+SMTP_HOST=smtp.gmail.com         # 例: Gmail。SES は email-smtp.<region>.amazonaws.com
+SMTP_PORT=587                    # 587(STARTTLS)を推奨。465 の暗黙TLSのみのサーバーは未対応
+SMTP_USER=you@example.com        # 認証ユーザー(任意。社内リレー等で不要なら空でも可)
+SMTP_PASSWORD=＜アプリパスワード等＞
+SMTP_FROM=noreply@example.com    # 送信元(未設定なら SMTP_USER)。多くのプロバイダは認証ドメインと一致を要求
+SMTP_FROM_NAME=タスク管理システム
+SMTP_USE_STARTTLS=true
+
+# 招待メールのリンクを絶対URLにする(公開URL)
+APP_BASE_URL=https://tasks.example.com
+```
+
+- **`APP_BASE_URL` を設定**すると、招待メール内のリンクが `https://＜公開URL＞/invitations/accept?token=...` の絶対URLになります（未設定だと相対パス）。
+- 送信に失敗した場合は api のログにエラーが出ます（本文＝招待トークンはログに出しません）。
+- SMTP 未設定のままでも、招待リンクは `docker compose ... logs api` で確認できます（§9 参照）。
+- Gmail は「アプリ パスワード」、Amazon SES は「SMTP 認証情報」を使ってください（通常のログインパスワードや AWS のアクセスキーではありません）。
+
+## 7. バックアップ / リストア
 
 PostgreSQL のデータは名前付きボリューム `db_data` に保存されます。論理バックアップの例:
 
@@ -103,7 +128,7 @@ docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml exec -T d
 
 > `$POSTGRES_USER` / `$POSTGRES_DB` は `.env.selfhost` の値に読み替えてください。
 
-## 7. アップグレード
+## 8. アップグレード
 
 ```bash
 # 1) 最新コードを取得
@@ -120,7 +145,7 @@ docker image prune -f
 
 マイグレーションは EF Core により順方向にのみ適用されます。重大な変更の前はバックアップを取得してください。
 
-## 8. 停止・削除
+## 9. 停止・削除
 
 ```bash
 # 停止（データは保持）
@@ -130,7 +155,7 @@ docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml down
 docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml down -v
 ```
 
-## 9. トラブルシューティング
+## 10. トラブルシューティング
 
 - **ログインしても戻される**: HTTP で直接アクセスしている可能性があります。HTTPS（リバースプロキシ）経由でアクセスしてください（`Secure` Cookie）。
 - **api が unhealthy**: `docker compose ... logs api` を確認。`JWT_KEY` が32文字未満だと起動時に失敗します。

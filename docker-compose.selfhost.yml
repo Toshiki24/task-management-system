@@ -46,6 +46,16 @@ services:
       # 初回セットアップ(初回管理者をセットアップ画面から作成)を有効化する。
       # AWS 本番ではこのフラグを設定しないため、セットアップ用エンドポイントは無効(404)。
       SELF_HOST_SETUP: "true"
+      # メール送信(招待メール等)。SMTP_HOST を設定すると実送信、未設定ならログ出力のみ。
+      Smtp__Host: ${SMTP_HOST:-}
+      Smtp__Port: ${SMTP_PORT:-587}
+      Smtp__User: ${SMTP_USER:-}
+      Smtp__Password: ${SMTP_PASSWORD:-}
+      Smtp__From: ${SMTP_FROM:-}
+      Smtp__FromName: ${SMTP_FROM_NAME:-タスク管理システム}
+      Smtp__UseStartTls: ${SMTP_USE_STARTTLS:-true}
+      # 招待メール内のリンクを絶対URLにする(公開URL)。未設定なら相対パスになる。
+      Invitation__AcceptUrlBase: "${APP_BASE_URL:-}/invitations/accept?token="
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
       interval: 10s
