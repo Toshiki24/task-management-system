@@ -112,7 +112,60 @@ APP_BASE_URL=https://tasks.example.com
 - SMTP 未設定のままでも、招待リンクは `docker compose ... logs api` で確認できます（§9 参照）。
 - Gmail は「アプリ パスワード」、Amazon SES は「SMTP 認証情報」を使ってください（通常のログインパスワードや AWS のアクセスキーではありません）。
 
-## 7. バックアップ / リストア
+## 7. Git 連携のセットアップ（GitHub）
+
+タスクからブランチ/PR を作成したり、push・PR マージで状態を自動遷移させる Git 連携（M4）を使うには、実際の GitHub/GitLab 接続の設定が必要です。ここでは自己ホストで最も簡単な **GitHub × PAT（個人アクセストークン）** を例に説明します。
+
+> ⚠️ **前提**: Webhook（push/PR の通知）を受けるには、サーバーが**インターネットから HTTPS で到達可能**である必要があります（`APP_BASE_URL` の公開URL）。`127.0.0.1` だけの構成では GitHub からの Webhook は届きません（公開URL かトンネルが必要）。
+
+### 7-1. 秘密情報の扱い（重要）
+
+接続情報には**トークンそのものを保存せず、「参照名（secret ref）」だけ**を持ちます。本番相当（自己ホスト）では、参照名に対応する実際の値を設定 `Git:Secrets:<参照名>`（環境変数 `Git__Secrets__<参照名>`）から解決します。**この1つの値が「GitHub API 用トークン」と「Webhook 署名シークレット」の両方に使われます**（現状の仕様）。
+
+`docker-compose.selfhost.yml` の `api` サービスに、参照名ぶんの環境変数を追加します（参照名は任意。ここでは `github-main`）:
+
+```yaml
+    environment:
+      # ...既存の設定に追記...
+      Git__Secrets__github-main: ${GIT_SECRET_GITHUB_MAIN:-}
+```
+
+`.env.selfhost` に実値（= GitHub PAT）を設定:
+
+```bash
+GIT_SECRET_GITHUB_MAIN=ghp_xxxxxxxxxxxxxxxxxxxx   # repo 権限の PAT
+```
+
+> 設定値は**起動時に読み込まれる**ため、変更したら `up -d`（再作成）で反映してください。
+
+### 7-2. GitHub 側の準備
+
+1. **PAT を発行**: GitHub → Settings → Developer settings → Personal access tokens。対象リポジトリに対し `repo`（classic）または Contents/Pull requests の read/write（fine‑grained）権限を付与。
+2. **Webhook を追加**: 対象リポジトリ → Settings → Webhooks → Add webhook。
+   - Payload URL: `https://<あなたの公開URL>/api/git/webhooks/github`
+   - Content type: `application/json`
+   - **Secret: 上記 PAT と同じ値**（本アプリは署名検証にも同じシークレットを使うため）
+   - イベント: `Pushes` と `Pull requests`（個別選択）
+
+### 7-3. アプリ側の設定
+
+1. System Admin またはワークスペース管理者でログイン → ワークスペースの **Git 設定**。
+2. **接続を作成**: プロバイダ=GitHub、認証方式=PAT、**参照名（secret ref）= `github-main`**（7-1 で設定した名前）。GitHub.com なら Base URL は空（GitHub Enterprise のみ URL を指定）。
+3. 「接続テスト」でリポジトリ一覧が取得できることを確認。
+4. **プロジェクトにリポジトリを連携**（プロジェクトの Git 設定から対象リポジトリを選択）。
+
+### 7-4. 動作確認（手動）
+
+- タスク詳細から「ブランチ作成」「PR 作成」→ 実際の GitHub リポジトリに作成されることを確認。
+- 連携ブランチへ push、または PR をマージ → Webhook が届き、タスクの状態が遷移ルールどおりに変わることを確認（`docker compose ... logs api` に Webhook 受信ログが出ます）。
+
+### 7-5. 備考
+
+- **GitLab** も同様に、認証方式=PAT/Group Token、Webhook URL=`.../api/git/webhooks/gitlab` で設定できます。
+- **GitHub App 方式**は App ID と秘密鍵の追加設定が必要で自己ホストでは手順が増えるため、まずは **PAT 方式**を推奨します。
+- 現状、1 接続につき 1 つの秘密値（API トークン＝Webhook シークレット）を共有する仕様です。別々にしたい場合は将来の拡張になります。
+
+## 8. バックアップ / リストア
 
 PostgreSQL のデータは名前付きボリューム `db_data` に保存されます。論理バックアップの例:
 
@@ -128,7 +181,7 @@ docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml exec -T d
 
 > `$POSTGRES_USER` / `$POSTGRES_DB` は `.env.selfhost` の値に読み替えてください。
 
-## 8. アップグレード
+## 9. アップグレード
 
 ```bash
 # 1) 最新コードを取得
@@ -145,7 +198,7 @@ docker image prune -f
 
 マイグレーションは EF Core により順方向にのみ適用されます。重大な変更の前はバックアップを取得してください。
 
-## 9. 停止・削除
+## 10. 停止・削除
 
 ```bash
 # 停止（データは保持）
@@ -155,7 +208,7 @@ docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml down
 docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml down -v
 ```
 
-## 10. トラブルシューティング
+## 11. トラブルシューティング
 
 - **ログインしても戻される**: HTTP で直接アクセスしている可能性があります。HTTPS（リバースプロキシ）経由でアクセスしてください（`Secure` Cookie）。
 - **api が unhealthy**: `docker compose ... logs api` を確認。`JWT_KEY` が32文字未満だと起動時に失敗します。
