@@ -115,7 +115,17 @@ builder.Services.AddSingleton<TaskManagementSystem.Api.Services.Mfa.IMfaChalleng
 builder.Services.AddScoped<TaskManagementSystem.Api.Services.Mfa.IMfaService,
     TaskManagementSystem.Api.Services.Mfa.MfaService>();
 // メール送信は M1 ではプレースホルダ(ログ出力)。SES/SMTP 実装への差し替えを想定
-builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
+// メール送信(M1 §4 / M5 §8)。SMTP(Smtp:Host)が設定されていれば実送信、無ければログ出力に留める。
+var smtpOptions = builder.Configuration.GetSection(SmtpOptions.SectionName).Get<SmtpOptions>() ?? new SmtpOptions();
+if (smtpOptions.IsConfigured)
+{
+    builder.Services.AddSingleton(smtpOptions);
+    builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+}
+else
+{
+    builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
+}
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IWorkflowStateService, WorkflowStateService>();
 builder.Services.AddScoped<ILabelService, LabelService>();
