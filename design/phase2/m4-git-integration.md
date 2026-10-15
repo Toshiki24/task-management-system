@@ -5,7 +5,7 @@ Phase 2 のマイルストーン M4 の基本設計。M1 のワークスペー�
 - 関連: [Phase 2 要件定義](../../docs/phase2/requirements.md)（§5.8 Git 連携・§7 Git 連携要件・§10） / [M1 基本設計](./m1-workspace.md) / [M2 基本設計](./m2-daily-ux.md) / [M3 基本設計](./m3-collaboration.md) / [ADR 0001 ワークスペース方式](../../docs/phase2/adr/0001-workspace-model.md)
 - 前提（M1〜M3 で確定済み）: 可視性・認可はワークスペース所属で決まる（非所属は 404）。認可集約点は `ProjectAccess.ResolveAccessAsync` / `WorkspaceAccess.ResolveWorkspaceAccessAsync`、一覧は `WhereVisibleTo` で SQL 段階から絞る。データアクセスは**生 SQL を使わず EF Core LINQ**。状態変更は `task_status_histories` に履歴を残し、`activities`（M3）にタイムラインを積む。スキーマ変更はマージ後にマイグレーション用 Lambda を手動実行。本番は API Gateway(HTTP)+Lambda、秘密情報は AWS Secrets Manager。
 
-> **ステータス: 📝 基本設計（実装はこれから）**。本書で方針を固め、M2/M3 と同じく §15 のステップを PR 単位（各 PR で UT/E2E グリーン）で実装する。外部 Git プロバイダへの実呼び出しは、テストでは**フェイクアダプタ**で置き換える（§14）。
+> **ステータス: ✅ 実装完了**。§15 のステップを PR 単位（各 PR で UT/E2E グリーン）ですべて実装・マージ済み（プロバイダ抽象化（GitHub/GitLab/オンプレ）・接続と資格情報管理・Webhook（署名検証/冪等）・identity マッピング・双方向リンク・タスク自動遷移）。外部 Git プロバイダへの実呼び出しは、テストでは**フェイクアダプタ**で置き換える（§14）。データアクセスはユーザー方針により **EF Core LINQ**（生 SQL 不使用）。
 
 ---
 

@@ -5,7 +5,7 @@ Phase 2 のマイルストーン M5 の基本設計。M1〜M4 で「チームで
 - 関連: [Phase 2 要件定義](../../docs/phase2/requirements.md)（§5.9 見える化・§5.10 管理/監査・§6 UX・§8 運用形態・§9 非機能・§10） / [M1 基本設計](./m1-workspace.md) / [M4 基本設計](./m4-git-integration.md)
 - 前提（M1〜M4 で確定済み）: 認可は 3 スコープ（System/Workspace/Project）に集約（`ProjectAccess` / `WorkspaceAccess`）、非所属は 404。データアクセスは**生 SQL を使わず EF Core LINQ**。監査は `audit_logs`、活動は `activities`、Git リンクは `task_git_links`、状態履歴は `task_status_histories`。スキーマ変更はマージ後にマイグレーション用 Lambda を手動実行。本番は AWS（API Gateway+Lambda / Amplify / RDS）、秘密は Secrets Manager。
 
-> **ステータス: 📝 基本設計（実装はこれから）**。本書で方針を固め、M2〜M4 と同じく §13 のステップを PR 単位（各 PR で UT/E2E グリーン）で実装する。SSO(SAML/OIDC) や Helm など重量級・外部依存の大きい項目は、ポートフォリオの検証可能性を踏まえ段階的に扱う（§12 に判断を明記）。
+> **ステータス: ✅ 実装完了**。本書の方針に沿って §13 のステップを PR 単位（各 PR で UT/E2E グリーン）で実装・マージした。SSO は **OIDC をフル実装**（抽象 `IOidcClient` ＋ Authorization Code Flow／state・PKCE・nonce。外部ネットワークに出る部分はフェイクで単体テストし、実接続は [自己ホスト手順書 §8](../../docs/self-hosting.md) で担保）。SAML・Helm・SCIM は対象外のまま将来拡張（§12 の判断どおり）。
 
 ---
 
