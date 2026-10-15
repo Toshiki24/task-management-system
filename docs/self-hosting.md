@@ -134,4 +134,12 @@ docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml down -v
 
 - **ログインしても戻される**: HTTP で直接アクセスしている可能性があります。HTTPS（リバースプロキシ）経由でアクセスしてください（`Secure` Cookie）。
 - **api が unhealthy**: `docker compose ... logs api` を確認。`JWT_KEY` が32文字未満だと起動時に失敗します。
+- **api 起動時に `28P01: password authentication failed for user "postgres"`**: PostgreSQL は**データディレクトリが空の初回起動時のみ** `POSTGRES_PASSWORD` を適用します。以前 `up` して作られたボリューム `db_data` が残っている状態で `.env.selfhost` のパスワードを変えても、**DB 側の実パスワードは以前のまま**のため認証に失敗します（api と db は同じ `${POSTGRES_PASSWORD}` を参照するので、食い違う原因はこの古いボリュームです）。まだ保持すべきデータが無ければ、ボリュームごと作り直して現在のパスワードで初期化します:
+
+  ```bash
+  docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml down -v
+  docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml up -d --build
+  ```
+
+  既存データを残したままパスワードだけ変えたい場合は、`down -v` せずに DB 内で `ALTER USER postgres PASSWORD '...'` を実行し、`.env.selfhost` を同じ値に合わせてください。なお、パスワードに `;`・引用符・前後の空白を含めると接続文字列の解析で別の不具合になり得ます（`openssl rand -base64 36` 由来の `+ / =` は問題ありません）。
 - **403（アクセスが拒否されました）**: `ORIGIN_VERIFY_SECRET` が api と web で一致しているか確認してください。
