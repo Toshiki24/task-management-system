@@ -26,7 +26,14 @@ public class MfaChallengeTokenService : IMfaChallengeTokenService
 
     public MfaChallengeTokenService(IConfiguration configuration, TimeProvider timeProvider)
     {
-        var secret = configuration["Mfa:Key"] ?? configuration["Jwt:Key"];
+        // Mfa:Key は未設定(null)だけでなく空文字でも Jwt:Key にフォールバックする。
+        // (Docker Compose が `Mfa__Key: ${MFA_KEY:-}` で空文字の環境変数を渡すことがあるため)
+        var secret = configuration["Mfa:Key"];
+        if (string.IsNullOrEmpty(secret))
+        {
+            secret = configuration["Jwt:Key"];
+        }
+
         if (string.IsNullOrEmpty(secret))
         {
             throw new InvalidOperationException("Mfa:Key または Jwt:Key が設定されていません。");
