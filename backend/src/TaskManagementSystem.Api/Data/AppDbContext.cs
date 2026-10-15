@@ -40,6 +40,8 @@ public class AppDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<UserMfa> UserMfas => Set<UserMfa>();
     public DbSet<MfaRecoveryCode> MfaRecoveryCodes => Set<MfaRecoveryCode>();
+    public DbSet<SsoConnection> SsoConnections => Set<SsoConnection>();
+    public DbSet<SsoAuthRequest> SsoAuthRequests => Set<SsoAuthRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -386,6 +388,49 @@ public class AppDbContext : DbContext
                 tb.HasCheckConstraint("chk_git_connections_status",
                     "status IN ('ACTIVE', 'DISABLED', 'ERROR')");
             });
+        });
+
+        modelBuilder.Entity<SsoConnection>(entity =>
+        {
+            entity.ToTable("sso_connections");
+
+            entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Protocol).HasMaxLength(20).IsRequired().HasDefaultValue(SsoProtocol.Oidc);
+            entity.Property(e => e.Issuer).HasMaxLength(300).IsRequired();
+            entity.Property(e => e.ClientId).HasMaxLength(300).IsRequired();
+            entity.Property(e => e.SecretRef).HasMaxLength(300);
+            entity.Property(e => e.Scopes).HasMaxLength(300).IsRequired().HasDefaultValue("openid email profile");
+            entity.Property(e => e.AutoProvision).HasDefaultValue(false);
+            entity.Property(e => e.ProvisionRole).HasMaxLength(20);
+            entity.Property(e => e.IsEnabled).HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.ToTable(tb =>
+            {
+                tb.HasCheckConstraint("chk_sso_connections_protocol", "protocol IN ('OIDC')");
+                tb.HasCheckConstraint("chk_sso_connections_provision_role",
+                    "provision_role IS NULL OR provision_role IN ('ADMIN', 'MEMBER', 'VIEWER')");
+            });
+        });
+
+        modelBuilder.Entity<SsoAuthRequest>(entity =>
+        {
+            entity.ToTable("sso_auth_requests");
+
+            entity.Property(e => e.StateHash).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.CodeVerifier).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Nonce).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.RedirectUri).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.StateHash).IsUnique().HasDatabaseName("uq_sso_auth_requests_state_hash");
+
+            entity.HasOne(e => e.Connection)
+                .WithMany()
+                .HasForeignKey(e => e.ConnectionId)
+                .HasConstraintName("fk_sso_auth_requests_connection")
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<RepositoryLink>(entity =>

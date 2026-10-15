@@ -2,9 +2,21 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { formatApiErrorMessage } from "@/lib/api";
+import { apiFetch, formatApiErrorMessage } from "@/lib/api";
 import { login, verifyMfa } from "@/lib/auth";
 import { getSetupStatus } from "@/lib/setup";
+
+interface SsoConnection {
+  id: number;
+  name: string;
+}
+
+const SSO_ERROR_MESSAGES: Record<string, string> = {
+  denied: "SSO ログインがキャンセルされました。",
+  auth: "SSO 認証に失敗しました。アカウントが許可されているかご確認ください。",
+  start: "SSO の開始に失敗しました。接続設定をご確認ください。",
+  unavailable: "SSO プロバイダに接続できませんでした。時間をおいて再度お試しください。",
+};
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,6 +27,23 @@ export default function LoginPage() {
   // MFA 有効ユーザーは、パスワード認証後にコード入力ステップへ進む
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [mfaCode, setMfaCode] = useState("");
+  const [ssoConnections, setSsoConnections] = useState<SsoConnection[]>([]);
+  const [ssoError, setSsoError] = useState<string | null>(null);
+
+  // 有効な SSO 接続があればログインボタンを出す
+  useEffect(() => {
+    apiFetch<SsoConnection[]>("/auth/sso/connections")
+      .then(setSsoConnections)
+      .catch(() => setSsoConnections([]));
+  }, []);
+
+  // SSO コールバックからのエラー表示(/login?sso_error=...)
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("sso_error");
+    if (code) {
+      setSsoError(SSO_ERROR_MESSAGES[code] ?? "SSO ログインに失敗しました。");
+    }
+  }, []);
 
   // 初回セットアップ(管理者未作成)の場合はセットアップ画面へ誘導する(M5 §8)
   useEffect(() => {
@@ -169,6 +198,34 @@ export default function LoginPage() {
             </p>
           )}
         </form>
+        )}
+
+        {!mfaToken && (ssoConnections.length > 0 || ssoError) && (
+          <div className="mt-6 space-y-3">
+            {ssoError && (
+              <p role="alert" className="text-sm text-red-600">
+                {ssoError}
+              </p>
+            )}
+            {ssoConnections.length > 0 && (
+              <>
+                <div className="flex items-center gap-3 text-xs text-gray-400">
+                  <span className="h-px flex-1 bg-gray-200" />
+                  または
+                  <span className="h-px flex-1 bg-gray-200" />
+                </div>
+                {ssoConnections.map((connection) => (
+                  <a
+                    key={connection.id}
+                    href={`/api/bff/auth/sso/${connection.id}/start`}
+                    className="block w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-center text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                  >
+                    {connection.name} でログイン
+                  </a>
+                ))}
+              </>
+            )}
+          </div>
         )}
       </div>
     </main>

@@ -182,6 +182,11 @@ builder.Services.AddSingleton<
     TaskManagementSystem.Api.Services.Git.SecretStoreWebhookSecretResolver>();
 // GitHub App トークン発行(M4 §15 ステップ7)。本番で実アダプタが利用する
 builder.Services.AddHttpClient();
+// SSO(OIDC)。実接続は HttpOidcClient、オーケストレーションは SsoService(M5 §7)
+builder.Services.AddHttpClient<
+    TaskManagementSystem.Api.Services.Sso.IOidcClient,
+    TaskManagementSystem.Api.Services.Sso.HttpOidcClient>();
+builder.Services.AddScoped<ISsoService, SsoService>();
 builder.Services.AddSingleton<
     TaskManagementSystem.Api.Services.Git.IGitHubAppTokenProvider,
     TaskManagementSystem.Api.Services.Git.GitHubAppTokenProvider>();
