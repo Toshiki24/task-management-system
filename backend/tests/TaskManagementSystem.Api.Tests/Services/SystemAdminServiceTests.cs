@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TaskManagementSystem.Api.Data;
+using TaskManagementSystem.Api.Dtos.System;
 using TaskManagementSystem.Api.Dtos.Workspaces;
 using TaskManagementSystem.Api.Models;
 using TaskManagementSystem.Api.Services;
@@ -179,5 +180,62 @@ public class SystemAdminServiceTests : IClassFixture<TestDatabaseFixture>
         Assert.NotNull(users);
         Assert.Contains(users!, u => u.Id == admin.Id && u.IsSystemAdmin);
         Assert.Contains(users!, u => u.Id == member.Id && !u.IsSystemAdmin);
+    }
+
+    [Fact(DisplayName = "手動ユーザー作成: メール/パスワードで作成しWSにロール付きで追加する")]
+    public async Task CreateUserAsync_CreatesUserAndMembership()
+    {
+        await using var ctx = _db.CreateContext();
+        var admin = await CreateSystemAdminAsync(ctx);
+        var ws = (await new WorkspaceService(ctx).CreateAsync(new WorkspaceRequest("手動WS", null), admin.Id)).Data!;
+        var service = new SystemAdminService(ctx);
+
+        var email = $"manual-{TestData.Unique("u")}@example.test";
+        var result = await service.CreateUserAsync(admin.Id,
+            new CreateManagedUserRequest(email, "manual-password", Name: null, ws.Id, "MEMBER"));
+
+        Assert.Equal(CreateManagedUserResult.Success, result.Result);
+        Assert.Equal(email, result.Data!.Email);
+
+        await using var assert = _db.CreateContext();
+        var created = await assert.Users.SingleAsync(u => u.Email == email);
+        Assert.False(created.IsSystemAdmin);
+        Assert.StartsWith("$2", created.PasswordHash); // BCrypt でハッシュ化
+        Assert.True(BCrypt.Net.BCrypt.Verify("manual-password", created.PasswordHash));
+        Assert.Equal(email.Split('@')[0], created.Name); // 名前未指定ならメール名
+        Assert.True(await assert.WorkspaceMembers.AnyAsync(
+            m => m.WorkspaceId == ws.Id && m.UserId == created.Id && m.Role == "MEMBER"));
+    }
+
+    [Fact(DisplayName = "手動ユーザー作成: System Admin 以外は Forbidden")]
+    public async Task CreateUserAsync_ForbiddenForNonAdmin()
+    {
+        await using var ctx = _db.CreateContext();
+        var user = await TestData.CreateUserAsync(ctx);
+        var service = new SystemAdminService(ctx);
+
+        // System Admin 判定が最初に走るため、ワークスペースの有無に関わらず Forbidden
+        var result = await service.CreateUserAsync(user.Id,
+            new CreateManagedUserRequest("x@example.test", "password12", null, TestData.NonExistentId, "MEMBER"));
+
+        Assert.Equal(CreateManagedUserResult.Forbidden, result.Result);
+    }
+
+    [Fact(DisplayName = "手動ユーザー作成: 既存メールは EmailTaken、存在しないWSは WorkspaceNotFound")]
+    public async Task CreateUserAsync_RejectsDuplicateAndMissingWorkspace()
+    {
+        await using var ctx = _db.CreateContext();
+        var admin = await CreateSystemAdminAsync(ctx);
+        var existing = await TestData.CreateUserAsync(ctx);
+        var ws = (await new WorkspaceService(ctx).CreateAsync(new WorkspaceRequest("WS", null), admin.Id)).Data!;
+        var service = new SystemAdminService(ctx);
+
+        var dup = await service.CreateUserAsync(admin.Id,
+            new CreateManagedUserRequest(existing.Email, "password12", null, ws.Id, "MEMBER"));
+        Assert.Equal(CreateManagedUserResult.EmailTaken, dup.Result);
+
+        var noWs = await service.CreateUserAsync(admin.Id,
+            new CreateManagedUserRequest("new@example.test", "password12", null, TestData.NonExistentId, "MEMBER"));
+        Assert.Equal(CreateManagedUserResult.WorkspaceNotFound, noWs.Result);
     }
 }

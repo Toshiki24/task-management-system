@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AdminAuditLogs } from "@/components/admin/AdminAuditLogs";
+import { AdminCreateUser } from "@/components/admin/AdminCreateUser";
 import { AdminUsers } from "@/components/admin/AdminUsers";
 import { AdminWorkspaces } from "@/components/admin/AdminWorkspaces";
 import { ErrorMessage } from "@/components/common/ErrorMessage";
@@ -25,6 +26,7 @@ export default function AdminPage() {
   >({ status: "checking" });
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [usersRefresh, setUsersRefresh] = useState(0);
 
   useEffect(() => {
     fetchCurrentUser()
@@ -71,7 +73,8 @@ export default function AdminPage() {
       </section>
 
       <AdminWorkspaces />
-      <AdminUsers currentUserId={authState.userId} />
+      <AdminCreateUser onCreated={() => setUsersRefresh((k) => k + 1)} />
+      <AdminUsers currentUserId={authState.userId} refreshKey={usersRefresh} />
       <AdminAuditLogs />
     </div>
   );

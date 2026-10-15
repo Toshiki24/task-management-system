@@ -19,6 +19,16 @@ public enum RevokeSystemAdminResult
     LastAdmin,
 }
 
+public enum CreateManagedUserResult
+{
+    Success,
+    Forbidden,
+    EmailTaken,
+    WorkspaceNotFound,
+}
+
+public record CreateManagedUserOutcome(CreateManagedUserResult Result, SystemAdminDto? Data = null);
+
 /// <summary>監査ログ閲覧のフィルタ・ページング条件(すべて任意)。</summary>
 public record AuditLogQuery(
     long? ActorUserId = null,
@@ -50,4 +60,10 @@ public interface ISystemAdminService
 
     /// <summary>全ユーザー一覧(作成日の新しい順)。System Admin でなければ null(= 403)。</summary>
     Task<List<AdminUserDto>?> GetUsersAsync(long currentUserId);
+
+    /// <summary>
+    /// System Admin が手動でユーザーを作成し、指定ワークスペースにロール付きで追加する
+    /// (メール招待が使えない運用向け)。System Admin でなければ Forbidden。
+    /// </summary>
+    Task<CreateManagedUserOutcome> CreateUserAsync(long currentUserId, CreateManagedUserRequest request);
 }
