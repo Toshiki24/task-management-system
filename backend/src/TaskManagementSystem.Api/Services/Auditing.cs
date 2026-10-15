@@ -31,6 +31,11 @@ public static class AuditActions
     public const string RepositoryLinkDeleted = "project.repository_link.deleted";
     public const string GitIdentityCreated = "workspace.git_identity.created";
     public const string GitIdentityDeleted = "workspace.git_identity.deleted";
+    public const string SsoConnectionCreated = "sso.connection.created";
+    public const string SsoConnectionUpdated = "sso.connection.updated";
+    public const string SsoConnectionDeleted = "sso.connection.deleted";
+    public const string SsoLogin = "auth.sso.login";
+    public const string SsoUserProvisioned = "auth.sso.provisioned";
 }
 
 /// <summary>監査ログの対象種別。</summary>
@@ -45,6 +50,7 @@ public static class AuditTargets
     public const string GitConnection = "git_connection";
     public const string RepositoryLink = "repository_link";
     public const string GitIdentity = "git_identity";
+    public const string SsoConnection = "sso_connection";
 }
 
 /// <summary>

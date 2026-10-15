@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AdminAuditLogs } from "@/components/admin/AdminAuditLogs";
 import { AdminCreateUser } from "@/components/admin/AdminCreateUser";
+import { AdminSsoConnections } from "@/components/admin/AdminSsoConnections";
 import { AdminUsers } from "@/components/admin/AdminUsers";
 import { AdminWorkspaces } from "@/components/admin/AdminWorkspaces";
 import { ErrorMessage } from "@/components/common/ErrorMessage";
@@ -75,6 +76,7 @@ export default function AdminPage() {
       <AdminWorkspaces />
       <AdminCreateUser onCreated={() => setUsersRefresh((k) => k + 1)} />
       <AdminUsers currentUserId={authState.userId} refreshKey={usersRefresh} />
+      <AdminSsoConnections />
       <AdminAuditLogs />
     </div>
   );

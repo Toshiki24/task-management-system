@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaskManagementSystem.Api.Dtos.Auth;
 using TaskManagementSystem.Api.Dtos.Common;
+using TaskManagementSystem.Api.Dtos.Sso;
 using TaskManagementSystem.Api.Services;
 
 namespace TaskManagementSystem.Api.Controllers;
@@ -12,10 +13,12 @@ namespace TaskManagementSystem.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly ISsoService _ssoService;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, ISsoService ssoService)
     {
         _authService = authService;
+        _ssoService = ssoService;
     }
 
     /// <summary>BFFが実クライアントIPを転送するヘッダー。IP単位のログイン制限に使う(security-review-2.md SEC2-03)</summary>
@@ -84,5 +87,50 @@ public class AuthController : ControllerBase
     {
         await _authService.LogoutAsync(request);
         return NoContent();
+    }
+
+    /// <summary>ログイン画面に出す有効な SSO 接続の一覧(公開)。</summary>
+    [HttpGet("sso/connections")]
+    public async Task<ActionResult<List<PublicSsoConnectionDto>>> GetSsoConnections() =>
+        Ok(await _ssoService.GetEnabledConnectionsAsync());
+
+    /// <summary>SSO 認可を開始し、IdP への遷移先 URL を返す(BFF がブラウザをリダイレクトする)。</summary>
+    [HttpGet("sso/{id}/start")]
+    public async Task<ActionResult<SsoStartDto>> StartSso(long id, [FromQuery] string redirectUri)
+    {
+        if (string.IsNullOrWhiteSpace(redirectUri))
+        {
+            return BadRequest(new ErrorResponse("redirectUri は必須です。"));
+        }
+
+        var outcome = await _ssoService.StartAsync(id, redirectUri);
+        return outcome.Result switch
+        {
+            SsoStartResult.NotFound =>
+                NotFound(new ErrorResponse("指定された SSO 接続が存在しないか、無効です。")),
+            SsoStartResult.Error =>
+                StatusCode(StatusCodes.Status502BadGateway,
+                    new ErrorResponse("SSO プロバイダに接続できませんでした。")),
+            _ => Ok(new SsoStartDto(outcome.AuthorizationUrl!)),
+        };
+    }
+
+    /// <summary>SSO コールバック。認可コードを検証し、通常ログインと同じトークンを返す。</summary>
+    [HttpPost("sso/callback")]
+    public async Task<ActionResult<LoginResponse>> SsoCallback(SsoCallbackRequest request)
+    {
+        var outcome = await _ssoService.CompleteAsync(request);
+        return outcome.Result switch
+        {
+            SsoCallbackResult.InvalidState =>
+                Unauthorized(new ErrorResponse("SSO セッションが無効か、期限切れです。もう一度お試しください。")),
+            SsoCallbackResult.NotProvisioned =>
+                StatusCode(StatusCodes.Status403Forbidden,
+                    new ErrorResponse("このアカウントはログインを許可されていません。管理者にお問い合わせください。")),
+            SsoCallbackResult.Error =>
+                StatusCode(StatusCodes.Status502BadGateway,
+                    new ErrorResponse("SSO 認証の検証に失敗しました。")),
+            _ => Ok(outcome.Response),
+        };
     }
 }

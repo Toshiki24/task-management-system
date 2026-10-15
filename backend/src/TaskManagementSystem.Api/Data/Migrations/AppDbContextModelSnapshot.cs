@@ -926,6 +926,162 @@ namespace TaskManagementSystem.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TaskManagementSystem.Api.Models.SsoAuthRequest", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CodeVerifier")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("code_verifier");
+
+                    b.Property<long>("ConnectionId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("connection_id");
+
+                    b.Property<DateTime?>("ConsumedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("consumed_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("Nonce")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("nonce");
+
+                    b.Property<string>("RedirectUri")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("redirect_uri");
+
+                    b.Property<string>("StateHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("state_hash");
+
+                    b.HasKey("Id")
+                        .HasName("pk_sso_auth_requests");
+
+                    b.HasIndex("ConnectionId")
+                        .HasDatabaseName("ix_sso_auth_requests_connection_id");
+
+                    b.HasIndex("StateHash")
+                        .IsUnique()
+                        .HasDatabaseName("uq_sso_auth_requests_state_hash");
+
+                    b.ToTable("sso_auth_requests", (string)null);
+                });
+
+            modelBuilder.Entity("TaskManagementSystem.Api.Models.SsoConnection", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<bool>("AutoProvision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("auto_provision");
+
+                    b.Property<string>("ClientId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_enabled");
+
+                    b.Property<string>("Issuer")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("issuer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Protocol")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("OIDC")
+                        .HasColumnName("protocol");
+
+                    b.Property<string>("ProvisionRole")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("provision_role");
+
+                    b.Property<long?>("ProvisionWorkspaceId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("provision_workspace_id");
+
+                    b.Property<string>("Scopes")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasDefaultValue("openid email profile")
+                        .HasColumnName("scopes");
+
+                    b.Property<string>("SecretRef")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("secret_ref");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id")
+                        .HasName("pk_sso_connections");
+
+                    b.ToTable("sso_connections", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_sso_connections_protocol", "protocol IN ('OIDC')");
+
+                            t.HasCheckConstraint("chk_sso_connections_provision_role", "provision_role IS NULL OR provision_role IN ('ADMIN', 'MEMBER', 'VIEWER')");
+                        });
+                });
+
             modelBuilder.Entity("TaskManagementSystem.Api.Models.TaskChecklistItem", b =>
                 {
                     b.Property<long>("Id")
@@ -2025,6 +2181,18 @@ namespace TaskManagementSystem.Api.Data.Migrations
                     b.Navigation("OwnerUser");
 
                     b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("TaskManagementSystem.Api.Models.SsoAuthRequest", b =>
+                {
+                    b.HasOne("TaskManagementSystem.Api.Models.SsoConnection", "Connection")
+                        .WithMany()
+                        .HasForeignKey("ConnectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_sso_auth_requests_connection");
+
+                    b.Navigation("Connection");
                 });
 
             modelBuilder.Entity("TaskManagementSystem.Api.Models.TaskChecklistItem", b =>

@@ -118,7 +118,7 @@ APP_BASE_URL=https://tasks.example.com
 
 - **`APP_BASE_URL` を設定**すると、招待メール内のリンクが `https://＜公開URL＞/invitations/accept?token=...` の絶対URLになります（未設定だと相対パス）。
 - 送信に失敗した場合は api のログにエラーが出ます（本文＝招待トークンはログに出しません）。
-- SMTP 未設定のままでも、招待リンクは `docker compose ... logs api` で確認できます（§9 参照）。
+- SMTP 未設定のままでも、招待リンクは `docker compose ... logs api` で確認できます（§5 参照）。
 - Gmail は「アプリ パスワード」、Amazon SES は「SMTP 認証情報」を使ってください（通常のログインパスワードや AWS のアクセスキーではありません）。
 
 ## 7. Git 連携のセットアップ（GitHub）
@@ -174,7 +174,50 @@ GIT_SECRET_GITHUB_MAIN=ghp_xxxxxxxxxxxxxxxxxxxx   # repo 権限の PAT
 - **GitHub App 方式**は App ID と秘密鍵の追加設定が必要で自己ホストでは手順が増えるため、まずは **PAT 方式**を推奨します。
 - 現状、1 接続につき 1 つの秘密値（API トークン＝Webhook シークレット）を共有する仕様です。別々にしたい場合は将来の拡張になります。
 
-## 8. バックアップ / リストア
+## 8. SSO（OIDC）ログインのセットアップ
+
+外部 IdP（Google Workspace・Microsoft Entra ID・Okta など、OpenID Connect 対応プロバイダ）での SSO ログインに対応しています。設定は **System Admin が管理コンソールから**行います（コードやサーバー再起動は不要）。
+
+### 8-1. IdP 側の準備
+
+1. IdP で「Web アプリケーション（Authorization Code Flow）」のクライアントを作成します。
+2. **リダイレクト URI** に、この BFF のコールバック URL を登録します:
+
+   ```
+   https://＜公開URL＞/api/bff/auth/sso/callback
+   ```
+
+3. 発行された **Issuer URL**・**クライアント ID**・**クライアントシークレット**を控えます。
+   - Issuer は `.well-known/openid-configuration` を提供する URL です（例: Google は `https://accounts.google.com`）。
+
+### 8-2. クライアントシークレットの受け渡し
+
+クライアントシークレットは **DB に平文で保存しません**。シークレットストア（`ISecretStore`）の参照名で指定し、実際の値は環境変数で渡します（Git 連携と同じ仕組み）。
+
+`.env.selfhost` の例（参照名を `google-oidc` とする場合）:
+
+```bash
+Git__Secrets__google-oidc=＜IdP発行のクライアントシークレット＞
+```
+
+> 現状、シークレット参照は Git 連携と共通のストア（`Git__Secrets__＜参照名＞`）を使います。参照名は接続ごとに一意にしてください。public client（シークレット無し）の場合は参照名を空のままにできます。
+
+### 8-3. 管理コンソールで接続を追加
+
+1. System Admin で **「管理コンソール」→「SSO（OIDC）接続」** を開きます。
+2. 名称・Issuer URL・クライアント ID・シークレット参照名（上の `google-oidc` など）・スコープ（既定 `openid email profile`）を入力して追加します。
+3. **未登録メールの自動作成**:
+   - オフ（既定）: 既に登録済み／招待済みのユーザーだけが SSO でログインできます（未登録メールは拒否）。
+   - オン: IdP のメールに一致するユーザーが無ければ自動作成し、指定したワークスペースにロール付きで追加します。
+
+### 8-4. ログイン
+
+有効な接続があると、ログイン画面に「＜名称＞ でログイン」ボタンが表示されます。クリックすると IdP へ遷移し、認証後にアプリへ戻ってログインが完了します（既存のセッション＝暗号化 Cookie に合流します）。
+
+- メールが未検証（`email_verified=false`）のアカウントはログインを許可しません。
+- うまくいかない場合は api のログ（§5）に検証失敗の理由が出ます（トークンそのものは出しません）。
+
+## 9. バックアップ / リストア
 
 PostgreSQL のデータは名前付きボリューム `db_data` に保存されます。論理バックアップの例:
 
@@ -190,7 +233,7 @@ docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml exec -T d
 
 > `$POSTGRES_USER` / `$POSTGRES_DB` は `.env.selfhost` の値に読み替えてください。
 
-## 9. アップグレード
+## 10. アップグレード
 
 ```bash
 # 1) 最新コードを取得
@@ -207,7 +250,7 @@ docker image prune -f
 
 マイグレーションは EF Core により順方向にのみ適用されます。重大な変更の前はバックアップを取得してください。
 
-## 10. 停止・削除
+## 11. 停止・削除
 
 ```bash
 # 停止（データは保持）
@@ -217,7 +260,7 @@ docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml down
 docker compose --env-file .env.selfhost -f docker-compose.selfhost.yml down -v
 ```
 
-## 11. トラブルシューティング
+## 12. トラブルシューティング
 
 - **ログインしても戻される**: HTTP で直接アクセスしている可能性があります。HTTPS（リバースプロキシ）経由でアクセスしてください（`Secure` Cookie）。
 - **api が unhealthy**: `docker compose ... logs api` を確認。`JWT_KEY` が32文字未満だと起動時に失敗します。
