@@ -9,6 +9,14 @@ export const PASSWORD = "Password123!";
 /** テスト用DBでは採番されない大きさのID(存在しないリソースの指定に使う) */
 export const NON_EXISTENT_ID = 999_999_999;
 
+/**
+ * createTask の既定期限。固定日付にすると時間の経過で期限超過になり、
+ * overdue を数えるテスト(metrics)が日付依存で落ちるため、常に未来(実行日+1年)を使う。
+ */
+const DEFAULT_TASK_DUE_DATE = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+  .toISOString()
+  .slice(0, 10);
+
 export interface TestUser {
   id: number;
   name: string;
@@ -239,7 +247,7 @@ export class TestDataFactory {
         description: "E2Eテスト用タスク",
         status: "TODO",
         priority: "MEDIUM",
-        dueDate: "2026-10-31",
+        dueDate: DEFAULT_TASK_DUE_DATE,
         ...body,
       },
     });
